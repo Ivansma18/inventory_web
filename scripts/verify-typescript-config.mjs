@@ -10,11 +10,7 @@ const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const tsconfigPath = join(projectRoot, "tsconfig.json");
 const configFile = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
 
-assert.equal(
-  configFile.error,
-  undefined,
-  "Root tsconfig.json must exist and be valid JSON.",
-);
+assert.equal(configFile.error, undefined, "Root tsconfig.json must exist and be valid JSON.");
 
 const parsedConfig = ts.parseJsonConfigFileContent(
   configFile.config,
@@ -58,9 +54,9 @@ try {
       'import type { appTarget } from "@/app/target";',
       'import type { featuresTarget } from "@/features/target";',
       'import type { sharedTarget } from "@/shared/target";',
-      "const app: appTarget = { area: \"app\" };",
-      "const feature: featuresTarget = { area: \"features\" };",
-      "const shared: sharedTarget = { area: \"shared\" };",
+      'const app: appTarget = { area: "app" };',
+      'const feature: featuresTarget = { area: "features" };',
+      'const shared: sharedTarget = { area: "shared" };',
       "void [app, feature, shared];",
       "",
     ].join("\n"),
@@ -93,7 +89,7 @@ try {
     invalidFixture,
     [
       'import type { sharedTarget } from "@/shared/target";',
-      'const mismatch: string = 42;',
+      "const mismatch: string = 42;",
       "function missingParameterType(value) { return value; }",
       'const alias: sharedTarget = { area: "wrong" };',
       "void [mismatch, missingParameterType, alias];",
@@ -103,9 +99,7 @@ try {
 
   const invalidProgram = ts.createProgram([invalidFixture], fixtureOptions);
   const invalidDiagnostics = ts.getPreEmitDiagnostics(invalidProgram);
-  const invalidDiagnosticCodes = new Set(
-    invalidDiagnostics.map((diagnostic) => diagnostic.code),
-  );
+  const invalidDiagnosticCodes = new Set(invalidDiagnostics.map((diagnostic) => diagnostic.code));
 
   assert.ok(
     invalidDiagnosticCodes.has(2322),

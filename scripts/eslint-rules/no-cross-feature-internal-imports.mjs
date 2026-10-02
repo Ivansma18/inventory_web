@@ -4,16 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const featuresRoot = resolve(projectRoot, "src/features");
-const supportedExtensions = new Set([
-  ".cjs",
-  ".cts",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".mts",
-  ".ts",
-  ".tsx",
-]);
+const supportedExtensions = new Set([".cjs", ".cts", ".js", ".jsx", ".mjs", ".mts", ".ts", ".tsx"]);
 
 const getFeature = (filePath) => {
   const relativePath = path.relative(featuresRoot, resolve(filePath));
@@ -112,8 +103,7 @@ export default {
   meta: {
     type: "problem",
     docs: {
-      description:
-        "Require cross-feature imports to use the target feature's public entry point.",
+      description: "Require cross-feature imports to use the target feature's public entry point.",
     },
     schema: [],
     messages: {

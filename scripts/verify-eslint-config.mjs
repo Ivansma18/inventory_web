@@ -8,20 +8,18 @@ const eslint = new ESLint({ cwd: projectRoot });
 const invalidFile = join(projectRoot, "src/features/eslint-contract-invalid.ts");
 const validFile = join(projectRoot, "src/features/eslint-contract-valid.ts");
 
-const [invalidResult] = await eslint.lintText(
-  "const unusedValue: number = 1;\n",
-  { filePath: invalidFile },
-);
+const [invalidResult] = await eslint.lintText("const unusedValue: number = 1;\n", {
+  filePath: invalidFile,
+});
 
 assert.ok(
   invalidResult.errorCount > 0,
   "ESLint must report an error for the invalid TypeScript fixture.",
 );
 
-const [validResult] = await eslint.lintText(
-  "export const lintContractValue: number = 1;\n",
-  { filePath: validFile },
-);
+const [validResult] = await eslint.lintText("export const lintContractValue: number = 1;\n", {
+  filePath: validFile,
+});
 
 assert.equal(
   validResult.errorCount,
@@ -44,9 +42,7 @@ const [invalidReactResult] = await eslint.lintText(
 );
 
 assert.ok(
-  invalidReactResult.messages.some(
-    (message) => message.ruleId === "react-hooks/rules-of-hooks",
-  ),
+  invalidReactResult.messages.some((message) => message.ruleId === "react-hooks/rules-of-hooks"),
   "React Hooks rules must reject a hook called conditionally.",
 );
 
@@ -82,10 +78,7 @@ const hasRestrictedImport = (result) =>
 
 const assertImportRejected = async (label, relativePath, source) => {
   const result = await lintImportFixture(relativePath, source);
-  assert.ok(
-    hasRestrictedImport(result),
-    `ESLint must reject ${label} in ${relativePath}.`,
-  );
+  assert.ok(hasRestrictedImport(result), `ESLint must reject ${label} in ${relativePath}.`);
 };
 
 const assertImportAllowed = async (label, relativePath, source) => {
@@ -102,43 +95,21 @@ const assertImportAllowed = async (label, relativePath, source) => {
 const featureFile = "src/features/products/api/product-api.ts";
 const disallowedImports = [
   ["PrimeReact root import", 'import * as PrimeReact from "primereact";'],
-  [
-    "PrimeReact subpath import",
-    'import * as PrimeButton from "primereact/button";',
-  ],
-  [
-    "PrimeReact type-only import",
-    'import type { ButtonProps } from "primereact/button";',
-  ],
-  [
-    "PrimeReact CSS import",
-    'import "primereact/resources/primereact.min.css";',
-  ],
+  ["PrimeReact subpath import", 'import * as PrimeButton from "primereact/button";'],
+  ["PrimeReact type-only import", 'import type { ButtonProps } from "primereact/button";'],
+  ["PrimeReact CSS import", 'import "primereact/resources/primereact.min.css";'],
   ["PrimeIcons root import", 'import * as PrimeIcons from "primeicons";'],
-  [
-    "PrimeIcons subpath import",
-    'import "primeicons/primeicons.css";',
-  ],
+  ["PrimeIcons subpath import", 'import "primeicons/primeicons.css";'],
   ["Better Auth root import", 'import * as BetterAuth from "better-auth";'],
-  [
-    "Better Auth subpath import",
-    'import * as BetterAuthReact from "better-auth/react";',
-  ],
-  [
-    "Better Auth type-only import",
-    'import type { BetterAuthOptions } from "better-auth";',
-  ],
+  ["Better Auth subpath import", 'import * as BetterAuthReact from "better-auth/react";'],
+  ["Better Auth type-only import", 'import type { BetterAuthOptions } from "better-auth";'],
   ["Axios root import", 'import * as Axios from "axios";'],
   ["Axios subpath import", 'import * as AxiosAdapter from "axios/lib/adapters/http.js";'],
   ["Axios type-only import", 'import type { AxiosInstance } from "axios";'],
 ];
 
 for (const [label, statement] of disallowedImports) {
-  await assertImportRejected(
-    label,
-    featureFile,
-    `${statement}\nexport {};\n`,
-  );
+  await assertImportRejected(label, featureFile, `${statement}\nexport {};\n`);
 }
 
 await assertImportAllowed(
@@ -183,11 +154,9 @@ await assertImportAllowed(
 await assertImportAllowed(
   "the public Auth feature API from another feature",
   featureFile,
-  [
-    'import { useAuth } from "@/features/auth";',
-    "export const usePublicAuth = useAuth;",
-    "",
-  ].join("\n"),
+  ['import { useAuth } from "@/features/auth";', "export const usePublicAuth = useAuth;", ""].join(
+    "\n",
+  ),
 );
 
 await assertImportRejected(
@@ -208,8 +177,7 @@ await assertImportRejected(
   'import * as BetterAuth from "better-auth/react";\nexport const leakedAuth = BetterAuth;\n',
 );
 
-const featureBoundaryRuleId =
-  "inventory-architecture/no-cross-feature-internal-imports";
+const featureBoundaryRuleId = "inventory-architecture/no-cross-feature-internal-imports";
 const assertFeatureImportRejected = async (label, relativePath, source) => {
   const result = await lintImportFixture(relativePath, source);
   assert.ok(
@@ -270,31 +238,23 @@ await assertFeatureImportRejected(
 await assertFeatureImportAllowed(
   "another feature's public alias entry point",
   productComponent,
-  [
-    'import { useAuth } from "@/features/auth";',
-    "export const productAuth = useAuth;",
-    "",
-  ].join("\n"),
+  ['import { useAuth } from "@/features/auth";', "export const productAuth = useAuth;", ""].join(
+    "\n",
+  ),
 );
 
 await assertFeatureImportAllowed(
   "another feature's public entry point by relative path",
   productComponent,
-  [
-    'import { useAuth } from "../../auth";',
-    "export const productAuth = useAuth;",
-    "",
-  ].join("\n"),
+  ['import { useAuth } from "../../auth";', "export const productAuth = useAuth;", ""].join("\n"),
 );
 
 await assertFeatureImportAllowed(
   "another feature's explicit public index by relative path",
   productComponent,
-  [
-    'import { useAuth } from "../../auth/index";',
-    "export const productAuth = useAuth;",
-    "",
-  ].join("\n"),
+  ['import { useAuth } from "../../auth/index";', "export const productAuth = useAuth;", ""].join(
+    "\n",
+  ),
 );
 
 await assertFeatureImportAllowed(

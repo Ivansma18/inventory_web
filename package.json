@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit && node scripts/verify-typescript-config.mjs",
     "test": "vitest --watch",
     "test:run": "vitest run",
-    "lint": "eslint . && node scripts/verify-eslint-config.mjs"
+    "lint": "eslint . && node scripts/verify-eslint-config.mjs",
+    "format": "prettier --write \"src/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"tests/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"scripts/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \".prettierrc.json\"",
+    "format:check": "prettier --check \"src/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"tests/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"scripts/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \".prettierrc.json\" && node scripts/verify-prettier-config.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "5.9.1",

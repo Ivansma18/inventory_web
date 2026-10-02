@@ -18,11 +18,7 @@ describe("MSW test server isolation", () => {
   });
 
   it("uses a runtime override and resets it before the next test", async () => {
-    server.use(
-      http.get(healthUrl, () =>
-        HttpResponse.json({ source: "runtime-override" }),
-      ),
-    );
+    server.use(http.get(healthUrl, () => HttpResponse.json({ source: "runtime-override" })));
 
     const response = await fetch(healthUrl);
 
@@ -40,8 +36,8 @@ describe("MSW test server isolation", () => {
   it("rejects requests without a matching handler", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await expect(
-      fetch("https://inventory.test/api/unhandled"),
-    ).rejects.toThrow(/Cannot bypass a request/);
+    await expect(fetch("https://inventory.test/api/unhandled")).rejects.toThrow(
+      /Cannot bypass a request/,
+    );
   });
 });

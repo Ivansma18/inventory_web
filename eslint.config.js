@@ -168,28 +168,19 @@ export default [
   {
     files: ["src/shared/ui/**/*.{js,jsx,mjs,ts,tsx}"],
     rules: {
-      "no-restricted-imports": importBoundaryRule(
-        restrictedImports.auth,
-        restrictedImports.http,
-      ),
+      "no-restricted-imports": importBoundaryRule(restrictedImports.auth, restrictedImports.http),
     },
   },
   {
     files: ["src/features/auth/**/*.{js,jsx,mjs,ts,tsx}"],
     rules: {
-      "no-restricted-imports": importBoundaryRule(
-        restrictedImports.ui,
-        restrictedImports.http,
-      ),
+      "no-restricted-imports": importBoundaryRule(restrictedImports.ui, restrictedImports.http),
     },
   },
   {
     files: ["src/shared/api/http-client.ts"],
     rules: {
-      "no-restricted-imports": importBoundaryRule(
-        restrictedImports.ui,
-        restrictedImports.auth,
-      ),
+      "no-restricted-imports": importBoundaryRule(restrictedImports.ui, restrictedImports.auth),
     },
   },
   {

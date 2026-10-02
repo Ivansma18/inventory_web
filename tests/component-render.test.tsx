@@ -22,9 +22,7 @@ describe("React component test environment", () => {
 
     render(<InteractionFixture />);
 
-    expect(
-      screen.getByRole("heading", { name: "Component test harness" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Component test harness" })).toBeInTheDocument();
 
     const button = screen.getByRole("button", { name: "Clicked 0" });
     await user.click(button);
