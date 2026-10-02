@@ -208,6 +208,115 @@ await assertImportRejected(
   'import * as BetterAuth from "better-auth/react";\nexport const leakedAuth = BetterAuth;\n',
 );
 
+const featureBoundaryRuleId =
+  "inventory-architecture/no-cross-feature-internal-imports";
+const assertFeatureImportRejected = async (label, relativePath, source) => {
+  const result = await lintImportFixture(relativePath, source);
+  assert.ok(
+    result.messages.some((message) => message.ruleId === featureBoundaryRuleId),
+    `ESLint must reject ${label} in ${relativePath}.`,
+  );
+};
+
+const assertFeatureImportAllowed = async (label, relativePath, source) => {
+  const result = await lintImportFixture(relativePath, source);
+  assert.equal(
+    result.errorCount,
+    0,
+    `ESLint must allow ${label} in ${relativePath}.\n${result.messages
+      .map((message) => `${message.ruleId}: ${message.message}`)
+      .join("\n")}`,
+  );
+};
+
+const productComponent = "src/features/products/components/product-table.tsx";
+
+await assertFeatureImportRejected(
+  "an aliased deep import into another feature",
+  productComponent,
+  [
+    'import { authClient } from "@/features/auth/api/auth-client";',
+    "export const productAuthClient = authClient;",
+    "",
+  ].join("\n"),
+);
+
+await assertFeatureImportRejected(
+  "a relative deep import into another feature",
+  productComponent,
+  [
+    'import { authClient } from "../../auth/api/auth-client";',
+    "export const productAuthClient = authClient;",
+    "",
+  ].join("\n"),
+);
+
+await assertFeatureImportRejected(
+  "a type-only aliased deep import into another feature",
+  productComponent,
+  [
+    'import type { AuthClient } from "@/features/auth/api/auth-client";',
+    "export type ProductAuthClient = AuthClient;",
+    "",
+  ].join("\n"),
+);
+
+await assertFeatureImportRejected(
+  "a re-export from another feature's private module",
+  productComponent,
+  'export { authClient } from "../../auth/api/auth-client";\n',
+);
+
+await assertFeatureImportAllowed(
+  "another feature's public alias entry point",
+  productComponent,
+  [
+    'import { useAuth } from "@/features/auth";',
+    "export const productAuth = useAuth;",
+    "",
+  ].join("\n"),
+);
+
+await assertFeatureImportAllowed(
+  "another feature's public entry point by relative path",
+  productComponent,
+  [
+    'import { useAuth } from "../../auth";',
+    "export const productAuth = useAuth;",
+    "",
+  ].join("\n"),
+);
+
+await assertFeatureImportAllowed(
+  "another feature's explicit public index by relative path",
+  productComponent,
+  [
+    'import { useAuth } from "../../auth/index";',
+    "export const productAuth = useAuth;",
+    "",
+  ].join("\n"),
+);
+
+await assertFeatureImportAllowed(
+  "an internal relative import in the same feature",
+  productComponent,
+  [
+    'import { formatProduct } from "../utils/format-product";',
+    "export const formatRow = formatProduct;",
+    "",
+  ].join("\n"),
+);
+
+await assertFeatureImportAllowed(
+  "an internal aliased import in the same feature",
+  productComponent,
+  [
+    'import { productQuery } from "@/features/products/api/product-query";',
+    "export const useProductQuery = productQuery;",
+    "",
+  ].join("\n"),
+);
+
 console.log(
   "ESLint config verified: invalid TypeScript/React and architectural imports rejected; valid controls and boundary imports passed.",
 );

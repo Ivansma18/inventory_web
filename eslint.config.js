@@ -3,6 +3,13 @@ import eslintConfigPrettier from "eslint-config-prettier/flat";
 import reactHooks from "eslint-plugin-react-hooks";
 import { reactRefresh } from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
+import noCrossFeatureInternalImports from "./scripts/eslint-rules/no-cross-feature-internal-imports.mjs";
+
+const inventoryArchitecturePlugin = {
+  rules: {
+    "no-cross-feature-internal-imports": noCrossFeatureInternalImports,
+  },
+};
 
 const browserGlobals = {
   AbortController: "readonly",
@@ -146,12 +153,16 @@ export default [
   },
   {
     files: ["src/**/*.{js,jsx,mjs,ts,tsx}"],
+    plugins: {
+      "inventory-architecture": inventoryArchitecturePlugin,
+    },
     rules: {
       "no-restricted-imports": importBoundaryRule(
         restrictedImports.ui,
         restrictedImports.auth,
         restrictedImports.http,
       ),
+      "inventory-architecture/no-cross-feature-internal-imports": "error",
     },
   },
   {

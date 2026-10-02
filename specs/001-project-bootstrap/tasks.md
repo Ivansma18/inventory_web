@@ -36,8 +36,9 @@ Cada tarea de comportamiento escribe o actualiza primero su prueba de aceptació
       Hecho cuando: pruebas programáticas detectan imports raíz, subpaths, tipos y CSS no autorizados de PrimeReact/PrimeIcons, Better Auth y Axios; los imports permitidos dentro de sus fronteras pasan.
       Evidencia: `eslint.config.js` prohíbe PrimeReact/PrimeIcons fuera de `src/shared/ui`, Better Auth fuera de `src/features/auth` y Axios fuera de `src/shared/api/http-client.ts`, con reglas conservadas para las demás dependencias dentro de cada excepción. `scripts/verify-eslint-config.mjs` comprueba imports raíz, subpaths, tipos y CSS prohibidos, además de imports permitidos en cada frontera y la API pública de Auth desde otra feature. `pnpm lint`, `pnpm typecheck` y `pnpm test:run` pasaron (2 archivos, 5 pruebas).
 
-- [ ] T8. Automatizar la frontera de APIs públicas entre features para imports por alias y relativos. (RF-27)
+- [x] T8. Automatizar la frontera de APIs públicas entre features para imports por alias y relativos. (RF-27)
       Hecho cuando: fixtures virtuales rechazan imports externos a internos de otra feature por ambas formas de ruta y aceptan su API pública e imports internos de la propia feature.
+      Evidencia: la regla local `inventory-architecture/no-cross-feature-internal-imports` (`scripts/eslint-rules/no-cross-feature-internal-imports.mjs`) normaliza los aliases `@/features/*` y las rutas relativas, permite internals de la feature actual y exige la entrada `index` al importar otra feature. También comprueba imports de tipos y reexports. Las fixtures virtuales rechazan imports profundos por alias/relativo, imports type-only y reexports; aceptan la API pública por alias/relativo y los imports internos propios. `pnpm lint`, `pnpm typecheck` y `pnpm test:run` pasaron (2 archivos, 5 pruebas).
 
 - [ ] T9. Configurar Prettier y scripts `format` y `format:check`. (RF-28, RF-29)
       Hecho cuando: check detecta una fixture mal formateada sin escribirla, write la corrige y el segundo check pasa; ambos comandos usan el mismo alcance documentado y excluyen generados/artefactos.
