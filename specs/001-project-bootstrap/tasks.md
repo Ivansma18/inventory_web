@@ -50,8 +50,9 @@ Cada tarea de comportamiento escribe o actualiza primero su prueba de aceptació
 
 ### Configuración, comunicación y vista mínima
 
-- [ ] T11. Escribir pruebas y crear el esquema puro de configuración pública y de herramientas. (RF-7, RF-8, RF-9, RF-37)
+- [x] T11. Escribir pruebas y crear el esquema puro de configuración pública y de herramientas. (RF-7, RF-8, RF-9, RF-37)
       Hecho cuando: las pruebas cubren variables obligatorias ausentes, valores inválidos, prefijo local, URL HTTP(S), nombre vacío y default de destino del proxy según el plan; los errores indican nombres sin reproducir valores sensibles y `.env.example` contiene solo ejemplos públicos.
+      Evidencia: `src/shared/config/env.schema.ts` exporta esquemas Zod puros separados para `VITE_APP_NAME`/`VITE_API_URL` y `API_PROXY_TARGET`; el proxy usa default local y valida un origen HTTP(S) sin credenciales, path, query ni fragmento. `.env.example` incluye únicamente valores de ejemplo seguros, sin credenciales de pruebas reales. `tests/env-schema.test.ts` cubre variables requeridas, nombre vacío/trim, prefijo local, URLs HTTP(S), entradas inválidas, default del proxy y que los errores indiquen `VITE_API_URL` sin divulgar credenciales. `pnpm format`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck` y `pnpm test:run` pasaron (3 archivos, 26 pruebas).
 
 - [ ] T12. Integrar validación de configuración en Vite y fijar puertos estrictos de dev y preview. (RF-2, RF-3, RF-5, RF-6, RF-35, RF-36)
       Hecho cuando: la configuración valida antes de servir o compilar, los puertos son `5174` con rechazo de conflictos y React/Tailwind y aliases están configurados; las pruebas de configuración no necesitan la cuenta de Auth.
