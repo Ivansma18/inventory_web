@@ -8,7 +8,9 @@
     "pnpm": "12.8.1"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit && node scripts/verify-typescript-config.mjs"
+    "typecheck": "tsc --noEmit && node scripts/verify-typescript-config.mjs",
+    "test": "vitest --watch",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "@hookform/resolvers": "5.9.1",

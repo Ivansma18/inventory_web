@@ -20,8 +20,9 @@ Cada tarea de comportamiento escribe o actualiza primero su prueba de aceptació
       Hecho cuando: una fixture aislada con error de tipos falla, su control válido pasa y los aliases se resuelven; la configuración permite incorporar pruebas cuando se añadan sin incluir fixtures deliberadamente inválidas en el código de aplicación.
       Evidencia: `pnpm typecheck` pasó con Node.js `24.21.0` y pnpm `12.8.1`. `scripts/verify-typescript-config.mjs` comprueba `strict`, `noEmit`, las rutas `@/app`, `@/features` y `@/shared`; genera fixtures válidas e inválidas en un directorio temporal, confirma resolución de aliases y errores por asignación incompatible e implicit any, y limpia el directorio al terminar. `src/vite-env.d.ts` registra los tipos del cliente Vite.
 
-- [ ] T4. Configurar Vitest, entorno de componentes y Testing Library, con scripts `test` y `test:run`. (RF-30, RF-31, RF-32)
+- [x] T4. Configurar Vitest, entorno de componentes y Testing Library, con scripts `test` y `test:run`. (RF-30, RF-31, RF-32)
       Hecho cuando: una prueba de componente válida se ejecuta, una fixture de suite fallida produce exit no cero y el modo interactivo repite pruebas al cambiar una fixture; se excluyen las suites Playwright y no se trata la ausencia de tests como éxito.
+      Evidencia: `vitest.config.ts` usa jsdom, setup de jest-dom y cleanup explícito; incluye solo `tests/**/*.test.{ts,tsx}` y excluye `tests/browser/**`. `pnpm test:run` pasó la prueba de render/interacción. Una fixture fallida temporal produjo exit 1 y fue eliminada. `pnpm test` en watch reejecutó una fixture al modificarla y reportó el fallo esperado; se eliminaron fixture y verificador temporales. Una ruta de test inexistente produjo “No test files found” y exit 1. `pnpm typecheck` también pasó.
 
 - [ ] T5. Configurar MSW para las pruebas aisladas y su limpieza entre casos. (RF-32)
       Hecho cuando: una petición simulada se prueba sin backend ni credenciales reales, las peticiones no previstas causan fallo y los handlers/estado no se filtran entre pruebas.
