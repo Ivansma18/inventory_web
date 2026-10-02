@@ -7,6 +7,9 @@
     "node": "24.21.0",
     "pnpm": "12.8.1"
   },
+  "scripts": {
+    "typecheck": "tsc --noEmit && node scripts/verify-typescript-config.mjs"
+  },
   "dependencies": {
     "@hookform/resolvers": "5.9.1",
     "@tanstack/react-query": "5.104.0",
