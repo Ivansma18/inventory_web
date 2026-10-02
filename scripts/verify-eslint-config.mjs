@@ -70,6 +70,144 @@ assert.equal(
     .join("\n")}`,
 );
 
+const lintImportFixture = async (relativePath, source) => {
+  const [result] = await eslint.lintText(source, {
+    filePath: join(projectRoot, relativePath),
+  });
+  return result;
+};
+
+const hasRestrictedImport = (result) =>
+  result.messages.some((message) => message.ruleId === "no-restricted-imports");
+
+const assertImportRejected = async (label, relativePath, source) => {
+  const result = await lintImportFixture(relativePath, source);
+  assert.ok(
+    hasRestrictedImport(result),
+    `ESLint must reject ${label} in ${relativePath}.`,
+  );
+};
+
+const assertImportAllowed = async (label, relativePath, source) => {
+  const result = await lintImportFixture(relativePath, source);
+  assert.equal(
+    result.errorCount,
+    0,
+    `ESLint must allow ${label} in ${relativePath}.\n${result.messages
+      .map((message) => `${message.ruleId}: ${message.message}`)
+      .join("\n")}`,
+  );
+};
+
+const featureFile = "src/features/products/api/product-api.ts";
+const disallowedImports = [
+  ["PrimeReact root import", 'import * as PrimeReact from "primereact";'],
+  [
+    "PrimeReact subpath import",
+    'import * as PrimeButton from "primereact/button";',
+  ],
+  [
+    "PrimeReact type-only import",
+    'import type { ButtonProps } from "primereact/button";',
+  ],
+  [
+    "PrimeReact CSS import",
+    'import "primereact/resources/primereact.min.css";',
+  ],
+  ["PrimeIcons root import", 'import * as PrimeIcons from "primeicons";'],
+  [
+    "PrimeIcons subpath import",
+    'import "primeicons/primeicons.css";',
+  ],
+  ["Better Auth root import", 'import * as BetterAuth from "better-auth";'],
+  [
+    "Better Auth subpath import",
+    'import * as BetterAuthReact from "better-auth/react";',
+  ],
+  [
+    "Better Auth type-only import",
+    'import type { BetterAuthOptions } from "better-auth";',
+  ],
+  ["Axios root import", 'import * as Axios from "axios";'],
+  ["Axios subpath import", 'import * as AxiosAdapter from "axios/lib/adapters/http.js";'],
+  ["Axios type-only import", 'import type { AxiosInstance } from "axios";'],
+];
+
+for (const [label, statement] of disallowedImports) {
+  await assertImportRejected(
+    label,
+    featureFile,
+    `${statement}\nexport {};\n`,
+  );
+}
+
+await assertImportAllowed(
+  "PrimeReact, PrimeIcons, their public types, and CSS",
+  "src/shared/ui/prime-wrappers.ts",
+  [
+    'import * as PrimeReact from "primereact";',
+    'import type { ButtonProps } from "primereact/button";',
+    'import * as PrimeIcons from "primeicons";',
+    'import "primereact/resources/primereact.min.css";',
+    'import "primeicons/primeicons.css";',
+    "export const uiDependencies = { PrimeReact, PrimeIcons };",
+    "export type UiButtonProps = ButtonProps;",
+    "",
+  ].join("\n"),
+);
+
+await assertImportAllowed(
+  "Better Auth root, React client, and public types",
+  "src/features/auth/api/auth-client.ts",
+  [
+    'import * as BetterAuth from "better-auth";',
+    'import * as BetterAuthReact from "better-auth/react";',
+    'import type { BetterAuthOptions } from "better-auth";',
+    "export const authDependencies = { BetterAuth, BetterAuthReact };",
+    "export type AuthOptions = BetterAuthOptions;",
+    "",
+  ].join("\n"),
+);
+
+await assertImportAllowed(
+  "Axios and its public types",
+  "src/shared/api/http-client.ts",
+  [
+    'import axios, { type AxiosInstance } from "axios";',
+    "export const httpClient = axios.create();",
+    "export type HttpClient = AxiosInstance;",
+    "",
+  ].join("\n"),
+);
+
+await assertImportAllowed(
+  "the public Auth feature API from another feature",
+  featureFile,
+  [
+    'import { useAuth } from "@/features/auth";',
+    "export const usePublicAuth = useAuth;",
+    "",
+  ].join("\n"),
+);
+
+await assertImportRejected(
+  "Axios from the Design System",
+  "src/shared/ui/http-client.ts",
+  'import axios from "axios";\nexport const uiTransport = axios;\n',
+);
+
+await assertImportRejected(
+  "PrimeReact from the Auth feature",
+  "src/features/auth/components/auth-widget.tsx",
+  'import { Button } from "primereact/button";\nexport const AuthButton = Button;\n',
+);
+
+await assertImportRejected(
+  "Better Auth from the HTTP client",
+  "src/shared/api/http-client.ts",
+  'import * as BetterAuth from "better-auth/react";\nexport const leakedAuth = BetterAuth;\n',
+);
+
 console.log(
-  "ESLint config verified: invalid TypeScript/React fixtures rejected; valid controls passed.",
+  "ESLint config verified: invalid TypeScript/React and architectural imports rejected; valid controls and boundary imports passed.",
 );

@@ -56,6 +56,67 @@ const nodeGlobals = {
   URLSearchParams: "readonly",
 };
 
+const restrictedImports = {
+  ui: {
+    paths: [
+      {
+        name: "primereact",
+        message: "Import PrimeReact only from src/shared/ui.",
+      },
+      {
+        name: "primeicons",
+        message: "Import PrimeIcons only from src/shared/ui.",
+      },
+    ],
+    patterns: [
+      {
+        group: ["primereact/**"],
+        message: "Import PrimeReact subpaths only from src/shared/ui.",
+      },
+      {
+        group: ["primeicons/**"],
+        message: "Import PrimeIcons subpaths only from src/shared/ui.",
+      },
+    ],
+  },
+  auth: {
+    paths: [
+      {
+        name: "better-auth",
+        message: "Import Better Auth only from src/features/auth.",
+      },
+    ],
+    patterns: [
+      {
+        group: ["better-auth/**"],
+        message: "Import Better Auth subpaths only from src/features/auth.",
+      },
+    ],
+  },
+  http: {
+    paths: [
+      {
+        name: "axios",
+        message: "Import Axios only from src/shared/api/http-client.ts.",
+      },
+    ],
+    patterns: [
+      {
+        group: ["axios/**"],
+        message: "Import Axios subpaths only from src/shared/api/http-client.ts.",
+      },
+    ],
+  },
+};
+
+const importBoundaryRule = (...boundaries) => [
+  "error",
+  {
+    paths: boundaries.flatMap((boundary) => boundary.paths),
+    patterns: boundaries.flatMap((boundary) => boundary.patterns),
+  },
+];
+
 export default [
   {
     ignores: [
@@ -81,6 +142,43 @@ export default [
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
+    },
+  },
+  {
+    files: ["src/**/*.{js,jsx,mjs,ts,tsx}"],
+    rules: {
+      "no-restricted-imports": importBoundaryRule(
+        restrictedImports.ui,
+        restrictedImports.auth,
+        restrictedImports.http,
+      ),
+    },
+  },
+  {
+    files: ["src/shared/ui/**/*.{js,jsx,mjs,ts,tsx}"],
+    rules: {
+      "no-restricted-imports": importBoundaryRule(
+        restrictedImports.auth,
+        restrictedImports.http,
+      ),
+    },
+  },
+  {
+    files: ["src/features/auth/**/*.{js,jsx,mjs,ts,tsx}"],
+    rules: {
+      "no-restricted-imports": importBoundaryRule(
+        restrictedImports.ui,
+        restrictedImports.http,
+      ),
+    },
+  },
+  {
+    files: ["src/shared/api/http-client.ts"],
+    rules: {
+      "no-restricted-imports": importBoundaryRule(
+        restrictedImports.ui,
+        restrictedImports.auth,
+      ),
     },
   },
   {
