@@ -1,0 +1,7 @@
+minimumReleaseAgeExclude:
+  - vite@8.3.2
+engineStrict: true
+strictPeerDependencies: true
+autoInstallPeers: false
+allowBuilds:
+  msw: false
