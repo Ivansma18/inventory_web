@@ -8,8 +8,9 @@ Cada tarea de comportamiento escribe o actualiza primero su prueba de aceptació
 
 ### Base y herramientas
 
-- [ ] T1. Verificar la disponibilidad del entorno fijado por el plan para este proyecto y registrar los prerrequisitos de ejecución. (RF-1, RF-33)
+- [x] T1. Verificar la disponibilidad del entorno fijado por el plan para este proyecto y registrar los prerrequisitos de ejecución. (RF-1, RF-33)
       Hecho cuando: se acreditan Node.js `24.21.0` y pnpm `12.8.1` en el entorno que ejecutará el frontend, o la tarea queda bloqueada con diagnóstico explícito; la preparación no altera silenciosamente el runtime de otras aplicaciones ni instala herramientas globales como efecto oculto.
+      Evidencia: NVM instaló Node.js `24.21.0` en paralelo y se ejecutó su `node.exe` por ruta explícita. Corepack con ese runtime descargó pnpm `12.8.1` a su caché de usuario y, con acceso de red deshabilitado, se verificó que continuaba disponible. La selección predeterminada de NVM permanece en Node.js `22.19.0` y `pnpm` sin versionar continúa en `11.25.0`; no se alteró el runtime de otras aplicaciones ni se instalaron herramientas globales.
 
 - [ ] T2. Crear el manifiesto e instalar las dependencias exactas del plan con configuración de engines y peers requeridos. (RF-1)
       Hecho cuando: existe `pnpm-lock.yaml`, la instalación no tiene conflictos de peers requeridos y `pnpm install --frozen-lockfile` se repite sin modificar el lockfile; se preservan documentos y configuraciones de agentes existentes.
