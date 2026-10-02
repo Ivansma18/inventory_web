@@ -24,8 +24,9 @@ Cada tarea de comportamiento escribe o actualiza primero su prueba de aceptació
       Hecho cuando: una prueba de componente válida se ejecuta, una fixture de suite fallida produce exit no cero y el modo interactivo repite pruebas al cambiar una fixture; se excluyen las suites Playwright y no se trata la ausencia de tests como éxito.
       Evidencia: `vitest.config.ts` usa jsdom, setup de jest-dom y cleanup explícito; incluye solo `tests/**/*.test.{ts,tsx}` y excluye `tests/browser/**`. `pnpm test:run` pasó la prueba de render/interacción. Una fixture fallida temporal produjo exit 1 y fue eliminada. `pnpm test` en watch reejecutó una fixture al modificarla y reportó el fallo esperado; se eliminaron fixture y verificador temporales. Una ruta de test inexistente produjo “No test files found” y exit 1. `pnpm typecheck` también pasó.
 
-- [ ] T5. Configurar MSW para las pruebas aisladas y su limpieza entre casos. (RF-32)
+- [x] T5. Configurar MSW para las pruebas aisladas y su limpieza entre casos. (RF-32)
       Hecho cuando: una petición simulada se prueba sin backend ni credenciales reales, las peticiones no previstas causan fallo y los handlers/estado no se filtran entre pruebas.
+      Evidencia: `tests/mocks/server.ts` ejecuta `setupServer` con `onUnhandledRequest: "error"`; `tests/setup.ts` inicia y cierra el servidor y restablece handlers y cleanup después de cada caso. Cuatro pruebas verifican respuesta interceptada sin backend, override por prueba, restauración del handler inicial entre casos y rechazo de solicitud sin handler. `pnpm typecheck`, la suite completa (`2` archivos, `5` pruebas) y `pnpm peers check` pasaron.
 
 - [ ] T6. Configurar ESLint para fuentes, React y herramientas con script `lint`. (RF-27)
       Hecho cuando: una fixture virtual con una infracción de lint falla y un control válido pasa; el script funciona desde la raíz sin requerir código deliberadamente inválido en `src`.
