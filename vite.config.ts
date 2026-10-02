@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, loadEnv } from "vite";
 
 import { createViteAliases } from "./scripts/vite-aliases.ts";
+import { createApiProxy } from "./scripts/vite-proxy.ts";
 import { publicEnvSchema, toolEnvSchema } from "./src/shared/config/env.schema.ts";
 
 const projectRoot = resolve(fileURLToPath(new URL(".", import.meta.url)));
@@ -41,6 +42,7 @@ const validateEnvironment = (mode: string) => {
 
 export default defineConfig(({ mode }) => {
   const environment = validateEnvironment(mode);
+  const apiProxy = createApiProxy(environment.tools.API_PROXY_TARGET);
 
   return {
     root: projectRoot,
@@ -57,11 +59,13 @@ export default defineConfig(({ mode }) => {
       host: "localhost",
       port: 5174,
       strictPort: true,
+      proxy: apiProxy,
     },
     preview: {
       host: "localhost",
       port: 5174,
       strictPort: true,
+      proxy: apiProxy,
     },
   };
 });
