@@ -4,6 +4,7 @@ export interface HttpApiError {
   message: string;
   code?: string;
   fieldErrors?: Record<string, string[]>;
+  source?: "proxy";
 }
 
 export interface NetworkApiError {
@@ -18,7 +19,7 @@ const genericNetworkMessage = "Unable to reach the server.";
 const publicErrorCodePattern = /^[A-Z][A-Z0-9_]*$/;
 
 type UnknownRecord = Record<string, unknown>;
-type RecognizedError = { code: string; fieldErrors?: unknown };
+type RecognizedError = { code: string; fieldErrors?: unknown; source?: "proxy" };
 
 const isRecord = (value: unknown): value is UnknownRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -66,6 +67,9 @@ const getRecognizedError = (body: unknown): RecognizedError | undefined => {
   return {
     code: error.code,
     ...(Object.hasOwn(error, "fieldErrors") ? { fieldErrors: error.fieldErrors } : {}),
+    ...(error.code === "PROXY_BACKEND_UNAVAILABLE" && error.source === "proxy"
+      ? { source: "proxy" }
+      : {}),
   };
 };
 
@@ -87,6 +91,7 @@ export const normalizeHttpError = (status: number, body: unknown): HttpApiError 
     ...baseError,
     code: recognizedError.code,
     ...(fieldErrors ? { fieldErrors } : {}),
+    ...(recognizedError.source ? { source: recognizedError.source } : {}),
   };
 };
 

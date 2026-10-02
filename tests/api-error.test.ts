@@ -40,6 +40,24 @@ describe("HTTP API error normalization", () => {
     });
   });
 
+  it("preserves the proxy source for its reserved infrastructure error", () => {
+    expect(
+      normalizeHttpError(502, {
+        error: {
+          code: "PROXY_BACKEND_UNAVAILABLE",
+          message: "The backend service is unavailable.",
+          source: "proxy",
+        },
+      }),
+    ).toEqual({
+      kind: "http",
+      status: 502,
+      code: "PROXY_BACKEND_UNAVAILABLE",
+      message: "The request failed.",
+      source: "proxy",
+    });
+  });
+
   it("discards malformed field errors while retaining a valid public code", () => {
     const result = normalizeHttpError(400, {
       error: {

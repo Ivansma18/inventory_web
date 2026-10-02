@@ -7,7 +7,12 @@ import { fileURLToPath } from "node:url";
 import { createServer as createViteServer, preview as createVitePreview } from "vite";
 import { describe, expect, it } from "vitest";
 
-import { createApiProxy, rewriteBusinessApiPath } from "../scripts/vite-proxy";
+import { normalizeHttpError } from "@/shared/api/api-error";
+import {
+  createApiProxy,
+  rewriteBusinessApiPath,
+  sanitizeProxyLogPath,
+} from "../scripts/vite-proxy";
 import { server as mswServer } from "./mocks/server";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -117,6 +122,14 @@ describe("Vite proxy path rules", () => {
     expect(rewriteBusinessApiPath("/products?page=2")).toBe("/products?page=2");
   });
 
+  it("redacts resource paths and query values from proxy error logs", () => {
+    expect(sanitizeProxyLogPath("/api/auth/sign-in?email=private@example.invalid")).toBe(
+      "/api/auth",
+    );
+    expect(sanitizeProxyLogPath("/api/backend/products?filter=private-value")).toBe("/api/backend");
+    expect(sanitizeProxyLogPath(undefined)).toBe("/api");
+  });
+
   it("leaves Auth paths untouched and uses boundary-matched proxy keys", () => {
     const proxy = createApiProxy("http://localhost:3000");
     const auth = proxy["^/api/auth(?:/|\\?|$)"];
@@ -220,6 +233,69 @@ describe("Vite development proxy integration", () => {
       } finally {
         await closeHttpServer(backend.server);
       }
+    });
+  });
+
+  it("returns a sanitized 502 when the backend is unavailable", async () => {
+    await withRealHttp(async () => {
+      const unavailableBackend = await createRecordingBackend();
+      const proxyTarget = unavailableBackend.origin;
+      await closeHttpServer(unavailableBackend.server);
+      const secret = "must-not-appear-in-proxy-error";
+
+      await withEnvironment(validEnvironment(proxyTarget), async () => {
+        const server = await createViteServer({
+          configFile,
+          logLevel: "silent",
+          server: { host: "127.0.0.1", port: 0, strictPort: true },
+        });
+
+        try {
+          await server.listen();
+          const httpServer = server.httpServer;
+          if (!httpServer) {
+            throw new Error("Vite development server did not create an HTTP server.");
+          }
+          const address = httpServer.address() as AddressInfo;
+          const origin = `http://127.0.0.1:${address.port}`;
+          const response = await fetch(`${origin}/api/backend/products?search=${secret}`, {
+            method: "POST",
+            headers: {
+              authorization: `Bearer ${secret}`,
+              "content-type": "text/plain",
+              origin: browserOrigin,
+            },
+            body: secret,
+          });
+          const responseBody = await response.text();
+
+          expect(response.status).toBe(502);
+          expect(JSON.parse(responseBody)).toEqual({
+            error: {
+              code: "PROXY_BACKEND_UNAVAILABLE",
+              message: "The backend service is unavailable.",
+              source: "proxy",
+            },
+          });
+          expect(responseBody).not.toContain(secret);
+
+          const normalizedProxyError = normalizeHttpError(
+            response.status,
+            JSON.parse(responseBody),
+          );
+
+          expect(normalizedProxyError).toEqual({
+            kind: "http",
+            status: 502,
+            code: "PROXY_BACKEND_UNAVAILABLE",
+            message: "The request failed.",
+            source: "proxy",
+          });
+          expect(JSON.stringify(normalizedProxyError)).not.toContain(secret);
+        } finally {
+          await server.close();
+        }
+      });
     });
   });
 });

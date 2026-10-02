@@ -72,6 +72,31 @@ describe("business HTTP client", () => {
     });
   });
 
+  it("retains the proxy origin for its infrastructure error", async () => {
+    server.use(
+      http.get(productsUrl, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "PROXY_BACKEND_UNAVAILABLE",
+              message: "The backend service is unavailable.",
+              source: "proxy",
+            },
+          },
+          { status: 502 },
+        ),
+      ),
+    );
+
+    await expect(httpClient.request({ method: "GET", path: "/products" })).rejects.toEqual({
+      kind: "http",
+      status: 502,
+      code: "PROXY_BACKEND_UNAVAILABLE",
+      message: "The request failed.",
+      source: "proxy",
+    });
+  });
+
   it("normalizes unknown HTTP bodies without publishing them", async () => {
     const secret = "internal-upstream-message";
     server.use(
