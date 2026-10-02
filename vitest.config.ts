@@ -1,6 +1,15 @@
 import { defineConfig } from "vitest/config";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { createViteAliases } from "./scripts/vite-aliases.ts";
+
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), ".");
 
 export default defineConfig({
+  resolve: {
+    alias: createViteAliases(projectRoot),
+  },
   test: {
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],

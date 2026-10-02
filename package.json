@@ -8,6 +8,9 @@
     "pnpm": "12.8.1"
   },
   "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
     "typecheck": "tsc --noEmit && node scripts/verify-typescript-config.mjs",
     "test": "vitest --watch",
     "test:run": "vitest run",

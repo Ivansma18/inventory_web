@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { publicEnvSchema, toolEnvSchema } from "../src/shared/config/env.schema";
+import { publicEnvSchema, toolEnvSchema } from "@/shared/config/env.schema";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
