@@ -7,6 +7,10 @@ import { createViteAliases } from "./scripts/vite-aliases.ts";
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), ".");
 
 export default defineConfig({
+  define: {
+    "import.meta.env.VITE_APP_NAME": JSON.stringify("Inventory tests"),
+    "import.meta.env.VITE_API_URL": JSON.stringify("https://inventory.test/api"),
+  },
   resolve: {
     alias: createViteAliases(projectRoot),
   },
