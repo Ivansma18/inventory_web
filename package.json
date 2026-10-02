@@ -10,7 +10,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit && node scripts/verify-typescript-config.mjs",
     "test": "vitest --watch",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "lint": "eslint . && node scripts/verify-eslint-config.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "5.9.1",

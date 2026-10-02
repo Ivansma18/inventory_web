@@ -28,8 +28,9 @@ Cada tarea de comportamiento escribe o actualiza primero su prueba de aceptació
       Hecho cuando: una petición simulada se prueba sin backend ni credenciales reales, las peticiones no previstas causan fallo y los handlers/estado no se filtran entre pruebas.
       Evidencia: `tests/mocks/server.ts` ejecuta `setupServer` con `onUnhandledRequest: "error"`; `tests/setup.ts` inicia y cierra el servidor y restablece handlers y cleanup después de cada caso. Cuatro pruebas verifican respuesta interceptada sin backend, override por prueba, restauración del handler inicial entre casos y rechazo de solicitud sin handler. `pnpm typecheck`, la suite completa (`2` archivos, `5` pruebas) y `pnpm peers check` pasaron.
 
-- [ ] T6. Configurar ESLint para fuentes, React y herramientas con script `lint`. (RF-27)
+- [x] T6. Configurar ESLint para fuentes, React y herramientas con script `lint`. (RF-27)
       Hecho cuando: una fixture virtual con una infracción de lint falla y un control válido pasa; el script funciona desde la raíz sin requerir código deliberadamente inválido en `src`.
+      Evidencia: `eslint.config.js` combina las reglas recomendadas de ESLint, TypeScript, React Hooks y React Refresh y Prettier compatibility; ignora dependencias, outputs y directorios de agentes/herramientas. `pnpm lint` pasó desde la raíz. `scripts/verify-eslint-config.mjs` confirma que fixtures virtuales de TypeScript y React inválidos se rechazan y los controles válidos pasan; no deja fixtures inválidas en `src`. `pnpm typecheck` también pasó.
 
 - [ ] T7. Automatizar fronteras de UI, Auth y transporte HTTP mediante restricciones ESLint. (RF-27)
       Hecho cuando: pruebas programáticas detectan imports raíz, subpaths, tipos y CSS no autorizados de PrimeReact/PrimeIcons, Better Auth y Axios; los imports permitidos dentro de sus fronteras pasan.
