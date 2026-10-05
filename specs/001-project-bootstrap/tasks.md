@@ -96,8 +96,9 @@ Cada tarea de comportamiento escribe o actualiza primero su prueba de aceptació
 
 ### Contratos e infraestructura de Auth
 
-- [ ] T22. Verificar disponibilidad del backend para health/OpenAPI y registrar los prerrequisitos externos de Auth real. (RF-12, RF-34)
+- [x] T22. Verificar disponibilidad del backend para health/OpenAPI y registrar los prerrequisitos externos de Auth real. (RF-12, RF-34)
       Hecho cuando: se confirma en modo no destructivo el destino efectivo o se registra el bloqueo; se identifica aceptación de `http://localhost:5174` y disponibilidad de cuenta como condiciones para la prueba real; no se cambian código/configuración del backend ni se publican valores privados.
+      Evidencia: no hay override de `API_PROXY_TARGET` en el proceso ni archivos `.env` activos; `.env.example` y el default validado fijan como destino local efectivo `http://localhost:3000`. Las consultas GET no destructivas a `/health` y `/openapi.json`, con timeout máximo de 5 s, terminaron sin respuesta de conexión; se registra el backend como no disponible y T23 queda bloqueada hasta recuperar el servicio. Para la prueba real de Auth, el backend debe aceptar el origen `http://localhost:5174` y debe existir una cuenta exclusiva de pruebas preparada previamente; ambos prerrequisitos quedan sin confirmar mientras el servicio no responda. No se modificó el backend ni se consultaron o publicaron credenciales.
 
 - [ ] T23. Obtener snapshot OpenAPI real acotado a Auth/health y generar contratos TypeScript. (RF-17, RF-18, RF-24, RF-25)
       Hecho cuando: el snapshot conserva las referencias necesarias, se contrasta con el contrato vigente y la generación reproducible produce tipos sin DTOs duplicados manualmente; el snapshot permite compilar sin backend y no incluye secretos.
