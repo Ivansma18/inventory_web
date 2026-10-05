@@ -11,6 +11,7 @@ import { server } from "./mocks/server";
 
 const sessionEndpoint = "https://inventory.test/api/auth/get-session";
 const signInEndpoint = "https://inventory.test/api/auth/sign-in/email";
+const signOutEndpoint = "https://inventory.test/api/auth/sign-out";
 
 const createTestAuthClient = (customFetchImpl?: FetchEsque) =>
   createAuthClient({
@@ -436,6 +437,78 @@ describe("Inventory auth session atom", () => {
       session: null,
       isAuthenticated: false,
       isUnauthenticated: false,
+    });
+  });
+
+  it("confirms logout immediately on a bodyless 204 and does not restore the closed session", async () => {
+    let sessionRequests = 0;
+    let signOutRequests = 0;
+    let signOutCredentials: RequestCredentials | undefined;
+    const customFetchImpl: FetchEsque = (input, init) => {
+      if (String(input).endsWith("/sign-out")) {
+        signOutCredentials = init?.credentials;
+      }
+
+      return fetch(input, init);
+    };
+
+    server.use(
+      http.get(sessionEndpoint, () => {
+        sessionRequests += 1;
+        return sessionRequests === 1
+          ? HttpResponse.json(authResponse("logout-user"))
+          : unauthenticatedResponse();
+      }),
+      http.post(signOutEndpoint, async () => {
+        signOutRequests += 1;
+        await wait(25);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    const client = createTestAuthClient(customFetchImpl);
+    const { result } = renderHook(() => ({
+      session: client.useInventorySession(),
+      signOut: client.useInventorySignOut(),
+    }));
+
+    await waitFor(() => expect(result.current.session.status).toBe("authenticated"));
+
+    let signOutPromise!: ReturnType<typeof client.signOutInventory>;
+    act(() => {
+      signOutPromise = client.signOutInventory();
+    });
+
+    expect(result.current.signOut.isPending).toBe(true);
+    expect(result.current.session.status).toBe("authenticated");
+
+    let signOutResult!: Awaited<ReturnType<typeof client.signOutInventory>>;
+    await act(async () => {
+      signOutResult = await signOutPromise;
+    });
+
+    expect(signOutResult).toEqual({ data: null, error: null });
+    expect(signOutRequests).toBe(1);
+    expect(signOutCredentials).toBe("include");
+    expect(result.current.signOut.isPending).toBe(false);
+    expect(result.current.session).toMatchObject({
+      status: "unauthenticated",
+      user: null,
+      session: null,
+      isAuthenticated: false,
+      isUnauthenticated: true,
+    });
+    expect(sessionRequests).toBe(1);
+
+    await act(async () => client.refreshSession());
+
+    expect(sessionRequests).toBe(2);
+    expect(result.current.session).toMatchObject({
+      status: "unauthenticated",
+      user: null,
+      session: null,
+      isAuthenticated: false,
+      isUnauthenticated: true,
     });
   });
 });

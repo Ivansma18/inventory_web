@@ -60,6 +60,16 @@ export interface InventorySignInState {
   isPending: boolean;
 }
 
+export interface InventorySignOutState {
+  isPending: boolean;
+}
+
+export interface InventoryAuthHttpError {
+  kind: "http";
+  status: number;
+  message: string;
+}
+
 export type InventoryAuthActionError =
   | {
       kind: "precondition";
@@ -73,14 +83,13 @@ export type InventoryAuthActionError =
       message: string;
     }
   | InventorySessionContractError
-  | {
-      kind: "http";
-      status: number;
-      message: string;
-    };
+  | InventoryAuthHttpError;
 
 export type InventorySignInResult =
   { data: PublicAuthResponse; error: null } | { data: null; error: InventoryAuthActionError };
+
+export type InventorySignOutResult =
+  { data: null; error: null } | { data: null; error: InventoryAuthHttpError };
 
 const createPendingState = (): InventorySessionState => ({
   status: "pending",
@@ -137,6 +146,7 @@ const hasUnauthorizedCode = (error: unknown): boolean => {
 export const createInventoryAuthPlugin = () => {
   const inventorySession = atom<InventorySessionState>(createPendingState());
   const inventorySignIn = atom<InventorySignInState>({ isPending: false });
+  const inventorySignOut = atom<InventorySignOutState>({ isPending: false });
 
   const refreshSession = async (
     request: () => Promise<BetterFetchResponse<unknown>>,
@@ -262,6 +272,31 @@ export const createInventoryAuthPlugin = () => {
     }
   };
 
+  const performSignOut = async (
+    request: () => Promise<BetterFetchResponse<null>>,
+  ): Promise<InventorySignOutResult> => {
+    inventorySignOut.set({ isPending: true });
+
+    try {
+      const result = await request();
+      if (result.error) {
+        return {
+          data: null,
+          error: {
+            kind: "http",
+            status: result.error.status,
+            message: "The authentication request failed.",
+          },
+        };
+      }
+
+      inventorySession.set(createUnauthenticatedState());
+      return { data: null, error: null };
+    } finally {
+      inventorySignOut.set({ isPending: false });
+    }
+  };
+
   const plugin = {
     id: "inventory-auth",
     getAtoms: ($fetch) => {
@@ -275,7 +310,7 @@ export const createInventoryAuthPlugin = () => {
         ).catch(() => undefined);
       });
 
-      return { inventorySession, inventorySignIn };
+      return { inventorySession, inventorySignIn, inventorySignOut };
     },
     getActions: ($fetch) => ({
       signInWithEmail: (credentials: AuthCredentials) =>
@@ -283,6 +318,14 @@ export const createInventoryAuthPlugin = () => {
           $fetch<unknown>("/sign-in/email", {
             method: "POST",
             body: credentials,
+            credentials: "include",
+            timeout: AUTH_REQUEST_TIMEOUT_MS,
+          }),
+        ),
+      signOutInventory: () =>
+        performSignOut(() =>
+          $fetch<null>("/sign-out", {
+            method: "POST",
             credentials: "include",
             timeout: AUTH_REQUEST_TIMEOUT_MS,
           }),
