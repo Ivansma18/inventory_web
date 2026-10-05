@@ -19,7 +19,9 @@
     "format:check": "prettier --check \"src/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"tests/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"scripts/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \".prettierrc.json\" && node scripts/verify-prettier-config.mjs",
     "prepare": "node scripts/prepare-hooks.mjs",
     "verify:hooks": "node scripts/verify-hooks-config.mjs",
-    "verify:startup": "node scripts/verify-startup-processes.mjs"
+    "verify:startup": "node scripts/verify-startup-processes.mjs",
+    "snapshot:auth-openapi": "node scripts/snapshot-auth-openapi.mjs",
+    "generate:auth-contracts": "openapi-typescript tests/contracts/auth-health.openapi.json -o src/shared/api/generated/auth-contracts.ts"
   },
   "lint-staged": {
     "{src,tests,scripts}/**/*.{js,jsx,mjs,cjs,ts,tsx}": [
