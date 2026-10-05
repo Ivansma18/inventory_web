@@ -35,10 +35,10 @@ const publicAuthResponse = (userId: string) => ({
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 describe("public Auth hooks", () => {
-  it("exposes session state, actions, and refetch without client internals", async () => {
+  it("completes the simulated session, login, logout and error-recovery cycle", async () => {
     let sessionRequests = 0;
     let signInRequests = 0;
-    let signInRequestBody: unknown;
+    const signInRequestBodies: unknown[] = [];
     let signInRequestMethod: string | undefined;
     let signInRequestUrl: string | undefined;
     let signOutRequests = 0;
@@ -59,20 +59,42 @@ describe("public Auth hooks", () => {
           });
         }
 
-        return sessionRequests === 2
-          ? unauthenticatedResponse()
-          : HttpResponse.json(publicAuthResponse("refetched-user"));
+        if (sessionRequests === 2 || sessionRequests === 5) {
+          return unauthenticatedResponse();
+        }
+
+        if (sessionRequests === 3) {
+          return HttpResponse.error();
+        }
+
+        return HttpResponse.json(publicAuthResponse("refetched-user"));
       }),
       http.post(/\/api\/auth\/sign-in\/email/, async ({ request }) => {
         signInRequests += 1;
         signInRequestMethod = request.method;
         signInRequestUrl = request.url;
-        signInRequestBody = await request.json();
+        signInRequestBodies.push(await request.json());
+
+        if (signInRequests === 1) {
+          return HttpResponse.json(
+            { error: { code: "UNAUTHORIZED", message: "Sensitive credential failure." } },
+            { status: 401 },
+          );
+        }
+
         await wait(25);
         return HttpResponse.json(publicAuthResponse("signed-in-user"));
       }),
       http.post(/\/api\/auth\/sign-out/, async () => {
         signOutRequests += 1;
+
+        if (signOutRequests === 1) {
+          return HttpResponse.json(
+            { error: { code: "INTERNAL", message: "Sensitive logout failure." } },
+            { status: 503 },
+          );
+        }
+
         await wait(25);
         return new HttpResponse(null, { status: 204 });
       }),
@@ -110,6 +132,22 @@ describe("public Auth hooks", () => {
     expect(unauthenticatedQueryResult).toEqual({ data: null, error: null });
     expect(result.current.session.status).toBe("unauthenticated");
 
+    let credentialErrorPromise!: Promise<AuthSignInResult>;
+    act(() => {
+      credentialErrorPromise = result.current.auth.signIn(credentials);
+    });
+
+    let credentialError!: AuthSignInResult;
+    await act(async () => {
+      credentialError = await credentialErrorPromise;
+    });
+
+    expect(credentialError).toMatchObject({
+      data: null,
+      error: { kind: "credentials", status: 401, code: "UNAUTHORIZED" },
+    });
+    expect(result.current.session.status).toBe("unauthenticated");
+
     let signInPromise!: Promise<AuthSignInResult>;
     act(() => {
       signInPromise = result.current.auth.signIn(credentials);
@@ -121,8 +159,8 @@ describe("public Auth hooks", () => {
       signInResult = await signInPromise;
     });
 
-    expect(signInRequests).toBe(1);
-    expect(signInRequestBody).toEqual(credentials);
+    expect(signInRequests).toBe(2);
+    expect(signInRequestBodies).toEqual([credentials, credentials]);
     expect(signInRequestMethod).toBe("POST");
     expect(new URL(signInRequestUrl!).pathname).toBe("/api/auth/sign-in/email");
     expect(signInResult).toMatchObject({ data: publicAuthResponse("signed-in-user"), error: null });
@@ -136,6 +174,23 @@ describe("public Auth hooks", () => {
     });
     expect(result.current.auth.isSigningIn).toBe(false);
 
+    let networkQueryResult!: AuthSessionQueryResult;
+    await act(async () => {
+      networkQueryResult = await result.current.session.refetch();
+    });
+
+    expect(networkQueryResult).toMatchObject({
+      data: null,
+      error: { kind: "network", operation: "session" },
+    });
+    expect(result.current.session).toMatchObject({
+      status: "authenticated",
+      user: publicAuthResponse("signed-in-user").data.user,
+      session: publicAuthResponse("signed-in-user").data.session,
+      isAuthenticated: true,
+      isUnauthenticated: false,
+    });
+
     let sessionQueryResult!: AuthSessionQueryResult;
     await act(async () => {
       sessionQueryResult = await result.current.session.refetch();
@@ -146,6 +201,22 @@ describe("public Auth hooks", () => {
       error: null,
     });
     expect(result.current.session.user?.id).toBe("refetched-user");
+
+    let logoutError!: AuthSignOutResult;
+    await act(async () => {
+      logoutError = await result.current.auth.signOut();
+    });
+
+    expect(logoutError).toMatchObject({
+      data: null,
+      error: { kind: "http", operation: "sign-out", status: 503 },
+    });
+    expect(result.current.session).toMatchObject({
+      status: "authenticated",
+      user: publicAuthResponse("refetched-user").data.user,
+      session: publicAuthResponse("refetched-user").data.session,
+    });
+    expect(result.current.auth.isSigningOut).toBe(false);
 
     let signOutPromise!: Promise<AuthSignOutResult>;
     act(() => {
@@ -167,8 +238,38 @@ describe("public Auth hooks", () => {
       isUnauthenticated: true,
     });
     expect(result.current.auth.isSigningOut).toBe(false);
-    expect(sessionRequests).toBe(3);
-    expect(signInRequests).toBe(1);
-    expect(signOutRequests).toBe(1);
+
+    let postLogoutQueryResult!: AuthSessionQueryResult;
+    await act(async () => {
+      postLogoutQueryResult = await result.current.session.refetch();
+    });
+
+    expect(postLogoutQueryResult).toEqual({ data: null, error: null });
+    expect(result.current.session).toMatchObject({
+      status: "unauthenticated",
+      user: null,
+      session: null,
+      isAuthenticated: false,
+      isUnauthenticated: true,
+    });
+    expect(sessionRequests).toBe(5);
+    expect(signInRequests).toBe(2);
+    expect(signOutRequests).toBe(2);
+
+    const publicOutputs = [
+      credentialError,
+      unauthenticatedQueryResult,
+      signInResult,
+      networkQueryResult,
+      sessionQueryResult,
+      logoutError,
+      signOutResult,
+      postLogoutQueryResult,
+      result.current.session,
+    ];
+    const serializedOutputs = JSON.stringify(publicOutputs);
+    expect(serializedOutputs).not.toContain(credentials.password);
+    expect(serializedOutputs).not.toContain("Sensitive");
+    expect(serializedOutputs).not.toMatch(/"(?:token|expiresAt|cookie)"\s*:/i);
   });
 });
