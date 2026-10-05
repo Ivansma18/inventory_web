@@ -1,6 +1,6 @@
 import { parseJSON, type BetterAuthClientOptions } from "better-auth/client";
 
-const authRequestTimeoutMs = 10_000;
+export const AUTH_REQUEST_TIMEOUT_MS = 10_000;
 
 export class AuthResponseContractError extends Error {
   readonly kind = "contract";
@@ -29,7 +29,7 @@ export const createAuthFetchOptions = (
   fetchImplementation: typeof fetch = globalThis.fetch,
 ): NonNullable<BetterAuthClientOptions["fetchOptions"]> => ({
   credentials: "include",
-  timeout: authRequestTimeoutMs,
+  timeout: AUTH_REQUEST_TIMEOUT_MS,
   jsonParser: parseAuthJson,
   customFetchImpl: async (input, init) => {
     const response = await fetchImplementation(input, init);
