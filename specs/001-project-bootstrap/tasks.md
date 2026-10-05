@@ -146,8 +146,9 @@ Cada tarea de comportamiento escribe o actualiza primero su prueba de aceptació
 
 ### Navegador, integración real y cierre
 
-- [ ] T34. Configurar Playwright Chromium, proyectos de bootstrap y script `test:e2e`. (RF-2, RF-4, RF-6, RF-32, RF-34)
+- [x] T34. Configurar Playwright Chromium, proyectos de bootstrap y script `test:e2e`. (RF-2, RF-4, RF-6, RF-32, RF-34)
       Hecho cuando: un smoke de página se ejecuta en navegador y los proyectos bootstrap-smoke/proxy-contract se invocan sin credenciales reales; auth-real requiere selección explícita y falla con diagnóstico si faltan sus prerrequisitos; el servidor usa puerto estricto sin reutilizar una app desconocida.
+      Evidencia: `playwright.config.ts` define proyectos Chromium `bootstrap-smoke`, `proxy-contract` y `auth-real`; `scripts/run-playwright.mjs` incluye `auth-real` solo si se selecciona explícitamente con `--project=auth-real`. El `webServer` usa el Vite local en `localhost:5174`, `reuseExistingServer: false` y hereda el `strictPort` de Vite; elimina variables `AUTH_TEST_*` del entorno del proceso Vite. `pnpm test:e2e` ejecutó ambos proyectos predeterminados (2 tests pasaron) sin cuenta de Auth; `pnpm test:e2e --project=auth-real` falló con el diagnóstico esperado de `AUTH_TEST_EMAIL` y `AUTH_TEST_PASSWORD` ausentes, sin mostrar sus valores. Chromium se instaló con `pnpm exec playwright install chromium`. `pnpm format`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test:run` (16 archivos, 110 pruebas) y `pnpm build` pasaron.
 
 - [ ] T35. Crear el harness de navegador exclusivo de pruebas para consumidores de Auth. (RF-16, RF-17, RF-18, RF-19, RF-22, RF-32, RF-34)
       Hecho cuando: pruebas consumen solo la API pública mediante el harness, las credenciales se reciben en memoria y el harness solo se sirve en modo de prueba; no hay pantalla/formulario de login ni exposición en el bundle de aplicación.
