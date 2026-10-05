@@ -18,7 +18,8 @@
     "format": "prettier --write \"src/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"tests/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"scripts/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \".prettierrc.json\"",
     "format:check": "prettier --check \"src/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"tests/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"scripts/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \".prettierrc.json\" && node scripts/verify-prettier-config.mjs",
     "prepare": "node scripts/prepare-hooks.mjs",
-    "verify:hooks": "node scripts/verify-hooks-config.mjs"
+    "verify:hooks": "node scripts/verify-hooks-config.mjs",
+    "verify:startup": "node scripts/verify-startup-processes.mjs"
   },
   "lint-staged": {
     "{src,tests,scripts}/**/*.{js,jsx,mjs,cjs,ts,tsx}": [
