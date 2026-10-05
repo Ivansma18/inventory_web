@@ -3,7 +3,13 @@ import { atom, onMount } from "nanostores";
 
 import type { PublicAuthResponse } from "./auth-contract";
 import { publicAuthResponseSchema } from "./auth-contract";
-import { AUTH_REQUEST_TIMEOUT_MS } from "./api/auth-transport";
+import { AUTH_REQUEST_TIMEOUT_MS, AuthResponseContractError } from "./api/auth-transport";
+
+export interface InventorySessionContractError {
+  kind: "contract";
+  status: number;
+  message: string;
+}
 
 export type InventorySessionState =
   | {
@@ -11,18 +17,36 @@ export type InventorySessionState =
       user: null;
       session: null;
       isRefetching: false;
+      isAuthenticated: false;
+      isUnauthenticated: false;
+      error: null;
     }
   | {
       status: "authenticated";
       user: PublicAuthResponse["data"]["user"];
       session: PublicAuthResponse["data"]["session"];
       isRefetching: boolean;
+      isAuthenticated: true;
+      isUnauthenticated: false;
+      error: null;
     }
   | {
       status: "unauthenticated";
       user: null;
       session: null;
       isRefetching: boolean;
+      isAuthenticated: false;
+      isUnauthenticated: true;
+      error: null;
+    }
+  | {
+      status: "unconfirmed";
+      user: null;
+      session: null;
+      isRefetching: boolean;
+      isAuthenticated: false;
+      isUnauthenticated: false;
+      error: InventorySessionContractError;
     };
 
 const createPendingState = (): InventorySessionState => ({
@@ -30,6 +54,9 @@ const createPendingState = (): InventorySessionState => ({
   user: null,
   session: null,
   isRefetching: false,
+  isAuthenticated: false,
+  isUnauthenticated: false,
+  error: null,
 });
 
 const createUnauthenticatedState = (): InventorySessionState => ({
@@ -37,6 +64,23 @@ const createUnauthenticatedState = (): InventorySessionState => ({
   user: null,
   session: null,
   isRefetching: false,
+  isAuthenticated: false,
+  isUnauthenticated: true,
+  error: null,
+});
+
+const createUnconfirmedState = (status: number): InventorySessionState => ({
+  status: "unconfirmed",
+  user: null,
+  session: null,
+  isRefetching: false,
+  isAuthenticated: false,
+  isUnauthenticated: false,
+  error: {
+    kind: "contract",
+    status,
+    message: "The session response did not match the public authentication contract.",
+  },
 });
 
 export const createInventoryAuthPlugin = () => {
@@ -62,6 +106,7 @@ export const createInventoryAuthPlugin = () => {
 
       const parsed = publicAuthResponseSchema.safeParse(result.data);
       if (!parsed.success) {
+        inventorySession.set(createUnconfirmedState(200));
         return;
       }
 
@@ -70,7 +115,17 @@ export const createInventoryAuthPlugin = () => {
         user: parsed.data.data.user,
         session: parsed.data.data.session,
         isRefetching: false,
+        isAuthenticated: true,
+        isUnauthenticated: false,
+        error: null,
       });
+    } catch (error: unknown) {
+      if (error instanceof AuthResponseContractError) {
+        inventorySession.set(createUnconfirmedState(error.status));
+        return;
+      }
+
+      throw error;
     } finally {
       const latest = inventorySession.get();
       if (latest.isRefetching) {
