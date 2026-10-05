@@ -70,12 +70,15 @@ export interface AuthOperationState {
   isPending: boolean;
 }
 
+export interface AuthPreconditionError {
+  kind: "precondition";
+  sessionStatus: AuthSessionState["status"];
+  activeOperation?: "sign-in" | "sign-out";
+  message: string;
+}
+
 export type AuthActionError =
-  | {
-      kind: "precondition";
-      sessionStatus: AuthSessionState["status"];
-      message: string;
-    }
+  | AuthPreconditionError
   | {
       kind: "credentials";
       status: 401;
@@ -90,11 +93,16 @@ export type AuthSignInResult =
 
 export type AuthSignOutResult =
   | { data: null; error: null }
-  | { data: null; error: AuthHttpError | AuthNetworkError | AuthContractError };
+  | {
+      data: null;
+      error: AuthHttpError | AuthNetworkError | AuthContractError | AuthPreconditionError;
+    };
 
 export type AuthSessionQueryResult =
   | { data: components["schemas"]["PublicAuthResponse"]; error: null }
-  | { data: null; error: null | AuthSessionError };
+  | { data: null; error: AuthSessionError }
+  | { data: null; error: null }
+  | { data: null; error: null; stale: true };
 
 export type UseSessionResult = AuthSessionState & {
   isPending: boolean;

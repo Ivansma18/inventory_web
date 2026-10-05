@@ -18,6 +18,7 @@ import type {
 } from "./types/auth";
 
 type AuthOperation = "session" | "sign-in" | "sign-out";
+type AuthMutationOperation = "sign-in" | "sign-out";
 
 type InventoryUnconfirmedState = Extract<InventorySessionState, { status: "unconfirmed" }>;
 
@@ -64,6 +65,18 @@ const createNetworkError = (operation: AuthOperation): InventoryAuthNetworkError
   message: "The authentication server could not be reached.",
 });
 
+const createAuthPreconditionError = (
+  sessionStatus: InventorySessionState["status"],
+  activeOperation?: AuthMutationOperation,
+) => ({
+  kind: "precondition" as const,
+  sessionStatus,
+  ...(activeOperation ? { activeOperation } : {}),
+  message: activeOperation
+    ? "Another authentication operation is already in progress."
+    : "Sign-in requires a confirmed unauthenticated session.",
+});
+
 const createUnconfirmedState = (error: InventorySessionError): InventoryUnconfirmedState => ({
   status: "unconfirmed",
   user: null,
@@ -92,10 +105,15 @@ export const createInventoryAuthPlugin = () => {
   const inventorySession = atom<InventorySessionState>(createPendingState());
   const inventorySignIn = atom<InventorySignInState>({ isPending: false });
   const inventorySignOut = atom<InventorySignOutState>({ isPending: false });
+  let initialSessionQueryStarted = false;
+  let sessionOperationVersion = 0;
+  let activeAuthOperation: AuthMutationOperation | null = null;
 
   const refreshSession = async (
     request: () => Promise<BetterFetchResponse<unknown>>,
   ): Promise<InventorySessionQueryResult> => {
+    const requestOperationVersion = sessionOperationVersion;
+    const responseIsStale = () => requestOperationVersion !== sessionOperationVersion;
     const current = inventorySession.get();
     const hasConfirmedSession =
       current.status === "authenticated" || current.status === "unauthenticated";
@@ -106,6 +124,9 @@ export const createInventoryAuthPlugin = () => {
 
     try {
       const result = await request();
+      if (responseIsStale()) {
+        return { data: null, error: null, stale: true };
+      }
 
       if (result.error) {
         if (result.error.status === 401) {
@@ -138,6 +159,10 @@ export const createInventoryAuthPlugin = () => {
       });
       return { data: parsed.data, error: null };
     } catch (error: unknown) {
+      if (responseIsStale()) {
+        return { data: null, error: null, stale: true };
+      }
+
       if (error instanceof AuthResponseContractError) {
         const contractError = createContractError(error.status, "session");
         inventorySession.set(createUnconfirmedState(contractError));
@@ -162,17 +187,21 @@ export const createInventoryAuthPlugin = () => {
     request: () => Promise<BetterFetchResponse<unknown>>,
   ): Promise<InventorySignInResult> => {
     const current = inventorySession.get();
-    if (current.status !== "unauthenticated") {
+    if (activeAuthOperation) {
       return {
         data: null,
-        error: {
-          kind: "precondition",
-          sessionStatus: current.status,
-          message: "Sign-in requires a confirmed unauthenticated session.",
-        },
+        error: createAuthPreconditionError(current.status, activeAuthOperation),
       };
     }
 
+    if (current.status !== "unauthenticated") {
+      return {
+        data: null,
+        error: createAuthPreconditionError(current.status),
+      };
+    }
+
+    activeAuthOperation = "sign-in";
     inventorySignIn.set({ isPending: true });
 
     try {
@@ -214,6 +243,7 @@ export const createInventoryAuthPlugin = () => {
         isUnauthenticated: false,
         error: null,
       };
+      sessionOperationVersion += 1;
       inventorySession.set(nextState);
 
       return { data: parsed.data, error: null };
@@ -227,6 +257,7 @@ export const createInventoryAuthPlugin = () => {
 
       return { data: null, error: createNetworkError("sign-in") };
     } finally {
+      activeAuthOperation = null;
       inventorySignIn.set({ isPending: false });
     }
   };
@@ -234,6 +265,15 @@ export const createInventoryAuthPlugin = () => {
   const performSignOut = async (
     request: () => Promise<BetterFetchResponse<null>>,
   ): Promise<InventorySignOutResult> => {
+    const current = inventorySession.get();
+    if (activeAuthOperation) {
+      return {
+        data: null,
+        error: createAuthPreconditionError(current.status, activeAuthOperation),
+      };
+    }
+
+    activeAuthOperation = "sign-out";
     inventorySignOut.set({ isPending: true });
 
     try {
@@ -245,6 +285,7 @@ export const createInventoryAuthPlugin = () => {
         };
       }
 
+      sessionOperationVersion += 1;
       inventorySession.set(createUnauthenticatedState());
       return { data: null, error: null };
     } catch (error: unknown) {
@@ -257,6 +298,7 @@ export const createInventoryAuthPlugin = () => {
 
       return { data: null, error: createNetworkError("sign-out") };
     } finally {
+      activeAuthOperation = null;
       inventorySignOut.set({ isPending: false });
     }
   };
@@ -265,6 +307,11 @@ export const createInventoryAuthPlugin = () => {
     id: "inventory-auth",
     getAtoms: ($fetch) => {
       onMount(inventorySession, () => {
+        if (initialSessionQueryStarted) {
+          return;
+        }
+
+        initialSessionQueryStarted = true;
         void refreshSession(() =>
           $fetch<unknown>("/get-session", {
             method: "GET",

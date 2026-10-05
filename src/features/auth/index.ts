@@ -7,6 +7,7 @@ export type {
   AuthHttpError,
   AuthNetworkError,
   AuthOperationState,
+  AuthPreconditionError,
   AuthSession,
   AuthSessionError,
   AuthSessionQueryResult,
