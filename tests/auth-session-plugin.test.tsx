@@ -47,6 +47,16 @@ const authResponse = (userId: string): components["schemas"]["PublicAuthResponse
 
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+const failFetchFor =
+  (path: string): FetchEsque =>
+  (input, init) => {
+    if (String(input).endsWith(path)) {
+      return Promise.reject(new TypeError("Sensitive transport failure detail."));
+    }
+
+    return fetch(input, init);
+  };
+
 describe("Inventory auth session atom", () => {
   it("publishes pending before the initial query and then the validated session", async () => {
     server.use(
@@ -105,6 +115,83 @@ describe("Inventory auth session atom", () => {
     });
   });
 
+  it.each(["http", "network"] as const)(
+    "exposes an initial %s session failure as unconfirmed, not unauthenticated",
+    async (failureKind) => {
+      server.use(
+        http.get(sessionEndpoint, () =>
+          HttpResponse.json(
+            { error: { code: "INTERNAL", message: "Sensitive server failure detail." } },
+            { status: 503 },
+          ),
+        ),
+      );
+
+      const client = createTestAuthClient(
+        failureKind === "network" ? failFetchFor("/get-session") : undefined,
+      );
+      const { result } = renderHook(() => client.useInventorySession());
+
+      await waitFor(() => expect(result.current.status).toBe("unconfirmed"));
+      expect(result.current).toMatchObject({
+        user: null,
+        session: null,
+        isAuthenticated: false,
+        isUnauthenticated: false,
+        error: {
+          kind: failureKind,
+          operation: "session",
+          ...(failureKind === "http" ? { status: 503 } : {}),
+          message: expect.any(String),
+        },
+      });
+      expect(JSON.stringify(result.current.error)).not.toContain("Sensitive");
+    },
+  );
+
+  it("preserves the last confirmed session and returns an error when a refetch fails", async () => {
+    let sessionRequests = 0;
+    server.use(
+      http.get(sessionEndpoint, () => {
+        sessionRequests += 1;
+        return sessionRequests === 1
+          ? HttpResponse.json(authResponse("retained-user"))
+          : HttpResponse.json(
+              { error: { code: "INTERNAL", message: "Sensitive server failure detail." } },
+              { status: 503 },
+            );
+      }),
+    );
+
+    const client = createTestAuthClient();
+    const { result } = renderHook(() => client.useInventorySession());
+
+    await waitFor(() => expect(result.current.status).toBe("authenticated"));
+    let refreshResult: unknown;
+    await act(async () => {
+      refreshResult = await client.refreshSession();
+    });
+
+    expect(refreshResult).toMatchObject({
+      data: null,
+      error: {
+        kind: "http",
+        operation: "session",
+        status: 503,
+        message: expect.any(String),
+      },
+    });
+    expect(JSON.stringify(refreshResult)).not.toContain("Sensitive");
+    expect(result.current).toMatchObject({
+      status: "authenticated",
+      user: authResponse("retained-user").data.user,
+      session: authResponse("retained-user").data.session,
+      isRefetching: false,
+      isAuthenticated: true,
+      isUnauthenticated: false,
+    });
+  });
+
   it("uses the same atom for explicit repeated session queries", async () => {
     let requests = 0;
     server.use(
@@ -122,7 +209,7 @@ describe("Inventory auth session atom", () => {
     expect(requests).toBe(1);
     expect(result.current.user?.id).toBe("first-user");
 
-    let refetch: Promise<void>;
+    let refetch: ReturnType<typeof client.refreshSession>;
     act(() => {
       refetch = client.refreshSession();
     });
@@ -340,6 +427,50 @@ describe("Inventory auth session atom", () => {
     });
   });
 
+  it.each(["http", "network"] as const)(
+    "returns a sanitized %s sign-in failure without treating it as no-session confirmation",
+    async (failureKind) => {
+      server.use(
+        http.get(sessionEndpoint, () => unauthenticatedResponse()),
+        http.post(signInEndpoint, () =>
+          HttpResponse.json(
+            { error: { code: "INTERNAL", message: "Sensitive server failure detail." } },
+            { status: 503 },
+          ),
+        ),
+      );
+
+      const client = createTestAuthClient(
+        failureKind === "network" ? failFetchFor("/sign-in/email") : undefined,
+      );
+      const { result } = renderHook(() => client.useInventorySession());
+
+      await waitFor(() => expect(result.current.status).toBe("unauthenticated"));
+      let signInResult: unknown;
+      await act(async () => {
+        signInResult = await client.signInWithEmail(testCredentials);
+      });
+
+      expect(signInResult).toMatchObject({
+        data: null,
+        error: {
+          kind: failureKind,
+          operation: "sign-in",
+          ...(failureKind === "http" ? { status: 503 } : {}),
+          message: expect.any(String),
+        },
+      });
+      expect(JSON.stringify(signInResult)).not.toContain("Sensitive");
+      expect(result.current).toMatchObject({
+        status: "unauthenticated",
+        user: null,
+        session: null,
+        isAuthenticated: false,
+        isUnauthenticated: true,
+      });
+    },
+  );
+
   it.each(["pending", "authenticated", "unconfirmed"] as const)(
     "does not send login while the session is %s",
     async (initialStatus) => {
@@ -509,6 +640,129 @@ describe("Inventory auth session atom", () => {
       session: null,
       isAuthenticated: false,
       isUnauthenticated: true,
+    });
+  });
+
+  it.each(["http", "network"] as const)(
+    "preserves the confirmed session after a %s logout failure and supports recovery",
+    async (failureKind) => {
+      let sessionRequests = 0;
+      let signOutAttempts = 0;
+      let signOutRequests = 0;
+      const customFetchImpl: FetchEsque = (input, init) => {
+        if (String(input).endsWith("/sign-out")) {
+          signOutAttempts += 1;
+          if (failureKind === "network" && signOutAttempts === 1) {
+            return Promise.reject(new TypeError("Sensitive transport failure detail."));
+          }
+        }
+
+        return fetch(input, init);
+      };
+
+      server.use(
+        http.get(sessionEndpoint, () => {
+          sessionRequests += 1;
+          return sessionRequests === 1
+            ? HttpResponse.json(authResponse("preserved-logout-user"))
+            : unauthenticatedResponse();
+        }),
+        http.post(signOutEndpoint, () => {
+          signOutRequests += 1;
+          if (failureKind === "http" && signOutRequests === 1) {
+            return HttpResponse.json(
+              { error: { code: "INTERNAL", message: "Sensitive server failure detail." } },
+              { status: 503 },
+            );
+          }
+
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      const client = createTestAuthClient(customFetchImpl);
+      const { result } = renderHook(() => ({
+        session: client.useInventorySession(),
+        signOut: client.useInventorySignOut(),
+      }));
+
+      await waitFor(() => expect(result.current.session.status).toBe("authenticated"));
+      let signOutResult: unknown;
+      await act(async () => {
+        signOutResult = await client.signOutInventory();
+      });
+
+      expect(signOutResult).toMatchObject({
+        data: null,
+        error: {
+          kind: failureKind,
+          operation: "sign-out",
+          ...(failureKind === "http" ? { status: 503 } : {}),
+          message: expect.any(String),
+        },
+      });
+      expect(JSON.stringify(signOutResult)).not.toContain("Sensitive");
+      expect(result.current.signOut.isPending).toBe(false);
+      expect(result.current.session).toMatchObject({
+        status: "authenticated",
+        user: authResponse("preserved-logout-user").data.user,
+        session: authResponse("preserved-logout-user").data.session,
+        isAuthenticated: true,
+        isUnauthenticated: false,
+      });
+
+      if (failureKind === "network") {
+        let refreshResult: unknown;
+        await act(async () => {
+          refreshResult = await client.refreshSession();
+        });
+
+        expect(refreshResult).toEqual({ data: null, error: null });
+        expect(result.current.session.status).toBe("unauthenticated");
+      } else {
+        await act(async () => client.signOutInventory());
+        expect(signOutRequests).toBe(2);
+        expect(result.current.session.status).toBe("unauthenticated");
+      }
+    },
+  );
+
+  it("does not confirm logout for a malformed successful response", async () => {
+    server.use(
+      http.get(sessionEndpoint, () => HttpResponse.json(authResponse("unconfirmed-logout-user"))),
+      http.post(
+        signOutEndpoint,
+        () =>
+          new HttpResponse("Sensitive invalid response body.", {
+            status: 200,
+            headers: { "content-type": "text/html" },
+          }),
+      ),
+    );
+
+    const client = createTestAuthClient();
+    const { result } = renderHook(() => client.useInventorySession());
+
+    await waitFor(() => expect(result.current.status).toBe("authenticated"));
+    let signOutResult: unknown;
+    await act(async () => {
+      signOutResult = await client.signOutInventory();
+    });
+
+    expect(signOutResult).toMatchObject({
+      data: null,
+      error: {
+        kind: "contract",
+        operation: "sign-out",
+        status: 200,
+        message: expect.any(String),
+      },
+    });
+    expect(JSON.stringify(signOutResult)).not.toContain("Sensitive");
+    expect(result.current).toMatchObject({
+      status: "authenticated",
+      user: authResponse("unconfirmed-logout-user").data.user,
+      session: authResponse("unconfirmed-logout-user").data.session,
     });
   });
 });

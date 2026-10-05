@@ -8,13 +8,30 @@ import { publicAuthResponseSchema } from "./auth-contract";
 import { AUTH_REQUEST_TIMEOUT_MS, AuthResponseContractError } from "./api/auth-transport";
 
 type AuthCredentials = components["schemas"]["AuthCredentials"];
+type AuthOperation = "session" | "sign-in" | "sign-out";
 
 export interface InventorySessionContractError {
   kind: "contract";
-  operation: "session" | "sign-in";
+  operation: "session" | "sign-in" | "sign-out";
   status: number;
   message: string;
 }
+
+export interface InventoryAuthHttpError {
+  kind: "http";
+  operation: AuthOperation;
+  status: number;
+  message: string;
+}
+
+export interface InventoryAuthNetworkError {
+  kind: "network";
+  operation: AuthOperation;
+  message: string;
+}
+
+export type InventorySessionError =
+  InventorySessionContractError | InventoryAuthHttpError | InventoryAuthNetworkError;
 
 export type InventorySessionState =
   | {
@@ -51,7 +68,7 @@ export type InventorySessionState =
       isRefetching: boolean;
       isAuthenticated: false;
       isUnauthenticated: false;
-      error: InventorySessionContractError;
+      error: InventorySessionError;
     };
 
 type InventoryUnconfirmedState = Extract<InventorySessionState, { status: "unconfirmed" }>;
@@ -62,12 +79,6 @@ export interface InventorySignInState {
 
 export interface InventorySignOutState {
   isPending: boolean;
-}
-
-export interface InventoryAuthHttpError {
-  kind: "http";
-  status: number;
-  message: string;
 }
 
 export type InventoryAuthActionError =
@@ -82,14 +93,20 @@ export type InventoryAuthActionError =
       code?: "UNAUTHORIZED";
       message: string;
     }
-  | InventorySessionContractError
-  | InventoryAuthHttpError;
+  | InventorySessionError;
 
 export type InventorySignInResult =
   { data: PublicAuthResponse; error: null } | { data: null; error: InventoryAuthActionError };
 
 export type InventorySignOutResult =
-  { data: null; error: null } | { data: null; error: InventoryAuthHttpError };
+  | { data: null; error: null }
+  | {
+      data: null;
+      error: InventoryAuthHttpError | InventoryAuthNetworkError | InventorySessionContractError;
+    };
+
+export type InventorySessionQueryResult =
+  { data: PublicAuthResponse; error: null } | { data: null; error: null | InventorySessionError };
 
 const createPendingState = (): InventorySessionState => ({
   status: "pending",
@@ -111,22 +128,37 @@ const createUnauthenticatedState = (): InventorySessionState => ({
   error: null,
 });
 
-const createUnconfirmedState = (
+const createContractError = (
   status: number,
-  operation: InventorySessionContractError["operation"] = "session",
-): InventoryUnconfirmedState => ({
+  operation: InventorySessionContractError["operation"],
+): InventorySessionContractError => ({
+  kind: "contract",
+  operation,
+  status,
+  message: "The authentication response did not match the public contract.",
+});
+
+const createHttpError = (operation: AuthOperation, status: number): InventoryAuthHttpError => ({
+  kind: "http",
+  operation,
+  status,
+  message: "The authentication request failed.",
+});
+
+const createNetworkError = (operation: AuthOperation): InventoryAuthNetworkError => ({
+  kind: "network",
+  operation,
+  message: "The authentication server could not be reached.",
+});
+
+const createUnconfirmedState = (error: InventorySessionError): InventoryUnconfirmedState => ({
   status: "unconfirmed",
   user: null,
   session: null,
   isRefetching: false,
   isAuthenticated: false,
   isUnauthenticated: false,
-  error: {
-    kind: "contract",
-    operation,
-    status,
-    message: "The authentication response did not match the public contract.",
-  },
+  error,
 });
 
 const hasUnauthorizedCode = (error: unknown): boolean => {
@@ -150,8 +182,11 @@ export const createInventoryAuthPlugin = () => {
 
   const refreshSession = async (
     request: () => Promise<BetterFetchResponse<unknown>>,
-  ): Promise<void> => {
+  ): Promise<InventorySessionQueryResult> => {
     const current = inventorySession.get();
+    const hasConfirmedSession =
+      current.status === "authenticated" || current.status === "unauthenticated";
+
     if (current.status !== "pending") {
       inventorySession.set({ ...current, isRefetching: true });
     }
@@ -162,14 +197,21 @@ export const createInventoryAuthPlugin = () => {
       if (result.error) {
         if (result.error.status === 401) {
           inventorySession.set(createUnauthenticatedState());
+          return { data: null, error: null };
         }
-        return;
+
+        const error = createHttpError("session", result.error.status);
+        if (!hasConfirmedSession) {
+          inventorySession.set(createUnconfirmedState(error));
+        }
+        return { data: null, error };
       }
 
       const parsed = publicAuthResponseSchema.safeParse(result.data);
       if (!parsed.success) {
-        inventorySession.set(createUnconfirmedState(200));
-        return;
+        const error = createContractError(200, "session");
+        inventorySession.set(createUnconfirmedState(error));
+        return { data: null, error };
       }
 
       inventorySession.set({
@@ -181,13 +223,19 @@ export const createInventoryAuthPlugin = () => {
         isUnauthenticated: false,
         error: null,
       });
+      return { data: parsed.data, error: null };
     } catch (error: unknown) {
       if (error instanceof AuthResponseContractError) {
-        inventorySession.set(createUnconfirmedState(error.status));
-        return;
+        const contractError = createContractError(error.status, "session");
+        inventorySession.set(createUnconfirmedState(contractError));
+        return { data: null, error: contractError };
       }
 
-      throw error;
+      const networkError = createNetworkError("session");
+      if (!hasConfirmedSession) {
+        inventorySession.set(createUnconfirmedState(networkError));
+      }
+      return { data: null, error: networkError };
     } finally {
       const latest = inventorySession.get();
       if (latest.isRefetching) {
@@ -232,19 +280,16 @@ export const createInventoryAuthPlugin = () => {
 
         return {
           data: null,
-          error: {
-            kind: "http",
-            status: result.error.status,
-            message: "The authentication request failed.",
-          },
+          error: createHttpError("sign-in", result.error.status),
         };
       }
 
       const parsed = publicAuthResponseSchema.safeParse(result.data);
       if (!parsed.success) {
-        const nextState = createUnconfirmedState(200, "sign-in");
+        const error = createContractError(200, "sign-in");
+        const nextState = createUnconfirmedState(error);
         inventorySession.set(nextState);
-        return { data: null, error: nextState.error };
+        return { data: null, error };
       }
 
       const nextState: InventorySessionState = {
@@ -261,12 +306,13 @@ export const createInventoryAuthPlugin = () => {
       return { data: parsed.data, error: null };
     } catch (error: unknown) {
       if (error instanceof AuthResponseContractError) {
-        const nextState = createUnconfirmedState(error.status, "sign-in");
+        const contractError = createContractError(error.status, "sign-in");
+        const nextState = createUnconfirmedState(contractError);
         inventorySession.set(nextState);
-        return { data: null, error: nextState.error };
+        return { data: null, error: contractError };
       }
 
-      throw error;
+      return { data: null, error: createNetworkError("sign-in") };
     } finally {
       inventorySignIn.set({ isPending: false });
     }
@@ -282,16 +328,21 @@ export const createInventoryAuthPlugin = () => {
       if (result.error) {
         return {
           data: null,
-          error: {
-            kind: "http",
-            status: result.error.status,
-            message: "The authentication request failed.",
-          },
+          error: createHttpError("sign-out", result.error.status),
         };
       }
 
       inventorySession.set(createUnauthenticatedState());
       return { data: null, error: null };
+    } catch (error: unknown) {
+      if (error instanceof AuthResponseContractError) {
+        return {
+          data: null,
+          error: createContractError(error.status, "sign-out"),
+        };
+      }
+
+      return { data: null, error: createNetworkError("sign-out") };
     } finally {
       inventorySignOut.set({ isPending: false });
     }
