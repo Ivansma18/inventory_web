@@ -26,13 +26,13 @@ const parseAuthJson = (text: string): unknown => {
 };
 
 export const createAuthFetchOptions = (
-  fetchImplementation: typeof fetch = globalThis.fetch,
+  fetchImplementation?: typeof fetch,
 ): NonNullable<BetterAuthClientOptions["fetchOptions"]> => ({
   credentials: "include",
   timeout: AUTH_REQUEST_TIMEOUT_MS,
   jsonParser: parseAuthJson,
   customFetchImpl: async (input, init) => {
-    const response = await fetchImplementation(input, init);
+    const response = await (fetchImplementation ?? globalThis.fetch)(input, init);
 
     if (!response.ok || response.status === 204) {
       return response;

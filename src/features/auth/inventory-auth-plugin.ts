@@ -1,112 +1,25 @@
 import type { BetterAuthClientPlugin, BetterFetchResponse } from "better-auth/client";
 import { atom, onMount } from "nanostores";
 
-import type { components } from "@/shared/api/generated/auth-contracts";
-
-import type { PublicAuthResponse } from "./auth-contract";
 import { publicAuthResponseSchema } from "./auth-contract";
 import { AUTH_REQUEST_TIMEOUT_MS, AuthResponseContractError } from "./api/auth-transport";
+import type {
+  AuthContractError as InventorySessionContractError,
+  AuthHttpError as InventoryAuthHttpError,
+  AuthNetworkError as InventoryAuthNetworkError,
+  AuthOperationState as InventorySignInState,
+  AuthOperationState as InventorySignOutState,
+  AuthSessionError as InventorySessionError,
+  AuthSessionQueryResult as InventorySessionQueryResult,
+  AuthSessionState as InventorySessionState,
+  AuthSignInResult as InventorySignInResult,
+  AuthSignOutResult as InventorySignOutResult,
+  SignInCredentials as AuthCredentials,
+} from "./types/auth";
 
-type AuthCredentials = components["schemas"]["AuthCredentials"];
 type AuthOperation = "session" | "sign-in" | "sign-out";
 
-export interface InventorySessionContractError {
-  kind: "contract";
-  operation: "session" | "sign-in" | "sign-out";
-  status: number;
-  message: string;
-}
-
-export interface InventoryAuthHttpError {
-  kind: "http";
-  operation: AuthOperation;
-  status: number;
-  message: string;
-}
-
-export interface InventoryAuthNetworkError {
-  kind: "network";
-  operation: AuthOperation;
-  message: string;
-}
-
-export type InventorySessionError =
-  InventorySessionContractError | InventoryAuthHttpError | InventoryAuthNetworkError;
-
-export type InventorySessionState =
-  | {
-      status: "pending";
-      user: null;
-      session: null;
-      isRefetching: false;
-      isAuthenticated: false;
-      isUnauthenticated: false;
-      error: null;
-    }
-  | {
-      status: "authenticated";
-      user: PublicAuthResponse["data"]["user"];
-      session: PublicAuthResponse["data"]["session"];
-      isRefetching: boolean;
-      isAuthenticated: true;
-      isUnauthenticated: false;
-      error: null;
-    }
-  | {
-      status: "unauthenticated";
-      user: null;
-      session: null;
-      isRefetching: boolean;
-      isAuthenticated: false;
-      isUnauthenticated: true;
-      error: null;
-    }
-  | {
-      status: "unconfirmed";
-      user: null;
-      session: null;
-      isRefetching: boolean;
-      isAuthenticated: false;
-      isUnauthenticated: false;
-      error: InventorySessionError;
-    };
-
 type InventoryUnconfirmedState = Extract<InventorySessionState, { status: "unconfirmed" }>;
-
-export interface InventorySignInState {
-  isPending: boolean;
-}
-
-export interface InventorySignOutState {
-  isPending: boolean;
-}
-
-export type InventoryAuthActionError =
-  | {
-      kind: "precondition";
-      sessionStatus: InventorySessionState["status"];
-      message: string;
-    }
-  | {
-      kind: "credentials";
-      status: 401;
-      code?: "UNAUTHORIZED";
-      message: string;
-    }
-  | InventorySessionError;
-
-export type InventorySignInResult =
-  { data: PublicAuthResponse; error: null } | { data: null; error: InventoryAuthActionError };
-
-export type InventorySignOutResult =
-  | { data: null; error: null }
-  | {
-      data: null;
-      error: InventoryAuthHttpError | InventoryAuthNetworkError | InventorySessionContractError;
-    };
-
-export type InventorySessionQueryResult =
-  { data: PublicAuthResponse; error: null } | { data: null; error: null | InventorySessionError };
 
 const createPendingState = (): InventorySessionState => ({
   status: "pending",
