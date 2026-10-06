@@ -727,6 +727,45 @@ describe("Inventory auth session atom", () => {
     },
   );
 
+  it("sends browser sign-out with a valid empty JSON object", async () => {
+    let signOutRequest: {
+      method: string;
+      contentType: string | null;
+      body: BodyInit | null | undefined;
+    } | null = null;
+
+    const customFetchImpl: FetchEsque = async (input, init) => {
+      if (String(input).endsWith("/get-session")) {
+        return Response.json(authResponse("json-sign-out-user"));
+      }
+
+      if (String(input).endsWith("/sign-out")) {
+        signOutRequest = {
+          method: init?.method ?? "",
+          contentType: new Headers(init?.headers).get("content-type"),
+          body: init?.body,
+        };
+        return new Response(null, { status: 204 });
+      }
+
+      throw new Error("Unexpected authentication request.");
+    };
+
+    const client = createTestAuthClient(customFetchImpl);
+    const { result } = renderHook(() => client.useInventorySession());
+
+    await waitFor(() => expect(result.current.status).toBe("authenticated"));
+    await act(async () => {
+      await client.signOutInventory();
+    });
+
+    expect(signOutRequest).toEqual({
+      method: "POST",
+      contentType: "application/json",
+      body: "{}",
+    });
+  });
+
   it("does not confirm logout for a malformed successful response", async () => {
     server.use(
       http.get(sessionEndpoint, () => HttpResponse.json(authResponse("unconfirmed-logout-user"))),

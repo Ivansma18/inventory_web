@@ -42,6 +42,18 @@ const generatedSessionResponse: paths["/api/auth/get-session"]["get"]["responses
 const generatedSignOutResponse: paths["/api/auth/sign-out"]["post"]["responses"][204] = {
   headers: {},
 };
+const generatedSignOutError: paths["/api/auth/sign-out"]["post"]["responses"][400]["content"]["application/json"] =
+  {
+    error: { code: "VALIDATION_ERROR", message: "Sign-out request rejected." },
+  };
+const generatedSignOutForbidden: paths["/api/auth/sign-out"]["post"]["responses"][403]["content"]["application/json"] =
+  {
+    error: { code: "FORBIDDEN", message: "The request origin is not trusted." },
+  };
+const generatedSignOutInternalError: paths["/api/auth/sign-out"]["post"]["responses"][500]["content"]["application/json"] =
+  {
+    error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred." },
+  };
 
 const collectReferences = (value: unknown): string[] => {
   if (Array.isArray(value)) {
@@ -102,7 +114,7 @@ describe("Auth and health OpenAPI contract snapshot", () => {
       get: { responses: { 200: {}, 401: {} } },
     });
     expect(snapshot.paths["/api/auth/sign-out"]).toMatchObject({
-      post: { responses: { 204: {} } },
+      post: { responses: { 204: {}, 400: {}, 403: {}, 500: {} } },
     });
     expect(snapshot.components.securitySchemes.sessionCookie).toMatchObject({
       type: "apiKey",
@@ -123,6 +135,9 @@ describe("Auth and health OpenAPI contract snapshot", () => {
     expect(generatedSignInResponse).toEqual(generatedAuthResponse);
     expect(generatedSessionResponse).toEqual(generatedAuthResponse);
     expect(generatedSignOutResponse).toEqual({ headers: {} });
+    expect(generatedSignOutError.error.code).toBe("VALIDATION_ERROR");
+    expect(generatedSignOutForbidden.error.code).toBe("FORBIDDEN");
+    expect(generatedSignOutInternalError.error.code).toBe("INTERNAL_ERROR");
 
     expect(snapshot.components.schemas).toHaveProperty("AuthCredentials");
     expect(snapshot.components.schemas).toHaveProperty("PublicAuthResponse");

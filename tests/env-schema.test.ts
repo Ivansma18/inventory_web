@@ -117,7 +117,7 @@ describe("tool environment schema", () => {
 });
 
 describe("public environment example", () => {
-  it("contains only safe local examples, not real-auth credentials", async () => {
+  it("contains safe local examples and blank private-auth placeholders", async () => {
     const example = await readFile(resolve(projectRoot, ".env.example"), "utf8");
     const variableNames = example
       .split(/\r?\n/)
@@ -125,7 +125,15 @@ describe("public environment example", () => {
       .filter((line) => line.length > 0 && !line.startsWith("#"))
       .map((line) => line.split("=", 1)[0]);
 
-    expect(variableNames).toEqual(["VITE_APP_NAME", "VITE_API_URL", "API_PROXY_TARGET"]);
-    expect(example).not.toMatch(/AUTH_TEST_(?:EMAIL|PASSWORD)/);
+    expect(variableNames).toEqual([
+      "VITE_APP_NAME",
+      "VITE_API_URL",
+      "API_PROXY_TARGET",
+      "AUTH_TEST_EMAIL",
+      "AUTH_TEST_PASSWORD",
+    ]);
+    expect(example).toMatch(/^AUTH_TEST_EMAIL=$/m);
+    expect(example).toMatch(/^AUTH_TEST_PASSWORD=$/m);
+    expect(example).not.toMatch(/^VITE_AUTH_TEST_/m);
   });
 });

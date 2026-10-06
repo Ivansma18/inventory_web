@@ -168,6 +168,33 @@ export interface paths {
                     };
                     content?: never;
                 };
+                /** @description Sign-out request rejected */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuthSignOutErrorResponse"];
+                    };
+                };
+                /** @description Untrusted request origin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuthForbiddenResponse"];
+                    };
+                };
+                /** @description Unable to close the session */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuthInternalErrorResponse"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -279,6 +306,26 @@ export interface components {
             email: string;
             /** @example password123 */
             password: string;
+        };
+        AuthInternalErrorResponse: {
+            error: {
+                /** @enum {string} */
+                code: "INTERNAL_ERROR";
+                message: string;
+            };
+        };
+        AuthForbiddenResponse: {
+            error: {
+                /** @enum {string} */
+                code: "FORBIDDEN";
+                message: string;
+            };
+        };
+        AuthSignOutErrorResponse: {
+            error: {
+                code: string;
+                message: string;
+            };
         };
         AuthUnauthorizedResponse: {
             error: {

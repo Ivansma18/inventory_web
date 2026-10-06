@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { resolve } from "node:path";
 import process from "node:process";
+import { parseEnv } from "node:util";
 
 const require = createRequire(import.meta.url);
 const playwrightCli = require.resolve("@playwright/test/cli");
@@ -19,6 +22,24 @@ for (let index = 0; index < playwrightArgs.length; index += 1) {
 
 const hasExplicitProjectSelection = selectedProjects.length > 0;
 const authRealWasSelected = selectedProjects.includes("auth-real");
+
+if (authRealWasSelected) {
+  const localEnvPath = resolve(process.cwd(), ".env");
+
+  try {
+    const localEnv = parseEnv(readFileSync(localEnvPath, "utf8"));
+    for (const name of ["AUTH_TEST_EMAIL", "AUTH_TEST_PASSWORD"]) {
+      if (!process.env[name]?.trim() && localEnv[name]?.trim()) {
+        process.env[name] = localEnv[name];
+      }
+    }
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+      throw error;
+    }
+  }
+}
+
 const healthRealWasSelected = selectedProjects.includes("health-real");
 const authHarnessProjectSelected =
   !hasExplicitProjectSelection || selectedProjects.includes("auth-harness");

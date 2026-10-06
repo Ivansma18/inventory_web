@@ -108,6 +108,36 @@
         "responses": {
           "204": {
             "description": "Current session closed"
+          },
+          "400": {
+            "description": "Sign-out request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSignOutErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Untrusted request origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthForbiddenResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unable to close the session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthInternalErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -275,6 +305,63 @@
           }
         },
         "required": ["name", "email", "password"]
+      },
+      "AuthInternalErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": ["INTERNAL_ERROR"]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["code", "message"]
+          }
+        },
+        "required": ["error"]
+      },
+      "AuthForbiddenResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": ["FORBIDDEN"]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["code", "message"]
+          }
+        },
+        "required": ["error"]
+      },
+      "AuthSignOutErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]*$"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["code", "message"]
+          }
+        },
+        "required": ["error"]
       },
       "AuthUnauthorizedResponse": {
         "type": "object",

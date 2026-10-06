@@ -337,6 +337,8 @@ export const createInventoryAuthPlugin = () => {
         performSignOut(() =>
           $fetch<null>("/sign-out", {
             method: "POST",
+            body: {},
+            headers: { "content-type": "application/json" },
             credentials: "include",
             timeout: AUTH_REQUEST_TIMEOUT_MS,
           }),
