@@ -4,7 +4,9 @@ const baseURL = "http://localhost:5174";
 const authRealWasSelected = process.env.INVENTORY_E2E_AUTH_REAL === "1";
 const authHarnessProjectSelected = process.env.INVENTORY_E2E_AUTH_HARNESS_PROJECT === "1";
 const proxyContractProjectSelected = process.env.INVENTORY_E2E_PROXY_CONTRACT === "1";
+const previewProjectSelected = process.env.INVENTORY_E2E_PREVIEW === "1";
 const proxyTestBackendTarget = "http://127.0.0.1:5175";
+const unavailablePreviewBackendTarget = "http://127.0.0.1:65534";
 
 const webServerEnv: NodeJS.ProcessEnv = {
   ...process.env,
@@ -12,7 +14,9 @@ const webServerEnv: NodeJS.ProcessEnv = {
   VITE_API_URL: process.env.VITE_API_URL ?? "/api/backend",
   API_PROXY_TARGET: proxyContractProjectSelected
     ? proxyTestBackendTarget
-    : (process.env.API_PROXY_TARGET ?? "http://localhost:3000"),
+    : previewProjectSelected
+      ? unavailablePreviewBackendTarget
+      : (process.env.API_PROXY_TARGET ?? "http://localhost:3000"),
   INVENTORY_AUTH_E2E_HARNESS: process.env.INVENTORY_AUTH_E2E_HARNESS ?? "0",
 };
 
@@ -35,6 +39,16 @@ const projects = [
     testMatch: "**/*.project-smoke.spec.ts",
     use: { ...devices["Desktop Chrome"], baseURL },
   },
+  ...(previewProjectSelected
+    ? [
+        {
+          name: "preview-smoke",
+          testDir: "./tests/browser",
+          testMatch: "**/*.preview-smoke.spec.ts",
+          use: { ...devices["Desktop Chrome"], baseURL },
+        },
+      ]
+    : []),
   ...(authHarnessProjectSelected
     ? [
         {
@@ -88,6 +102,33 @@ const proxyTestBackendWebServer = {
   stderr: "pipe" as const,
 };
 
+const previewWebServerEnv: NodeJS.ProcessEnv = {
+  ...webServerEnv,
+  VITE_APP_NAME: "Inventory",
+  VITE_API_URL: "/api/backend",
+  API_PROXY_TARGET: proxyContractProjectSelected
+    ? proxyTestBackendTarget
+    : unavailablePreviewBackendTarget,
+  INVENTORY_AUTH_E2E_HARNESS: "0",
+  AUTH_TEST_EMAIL: "preview-sentinel@example.invalid",
+  AUTH_TEST_PASSWORD: "preview-sentinel-password",
+};
+
+const previewWebServer = {
+  command: `"${process.execPath}" scripts/start-preview-e2e.mjs`,
+  url: baseURL,
+  reuseExistingServer: false,
+  timeout: 120_000,
+  env: previewWebServerEnv,
+  stdout: "pipe" as const,
+  stderr: "pipe" as const,
+};
+
+const webServers = [
+  ...(proxyContractProjectSelected ? [proxyTestBackendWebServer] : []),
+  previewProjectSelected ? previewWebServer : viteWebServer,
+];
+
 export default defineConfig({
   testDir: "./tests/browser",
   fullyParallel: true,
@@ -102,7 +143,5 @@ export default defineConfig({
     headless: true,
     trace: "off",
   },
-  webServer: proxyContractProjectSelected
-    ? [proxyTestBackendWebServer, viteWebServer]
-    : viteWebServer,
+  webServer: webServers.length === 1 ? webServers[0] : webServers,
 });

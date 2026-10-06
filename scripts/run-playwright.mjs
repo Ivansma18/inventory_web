@@ -24,6 +24,7 @@ const authHarnessProjectSelected =
 const authHarnessRouteEnabled = authHarnessProjectSelected || authRealWasSelected;
 const proxyContractProjectSelected =
   !hasExplicitProjectSelection || selectedProjects.includes("proxy-contract");
+const previewProjectSelected = selectedProjects.includes("preview-smoke");
 
 const child = spawn(process.execPath, [playwrightCli, "test", ...playwrightArgs], {
   cwd: process.cwd(),
@@ -32,6 +33,7 @@ const child = spawn(process.execPath, [playwrightCli, "test", ...playwrightArgs]
     INVENTORY_E2E_AUTH_REAL: authRealWasSelected ? "1" : "0",
     INVENTORY_E2E_AUTH_HARNESS_PROJECT: authHarnessProjectSelected ? "1" : "0",
     INVENTORY_E2E_PROXY_CONTRACT: proxyContractProjectSelected ? "1" : "0",
+    INVENTORY_E2E_PREVIEW: previewProjectSelected ? "1" : "0",
     INVENTORY_AUTH_E2E_HARNESS: authHarnessRouteEnabled ? "1" : "0",
   },
   stdio: "inherit",
