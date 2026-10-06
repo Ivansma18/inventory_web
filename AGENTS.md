@@ -3,14 +3,16 @@
 ## Proyecto
 
 Frontend del backend Inventory, con evolución hacia gestión de inventario,
-compras, ventas, mini ERP y SaaS multi-tenant. La arquitectura prevista combina
-Feature-Driven Architecture, Vertical Slices y un Design System propio.
+compras, ventas, mini ERP y SaaS multi-tenant. La Fase 0 de bootstrap está
+implementada; las funciones de negocio de la ruta siguen siendo fases futuras.
+La arquitectura combina Feature-Driven Architecture, Vertical Slices y un
+Design System propio.
 
-La fuente de referencia es `docs/ruta.md`. El proyecto está pendiente de
-bootstrap; las tecnologías y carpetas descritas allí son objetivos, no
-implementaciones existentes.
+La fuente de referencia es `docs/ruta.md`; `README.md` contiene pasos
+reproducibles de instalación, desarrollo, comprobaciones y requisitos de las
+pruebas reales.
 
-## Stack previsto
+## Stack implementado
 
 - Core: React, TypeScript, Vite y React Router.
 - Autenticación: Better Auth React Client encapsulado en `features/auth`.
@@ -22,16 +24,31 @@ implementaciones existentes.
 - Pruebas: Vitest, React Testing Library, MSW y Playwright.
 - Calidad: TypeScript strict, ESLint, Prettier, Husky y lint-staged.
 
-## Comandos
+## Comandos verificados
 
-Todavía no existe `package.json` ni hay comandos verificables desde la raíz.
+Ejecutar desde la raíz del frontend, con Node.js `24.21.0` y pnpm `12.8.1`.
+Instalación reproducible: `pnpm install --frozen-lockfile`.
 
-- Ejecutar: [NECESITA ACLARACIÓN: comando de desarrollo tras el bootstrap].
-- Tests: [NECESITA ACLARACIÓN: comando de pruebas tras el bootstrap].
-- Lint/formato: [NECESITA ACLARACIÓN: comandos tras el bootstrap].
-- Typecheck/build: [NECESITA ACLARACIÓN: comandos tras el bootstrap].
+- Desarrollo: `pnpm dev` (`http://localhost:5174`, puerto estricto).
+- Build/preview: `pnpm build`; `pnpm preview` sirve el build en `5174`.
+- Calidad: `pnpm lint`, `pnpm format:check`, `pnpm typecheck`.
+- Formato con escritura: `pnpm format`.
+- Unit tests: `pnpm test:run`; modo interactivo: `pnpm test`.
+- E2E predeterminado, con mocks/backend aislado: `pnpm test:e2e`.
+- Real backend: `pnpm test:e2e --project=health-real` y
+  `pnpm test:e2e --project=auth-real`; este último requiere backend, trusted
+  origin de development y cuenta privada configurada en `.env`.
+- E2E adicionales verificados: `pnpm test:e2e --project=preview-smoke`,
+  `pnpm test:e2e --project=proxy-contract` y
+  `pnpm test:e2e --project=auth-harness`.
+- Comprobaciones de proceso/hooks: `pnpm verify:startup` y
+  `pnpm verify:hooks`.
 
-Al configurar el proyecto, actualizar esta sección con los comandos reales.
+Las suites simuladas no requieren backend ni credenciales. La prueba `auth-real`
+solo corre al seleccionar su proyecto expresamente. Consultar `README.md` para
+configuración segura, cuenta/backend, alcance de cada suite y operación de Git.
+Husky solo puede instalar hooks dentro de la raíz de un repositorio Git; si no
+hay `.git`, usar los comandos CLI de calidad.
 
 ## Estilo y convenciones
 
