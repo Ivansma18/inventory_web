@@ -3,12 +3,16 @@ import { defineConfig, devices } from "@playwright/test";
 const baseURL = "http://localhost:5174";
 const authRealWasSelected = process.env.INVENTORY_E2E_AUTH_REAL === "1";
 const authHarnessProjectSelected = process.env.INVENTORY_E2E_AUTH_HARNESS_PROJECT === "1";
+const proxyContractProjectSelected = process.env.INVENTORY_E2E_PROXY_CONTRACT === "1";
+const proxyTestBackendTarget = "http://127.0.0.1:5175";
 
 const webServerEnv: NodeJS.ProcessEnv = {
   ...process.env,
   VITE_APP_NAME: process.env.VITE_APP_NAME ?? "Inventory",
   VITE_API_URL: process.env.VITE_API_URL ?? "/api/backend",
-  API_PROXY_TARGET: process.env.API_PROXY_TARGET ?? "http://localhost:3000",
+  API_PROXY_TARGET: proxyContractProjectSelected
+    ? proxyTestBackendTarget
+    : (process.env.API_PROXY_TARGET ?? "http://localhost:3000"),
   INVENTORY_AUTH_E2E_HARNESS: process.env.INVENTORY_AUTH_E2E_HARNESS ?? "0",
 };
 
@@ -65,6 +69,25 @@ const projects = [
     : []),
 ];
 
+const viteWebServer = {
+  command: `"${process.execPath}" node_modules/vite/bin/vite.js`,
+  url: baseURL,
+  reuseExistingServer: false,
+  timeout: 120_000,
+  env: webServerEnv,
+  stdout: "pipe" as const,
+  stderr: "pipe" as const,
+};
+
+const proxyTestBackendWebServer = {
+  command: `"${process.execPath}" scripts/proxy-test-backend.mjs`,
+  url: `${proxyTestBackendTarget}/__proxy-test/health`,
+  reuseExistingServer: false,
+  timeout: 120_000,
+  stdout: "pipe" as const,
+  stderr: "pipe" as const,
+};
+
 export default defineConfig({
   testDir: "./tests/browser",
   fullyParallel: true,
@@ -79,13 +102,7 @@ export default defineConfig({
     headless: true,
     trace: "off",
   },
-  webServer: {
-    command: `"${process.execPath}" node_modules/vite/bin/vite.js`,
-    url: baseURL,
-    reuseExistingServer: false,
-    timeout: 120_000,
-    env: webServerEnv,
-    stdout: "pipe",
-    stderr: "pipe",
-  },
+  webServer: proxyContractProjectSelected
+    ? [proxyTestBackendWebServer, viteWebServer]
+    : viteWebServer,
 });
