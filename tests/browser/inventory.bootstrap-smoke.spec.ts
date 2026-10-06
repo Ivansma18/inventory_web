@@ -6,4 +6,8 @@ test("renders the minimal Inventory page in Chromium", async ({ page }) => {
   await expect(page.getByRole("main")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1, name: "Inventory" })).toBeVisible();
   await expect(page.getByText("Frontend base para la gestión de inventario.")).toBeVisible();
+
+  const harnessResponse = await page.request.get("/__auth-test");
+  const harnessHtml = await harnessResponse.text();
+  expect(harnessHtml).not.toContain("Auth test harness");
 });

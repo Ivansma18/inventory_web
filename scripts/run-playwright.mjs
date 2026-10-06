@@ -5,17 +5,31 @@ import process from "node:process";
 const require = createRequire(import.meta.url);
 const playwrightCli = require.resolve("@playwright/test/cli");
 const playwrightArgs = process.argv.slice(2);
-const authRealWasSelected = playwrightArgs.some(
-  (argument, index) =>
-    argument === "--project=auth-real" ||
-    (argument === "--project" && playwrightArgs[index + 1] === "auth-real"),
-);
+const selectedProjects = [];
+
+for (let index = 0; index < playwrightArgs.length; index += 1) {
+  const argument = playwrightArgs[index];
+  if (argument.startsWith("--project=")) {
+    selectedProjects.push(...argument.slice("--project=".length).split(","));
+  } else if (argument === "--project" && playwrightArgs[index + 1]) {
+    selectedProjects.push(...playwrightArgs[index + 1].split(","));
+    index += 1;
+  }
+}
+
+const hasExplicitProjectSelection = selectedProjects.length > 0;
+const authRealWasSelected = selectedProjects.includes("auth-real");
+const authHarnessProjectSelected =
+  !hasExplicitProjectSelection || selectedProjects.includes("auth-harness");
+const authHarnessRouteEnabled = authHarnessProjectSelected || authRealWasSelected;
 
 const child = spawn(process.execPath, [playwrightCli, "test", ...playwrightArgs], {
   cwd: process.cwd(),
   env: {
     ...process.env,
     INVENTORY_E2E_AUTH_REAL: authRealWasSelected ? "1" : "0",
+    INVENTORY_E2E_AUTH_HARNESS_PROJECT: authHarnessProjectSelected ? "1" : "0",
+    INVENTORY_AUTH_E2E_HARNESS: authHarnessRouteEnabled ? "1" : "0",
   },
   stdio: "inherit",
   windowsHide: true,

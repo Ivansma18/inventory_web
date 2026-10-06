@@ -2,12 +2,14 @@ import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = "http://localhost:5174";
 const authRealWasSelected = process.env.INVENTORY_E2E_AUTH_REAL === "1";
+const authHarnessProjectSelected = process.env.INVENTORY_E2E_AUTH_HARNESS_PROJECT === "1";
 
 const webServerEnv: NodeJS.ProcessEnv = {
   ...process.env,
   VITE_APP_NAME: process.env.VITE_APP_NAME ?? "Inventory",
   VITE_API_URL: process.env.VITE_API_URL ?? "/api/backend",
   API_PROXY_TARGET: process.env.API_PROXY_TARGET ?? "http://localhost:3000",
+  INVENTORY_AUTH_E2E_HARNESS: process.env.INVENTORY_AUTH_E2E_HARNESS ?? "0",
 };
 
 for (const key of Object.keys(webServerEnv)) {
@@ -29,6 +31,22 @@ const projects = [
     testMatch: "**/*.project-smoke.spec.ts",
     use: { ...devices["Desktop Chrome"], baseURL },
   },
+  ...(authHarnessProjectSelected
+    ? [
+        {
+          name: "auth-harness",
+          testDir: "./tests/browser",
+          testMatch: "**/*.auth-harness.spec.ts",
+          use: {
+            ...devices["Desktop Chrome"],
+            baseURL,
+            screenshot: "off" as const,
+            trace: "off" as const,
+            video: "off" as const,
+          },
+        },
+      ]
+    : []),
   ...(authRealWasSelected
     ? [
         {

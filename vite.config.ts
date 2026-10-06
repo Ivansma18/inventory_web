@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, loadEnv } from "vite";
 
 import { createViteAliases } from "./scripts/vite-aliases.ts";
+import { createAuthTestHarnessPlugin } from "./scripts/vite-auth-test-harness.ts";
 import { createApiProxy } from "./scripts/vite-proxy.ts";
 import { publicEnvSchema, toolEnvSchema } from "./src/shared/config/env.schema.ts";
 
@@ -40,9 +41,11 @@ const validateEnvironment = (mode: string) => {
   };
 };
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const environment = validateEnvironment(mode);
   const apiProxy = createApiProxy(environment.tools.API_PROXY_TARGET);
+  const authTestHarnessEnabled =
+    command === "serve" && process.env.INVENTORY_AUTH_E2E_HARNESS === "1";
 
   return {
     root: projectRoot,
@@ -51,7 +54,11 @@ export default defineConfig(({ mode }) => {
       "import.meta.env.VITE_APP_NAME": JSON.stringify(environment.public.VITE_APP_NAME),
       "import.meta.env.VITE_API_URL": JSON.stringify(environment.public.VITE_API_URL),
     },
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      ...(authTestHarnessEnabled ? [createAuthTestHarnessPlugin(projectRoot)] : []),
+    ],
     resolve: {
       alias: createViteAliases(projectRoot),
     },
