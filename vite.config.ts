@@ -6,6 +6,7 @@ import { defineConfig, loadEnv } from "vite";
 
 import { createViteAliases } from "./scripts/vite-aliases.ts";
 import { createAuthTestHarnessPlugin } from "./scripts/vite-auth-test-harness.ts";
+import { createHealthTestHarnessPlugin } from "./scripts/vite-health-test-harness.ts";
 import { createApiProxy } from "./scripts/vite-proxy.ts";
 import { publicEnvSchema, toolEnvSchema } from "./src/shared/config/env.schema.ts";
 
@@ -46,6 +47,8 @@ export default defineConfig(({ mode, command }) => {
   const apiProxy = createApiProxy(environment.tools.API_PROXY_TARGET);
   const authTestHarnessEnabled =
     command === "serve" && process.env.INVENTORY_AUTH_E2E_HARNESS === "1";
+  const healthTestHarnessEnabled =
+    command === "serve" && process.env.INVENTORY_HEALTH_E2E_HARNESS === "1";
 
   return {
     root: projectRoot,
@@ -58,6 +61,7 @@ export default defineConfig(({ mode, command }) => {
       react(),
       tailwindcss(),
       ...(authTestHarnessEnabled ? [createAuthTestHarnessPlugin(projectRoot)] : []),
+      ...(healthTestHarnessEnabled ? [createHealthTestHarnessPlugin(projectRoot)] : []),
     ],
     resolve: {
       alias: createViteAliases(projectRoot),

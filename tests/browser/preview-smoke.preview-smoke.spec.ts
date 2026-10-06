@@ -6,6 +6,10 @@ const forbiddenBundleMarkers = [
   "/__auth-test",
   "Auth test harness",
   "auth-real-harness.tsx",
+  "/__health-test",
+  "Inventory Local Health Check",
+  "health-real-client-harness.ts",
+  "INVENTORY_HEALTH_E2E_HARNESS",
   "AUTH_TEST_EMAIL",
   "AUTH_TEST_PASSWORD",
   "preview-sentinel@example.invalid",
@@ -61,4 +65,12 @@ test("serves the built app in preview without Auth harness or backend access", a
   expect(harnessFallback).not.toContain("Auth test harness");
   expect(harnessFallback).not.toContain("auth-real-harness.tsx");
   expect(harnessFallback).not.toContain("/src/main.tsx");
+
+  const healthHarnessResponse = await page.request.get("/__health-test");
+  expect(healthHarnessResponse.status()).toBe(200);
+  expect(healthHarnessResponse.headers()["content-type"]).toContain("text/html");
+  const healthFallback = await healthHarnessResponse.text();
+  expect(healthFallback).not.toContain("Local backend health check");
+  expect(healthFallback).not.toContain("health-real-client-harness.ts");
+  expect(healthFallback).not.toContain("/src/main.tsx");
 });

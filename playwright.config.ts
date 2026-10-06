@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = "http://localhost:5174";
 const authRealWasSelected = process.env.INVENTORY_E2E_AUTH_REAL === "1";
+const healthRealWasSelected = process.env.INVENTORY_E2E_HEALTH_REAL === "1";
 const authHarnessProjectSelected = process.env.INVENTORY_E2E_AUTH_HARNESS_PROJECT === "1";
 const proxyContractProjectSelected = process.env.INVENTORY_E2E_PROXY_CONTRACT === "1";
 const previewProjectSelected = process.env.INVENTORY_E2E_PREVIEW === "1";
@@ -18,6 +19,7 @@ const webServerEnv: NodeJS.ProcessEnv = {
       ? unavailablePreviewBackendTarget
       : (process.env.API_PROXY_TARGET ?? "http://localhost:3000"),
   INVENTORY_AUTH_E2E_HARNESS: process.env.INVENTORY_AUTH_E2E_HARNESS ?? "0",
+  INVENTORY_HEALTH_E2E_HARNESS: healthRealWasSelected ? "1" : "0",
 };
 
 for (const key of Object.keys(webServerEnv)) {
@@ -46,6 +48,22 @@ const projects = [
           testDir: "./tests/browser",
           testMatch: "**/*.preview-smoke.spec.ts",
           use: { ...devices["Desktop Chrome"], baseURL },
+        },
+      ]
+    : []),
+  ...(healthRealWasSelected
+    ? [
+        {
+          name: "health-real",
+          testDir: "./tests/browser",
+          testMatch: "**/*.health-real.spec.ts",
+          use: {
+            ...devices["Desktop Chrome"],
+            baseURL,
+            screenshot: "off" as const,
+            trace: "off" as const,
+            video: "off" as const,
+          },
         },
       ]
     : []),

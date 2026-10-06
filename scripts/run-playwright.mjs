@@ -19,6 +19,7 @@ for (let index = 0; index < playwrightArgs.length; index += 1) {
 
 const hasExplicitProjectSelection = selectedProjects.length > 0;
 const authRealWasSelected = selectedProjects.includes("auth-real");
+const healthRealWasSelected = selectedProjects.includes("health-real");
 const authHarnessProjectSelected =
   !hasExplicitProjectSelection || selectedProjects.includes("auth-harness");
 const authHarnessRouteEnabled = authHarnessProjectSelected || authRealWasSelected;
@@ -31,10 +32,12 @@ const child = spawn(process.execPath, [playwrightCli, "test", ...playwrightArgs]
   env: {
     ...process.env,
     INVENTORY_E2E_AUTH_REAL: authRealWasSelected ? "1" : "0",
+    INVENTORY_E2E_HEALTH_REAL: healthRealWasSelected ? "1" : "0",
     INVENTORY_E2E_AUTH_HARNESS_PROJECT: authHarnessProjectSelected ? "1" : "0",
     INVENTORY_E2E_PROXY_CONTRACT: proxyContractProjectSelected ? "1" : "0",
     INVENTORY_E2E_PREVIEW: previewProjectSelected ? "1" : "0",
     INVENTORY_AUTH_E2E_HARNESS: authHarnessRouteEnabled ? "1" : "0",
+    INVENTORY_HEALTH_E2E_HARNESS: healthRealWasSelected ? "1" : "0",
   },
   stdio: "inherit",
   windowsHide: true,
