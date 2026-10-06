@@ -1,0 +1,26 @@
+# Dependencies, generated files, and build/test artifacts
+/node_modules/
+/dist/
+/coverage/
+/.vite/
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/
+/pnpm-lock.yaml
+/src/shared/api/generated/
+**/generated/
+**/*.generated.*
+**/*.min.*
+
+# Authored documentation and existing agent/tool configuration are outside the code format scope
+/AGENTS.md
+/docs/
+/specs/
+/opencode.jsonc
+/.agents/
+/.claude/
+/.codex/
+/.cursor/
+/.impeccable/
+/.opencode/

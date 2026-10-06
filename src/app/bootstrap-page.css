@@ -1,0 +1,40 @@
+body {
+  min-width: 20rem;
+  margin: 0;
+}
+
+.bootstrap-page {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100svh;
+  align-items: center;
+  padding: clamp(1.25rem, 5vw, 4rem);
+  background: #f5f7fb;
+  color: #16396b;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.bootstrap-page__content {
+  width: min(100%, 68rem);
+  margin-inline: auto;
+  padding-block: clamp(2rem, 7vw, 5rem);
+  border-top: 1px solid #cbd5e1;
+}
+
+.bootstrap-page h1 {
+  max-width: 12ch;
+  margin: 0;
+  font-size: clamp(2.75rem, 8vw, 5rem);
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+.bootstrap-page p {
+  max-width: 65ch;
+  margin: clamp(1rem, 2.5vw, 1.5rem) 0 0;
+  color: #46566b;
+  font-size: clamp(1rem, 1.5vw, 1.125rem);
+  line-height: 1.7;
+}

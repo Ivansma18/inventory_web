@@ -1,0 +1,82 @@
+{
+  "name": "inventory-web",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.8.1",
+  "engines": {
+    "node": "24.21.0",
+    "pnpm": "12.8.1"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit && node scripts/verify-typescript-config.mjs",
+    "test": "vitest --watch",
+    "test:run": "vitest run",
+    "test:e2e": "node scripts/run-playwright.mjs",
+    "lint": "eslint . && node scripts/verify-eslint-config.mjs",
+    "format": "prettier --write \"src/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"tests/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"scripts/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \".prettierrc.json\"",
+    "format:check": "prettier --check \"src/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"tests/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"scripts/**/*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \"*.{css,html,js,jsx,json,jsonc,mjs,cjs,svg,ts,tsx,yaml,yml}\" \".prettierrc.json\" && node scripts/verify-prettier-config.mjs",
+    "prepare": "node scripts/prepare-hooks.mjs",
+    "verify:hooks": "node scripts/verify-hooks-config.mjs",
+    "verify:startup": "node scripts/verify-startup-processes.mjs",
+    "snapshot:auth-openapi": "node scripts/snapshot-auth-openapi.mjs",
+    "generate:auth-contracts": "openapi-typescript tests/contracts/auth-health.openapi.json -o src/shared/api/generated/auth-contracts.ts"
+  },
+  "lint-staged": {
+    "{src,tests,scripts}/**/*.{js,jsx,mjs,cjs,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "./*.{js,jsx,mjs,cjs,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "{src,tests,scripts}/**/*.{css,html,json,jsonc,svg,yaml,yml}": "prettier --write",
+    "./*.{css,html,json,jsonc,svg,yaml,yml}": "prettier --write"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "5.9.1",
+    "@tanstack/react-query": "5.104.0",
+    "axios": "1.20.0",
+    "better-auth": "1.7.5",
+    "nanostores": "1.5.4",
+    "primeicons": "8.0.2",
+    "primereact": "10.9.7",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-hook-form": "7.89.0",
+    "react-router": "8.4.0",
+    "zod": "4.6.5",
+    "zustand": "5.0.15"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
+    "@types/node": "24.19.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "eslint": "10.11.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.7",
+    "husky": "9.1.7",
+    "jsdom": "30.1.1",
+    "lint-staged": "17.6.0",
+    "msw": "2.12.10",
+    "openapi-typescript": "7.13.0",
+    "prettier": "3.9.9",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.0",
+    "vite": "8.3.2",
+    "vitest": "5.0.3"
+  }
+}

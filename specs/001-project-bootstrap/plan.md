@@ -24,7 +24,7 @@ Las rutas siguientes son destinos de implementación previstos, no archivos crea
 
 | Módulo                                                                                         | Responsabilidad                                                                                                           | RF cubiertos                                                    |
 | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `package.json`, `pnpm-lock.yaml`, `.npmrc`, `.node-version`, `tsconfig*.json`                  | Fijar entorno y dependencias, scripts, resolución estricta, TypeScript strict y aliases.                                  | RF-1, RF-5, RF-26, RF-28 a RF-31, RF-33                         |
+| `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `.node-version`, `tsconfig*.json`    | Fijar entorno y dependencias, settings compatibles con pnpm 12, TypeScript strict y aliases.                               | RF-1, RF-5, RF-26, RF-28 a RF-31, RF-33                         |
 | `vite.config.ts`                                                                               | Validar configuración antes de servir o compilar; puertos estrictos; proxy de Auth y negocio; plugins de React y estilos. | RF-2, RF-3, RF-5, RF-6, RF-10, RF-11, RF-13, RF-35, RF-36       |
 | `src/shared/config/env.schema.ts`, `env.ts`, `.env.example`                                    | Esquema puro de configuración pública, validación en proceso y navegador, errores sin valores sensibles.                  | RF-7, RF-8, RF-9, RF-35 a RF-37                                 |
 | `src/main.tsx`, `src/app/router/router.tsx`, `src/app/bootstrap-page.tsx`                      | Inicializar solo con configuración válida y mostrar una única vista semántica de Inventory en `/`.                        | RF-4, RF-6, RF-7, RF-37                                         |
@@ -148,13 +148,17 @@ Cuando el backend no esté accesible a través del proxy, Vite podrá responder 
 | Formularios        | `react-hook-form` `7.89.0`; `@hookform/resolvers` `5.9.1`; `zod` `4.6.5`                                                                                                               |
 | UI                 | `primereact` `10.9.7`; `primeicons` `8.0.2`; `tailwindcss` y `@tailwindcss/vite` `4.3.3`                                                                                               |
 | Tipos              | `@types/react` y `@types/react-dom` `19.3.0`; `@types/node` `24.19.0`                                                                                                                  |
-| Pruebas            | `vitest` `5.0.3`; `jsdom` `30.1.1`; `msw` `3.0.1`; `@playwright/test` `1.63.0`                                                                                                         |
+| Pruebas            | `vitest` `5.0.3`; `jsdom` `30.1.1`; `msw` `2.12.10`; `@playwright/test` `1.63.0`                                                                                                      |
 | Testing Library    | `@testing-library/react` `16.3.3`; `@testing-library/dom` `10.4.2`; `@testing-library/jest-dom` `7.0.1`; `@testing-library/user-event` `14.6.7`                                        |
 | Calidad            | `eslint` `10.11.0`; `@eslint/js` `10.0.1`; `typescript-eslint` `8.71.0`; `eslint-plugin-react-hooks` `7.1.1`; `eslint-plugin-react-refresh` `0.5.7`; `eslint-config-prettier` `10.1.8` |
 | Formato y hooks    | `prettier` `3.9.9`; `husky` `9.1.7`; `lint-staged` `17.6.0`                                                                                                                            |
 | Contratos acotados | `openapi-typescript` `7.13.0`                                                                                                                                                          |
 
 Better Auth se fija a la versión instalada del backend para reducir divergencias. PrimeReact 10 es una versión estable con peers React 19 comprobados y provider documentado; no se mezclan instrucciones de su API con PrimeReact 11. Elegir una versión estable compatible no obliga a usar el major más reciente.
+
+MSW se fija en `2.12.10`, compatible con el peer opcional `^2.4.9` publicado por `@vitest/mocker@5.0.3`; la versión `3.0.1` detectada en la instalación inicial generó una incompatibilidad de peer y queda descartada. MSW 2 conserva la API de Node `setupServer` y los handlers `http`/`HttpResponse` previstos para las pruebas.
+
+La política de engines, peers estrictos y no instalación automática de peers opcionales se define en `pnpm-workspace.yaml` (`engineStrict`, `strictPeerDependencies`, `autoInstallPeers`), porque pnpm 12 no lee estos settings de proyecto desde `.npmrc`. No se versionan credenciales ni configuración privada de registry en `.npmrc`.
 
 La selección acredita disponibilidad y compatibilidad declarada, no una instalación o build ya probados. Si la instalación descubre un conflicto real, se documentará y revisará la combinación antes de implementar sobre ella; no se usarán overrides arbitrarios ni supresión de peers para declarar RF-1 cumplido.
 
