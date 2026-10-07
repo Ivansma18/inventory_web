@@ -1,6 +1,57 @@
 @layer theme, base, primereact, components, utilities;
 
 @import "tailwindcss/theme.css" layer(theme);
+@import "./tokens.css" layer(theme);
 @import "primereact/resources/themes/lara-light-blue/theme.css" layer(primereact);
 @import "primeicons/primeicons.css" layer(primereact);
 @import "tailwindcss/utilities.css" layer(utilities);
+
+@layer components {
+  ::selection {
+    color: var(--ui-color-selection-text);
+    background-color: var(--ui-color-selection);
+  }
+
+  :where(input, textarea) {
+    caret-color: var(--ui-color-primary);
+  }
+
+  :where(
+    a[href],
+    area[href],
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role="button"],
+    [tabindex]:not([tabindex="-1"])
+  ):focus-visible {
+    outline: var(--ui-focus-ring-width) solid var(--ui-color-focus-ring);
+    outline-offset: var(--ui-focus-ring-offset);
+    box-shadow: none;
+  }
+
+  .ui-data-table-viewport {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    min-inline-size: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-color: var(--ui-color-control-border) var(--ui-color-surface-muted);
+    scrollbar-width: thin;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-delay: 0ms !important;
+    animation-duration: var(--ui-motion-duration-reduced) !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-delay: 0ms !important;
+    transition-duration: var(--ui-motion-duration-reduced) !important;
+  }
+}

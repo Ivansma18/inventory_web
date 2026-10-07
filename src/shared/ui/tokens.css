@@ -1,0 +1,75 @@
+:root {
+  color-scheme: light;
+
+  --ui-color-canvas: #f4f6f5;
+  --ui-color-surface: #ffffff;
+  --ui-color-surface-muted: #e9efed;
+  --ui-color-text: #202c39;
+  --ui-color-text-muted: #53616b;
+  --ui-color-border: #cbd5d1;
+  --ui-color-control-border: #7f8d88;
+  --ui-color-primary: #27676d;
+  --ui-color-on-primary: #ffffff;
+  --ui-color-primary-hover: #20575c;
+  --ui-color-success: #2d6a4f;
+  --ui-color-success-surface: #e8f2ec;
+  --ui-color-success-ink: #24563f;
+  --ui-color-info: #2c6380;
+  --ui-color-info-surface: #eaf2f7;
+  --ui-color-info-ink: #205168;
+  --ui-color-warning: #e8a838;
+  --ui-color-warning-surface: #fff1d5;
+  --ui-color-on-warning: #4b360a;
+  --ui-color-error: #c75042;
+  --ui-color-error-surface: #fdebe8;
+  --ui-color-on-error: #8b3029;
+  --ui-color-focus-ring: #27676d;
+  --ui-color-selection: #d4e7e4;
+  --ui-color-selection-text: #202c39;
+
+  --ui-font-family-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ui-font-family-mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --ui-font-size-xs: 0.75rem;
+  --ui-font-size-sm: 0.875rem;
+  --ui-font-size-md: 1rem;
+  --ui-font-size-lg: 1.125rem;
+  --ui-font-size-xl: 1.25rem;
+  --ui-font-size-2xl: 1.5rem;
+  --ui-font-size-3xl: 1.875rem;
+  --ui-line-height-tight: 1.25;
+  --ui-line-height-normal: 1.5;
+  --ui-line-height-relaxed: 1.6;
+  --ui-font-weight-regular: 400;
+  --ui-font-weight-medium: 500;
+  --ui-font-weight-semibold: 600;
+  --ui-font-weight-bold: 700;
+  --ui-letter-spacing-label: 0.015em;
+
+  --ui-space-0: 0;
+  --ui-space-1: 0.25rem;
+  --ui-space-2: 0.5rem;
+  --ui-space-3: 0.75rem;
+  --ui-space-4: 1rem;
+  --ui-space-5: 1.5rem;
+  --ui-space-6: 2rem;
+  --ui-space-7: 3rem;
+  --ui-space-8: 4rem;
+
+  --ui-border-width: 1px;
+  --ui-border-width-strong: 2px;
+  --ui-radius-sm: 0.25rem;
+  --ui-radius-md: 0.375rem;
+  --ui-radius-lg: 0.5rem;
+  --ui-radius-pill: 9999px;
+  --ui-control-height-sm: 2rem;
+  --ui-control-height: 2.5rem;
+  --ui-control-height-lg: 3rem;
+
+  --ui-focus-ring-width: 2px;
+  --ui-focus-ring-offset: 2px;
+  --ui-motion-duration-fast: 100ms;
+  --ui-motion-duration: 180ms;
+  --ui-motion-duration-slow: 240ms;
+  --ui-motion-duration-reduced: 0.01ms;
+  --ui-motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}

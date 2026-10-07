@@ -8,7 +8,7 @@ Derivadas de la Spec 002 y del plan aprobado. Todas las tareas están pendientes
 
 - [x] T1. Definir y confirmar con Impeccable la dirección visual de la Fase 1. (RF-2, RF-47)
       Hecho cuando: se aprueba una dirección breve para tipografía, escala, tonos, bordes, foco, movimiento reducido y demostración a 360 px/escritorio, sin ampliar a App Shell ni pantallas de negocio.
-- [ ] T2. Incorporar las escalas visuales compartidas y los estados comunes de foco/movimiento. (RF-2, RF-47)
+- [x] T2. Incorporar las escalas visuales compartidas y los estados comunes de foco/movimiento. (RF-2, RF-47)
       Hecho cuando: las escalas aprobadas se aplican desde `shared/ui`, se comprueba el contraste de foco y la tabla puede limitar su overflow a su propio contenedor.
 
 ### Icon y controles de acción
