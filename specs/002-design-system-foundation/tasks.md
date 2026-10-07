@@ -15,16 +15,16 @@ Derivadas de la Spec 002 y del plan aprobado. Todas las tareas están pendientes
 
 - [x] T3. Implementar el contrato propio de Icon, el catálogo acotado y los modos decorativo/informativo. (RF-11, RF-12, RF-13)
       Hecho cuando: pruebas verifican nombres válidos, ocultación AT de iconos decorativos y alternativa textual de los informativos; no se exponen props ni clases PrimeIcons.
-- [ ] T4. Implementar Button con activación única, teclado, disabled y loading. (RF-3, RF-5, RF-6, RF-7, RF-8, RF-71)
+- [x] T4. Implementar Button con activación única, teclado, disabled y loading. (RF-3, RF-5, RF-6, RF-7, RF-8, RF-71)
       Hecho cuando: pruebas verifican click, Enter, Espacio, una sola acción, bloqueo durante loading y que Button no envía formularios por defecto.
-- [ ] T5. Completar las presentaciones y nombres accesibles de Button. (RF-4, RF-9, RF-10)
+- [x] T5. Completar las presentaciones y nombres accesibles de Button. (RF-4, RF-9, RF-10)
       Hecho cuando: pruebas cubren texto, texto e Icon e icon-only; el contrato rechaza Button icon-only sin nombre accesible.
 
 ### Campos de formulario
 
-- [ ] T6. Implementar el valor y los tipos admitidos de Input. (RF-3, RF-14, RF-20, RF-72, RF-93, RF-95)
+- [x] T6. Implementar el valor y los tipos admitidos de Input. (RF-3, RF-14, RF-20, RF-72, RF-93, RF-95)
       Hecho cuando: pruebas verifican valor controlado, default text, readOnly y los seis tipos admitidos; un tipo no admitido produce error explícito y no renderiza Input.
-- [ ] T7. Asociar etiquetas, ayuda y errores accesibles a Input. (RF-4, RF-16, RF-17, RF-18, RF-19)
+- [x] T7. Asociar etiquetas, ayuda y errores accesibles a Input. (RF-4, RF-16, RF-17, RF-18, RF-19)
       Hecho cuando: pruebas por roles/nombres verifican label, asociación de ayuda/error y `aria-invalid` sin depender de estructura vendor.
 - [ ] T8. Implementar Textarea controlado y multilínea. (RF-3, RF-15, RF-20, RF-21)
       Hecho cuando: pruebas verifican emisión del valor, saltos de línea y bloqueo de edición en readOnly/disabled.
