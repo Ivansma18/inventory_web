@@ -13,7 +13,7 @@ Derivadas de la Spec 002 y del plan aprobado. Todas las tareas están pendientes
 
 ### Icon y controles de acción
 
-- [ ] T3. Implementar el contrato propio de Icon, el catálogo acotado y los modos decorativo/informativo. (RF-11, RF-12, RF-13)
+- [x] T3. Implementar el contrato propio de Icon, el catálogo acotado y los modos decorativo/informativo. (RF-11, RF-12, RF-13)
       Hecho cuando: pruebas verifican nombres válidos, ocultación AT de iconos decorativos y alternativa textual de los informativos; no se exponen props ni clases PrimeIcons.
 - [ ] T4. Implementar Button con activación única, teclado, disabled y loading. (RF-3, RF-5, RF-6, RF-7, RF-8, RF-71)
       Hecho cuando: pruebas verifican click, Enter, Espacio, una sola acción, bloqueo durante loading y que Button no envía formularios por defecto.
