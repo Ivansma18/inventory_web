@@ -8,4 +8,34 @@
     scrollbar-color: var(--ui-color-control-border) var(--ui-color-surface-muted);
     scrollbar-width: thin;
   }
+
+  .ui-data-table__feedback {
+    border-radius: var(--ui-radius-md);
+    font-size: var(--ui-font-size-sm);
+    line-height: var(--ui-line-height-normal);
+    margin-block: 0 var(--ui-space-2);
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+    padding-block: var(--ui-space-3);
+    padding-inline: var(--ui-space-4);
+  }
+
+  .ui-data-table__feedback--loading,
+  .ui-data-table__feedback--empty {
+    background-color: var(--ui-color-surface-muted);
+    color: var(--ui-color-text-muted);
+  }
+
+  .ui-data-table__feedback--empty {
+    text-align: center;
+  }
+
+  .ui-data-table__feedback--error {
+    background-color: var(--ui-color-error-surface);
+    color: var(--ui-color-on-error);
+  }
+
+  .ui-data-table__content {
+    min-inline-size: 0;
+  }
 }
