@@ -26,7 +26,7 @@ Derivadas de la Spec 002 y del plan aprobado. Todas las tareas están pendientes
       Hecho cuando: pruebas verifican valor controlado, default text, readOnly y los seis tipos admitidos; un tipo no admitido produce error explícito y no renderiza Input.
 - [x] T7. Asociar etiquetas, ayuda y errores accesibles a Input. (RF-4, RF-16, RF-17, RF-18, RF-19)
       Hecho cuando: pruebas por roles/nombres verifican label, asociación de ayuda/error y `aria-invalid` sin depender de estructura vendor.
-- [ ] T8. Implementar Textarea controlado y multilínea. (RF-3, RF-15, RF-20, RF-21)
+- [x] T8. Implementar Textarea controlado y multilínea. (RF-3, RF-15, RF-20, RF-21)
       Hecho cuando: pruebas verifican emisión del valor, saltos de línea y bloqueo de edición en readOnly/disabled.
 - [ ] T9. Asociar etiquetas, ayuda y errores accesibles a Textarea. (RF-4, RF-16, RF-17, RF-18, RF-19)
       Hecho cuando: pruebas por roles/nombres verifican etiquetas y descripciones asociadas sin filtrar tipos vendor.
