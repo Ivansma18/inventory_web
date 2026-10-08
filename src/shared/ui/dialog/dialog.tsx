@@ -79,7 +79,7 @@ const focusElement = (element: HTMLElement, allowTemporaryTabIndex = false): boo
     element.setAttribute("tabindex", "-1");
   }
 
-  element.focus();
+  element.focus({ preventScroll: true });
   if (document.activeElement !== element) {
     if (addTemporaryTabIndex) {
       element.removeAttribute("tabindex");
@@ -204,7 +204,7 @@ export const Dialog = ({
     }
 
     const initialFocusTarget = getFirstFocusableElement(portalContainer) ?? titleRef.current;
-    initialFocusTarget?.focus();
+    initialFocusTarget?.focus({ preventScroll: true });
   };
 
   const restoreFocusAfterExit = () => {
@@ -278,9 +278,11 @@ export const Dialog = ({
       closable
       dismissableMask={closeOnBackdrop}
       draggable={false}
+      blockScroll
       footer={footer}
       focusOnShow={false}
       header={header}
+      contentClassName="ui-dialog__content"
       maskClassName="ui-dialog__mask"
       modal
       onHide={handleCloseRequest}

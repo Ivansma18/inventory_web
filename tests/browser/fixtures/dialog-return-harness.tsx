@@ -13,6 +13,7 @@ const searchParams = new URLSearchParams(window.location.search);
 const hasHeader = !searchParams.has("no-header");
 const hasMain = !searchParams.has("no-main");
 const hasPageAction = !searchParams.has("no-interactive");
+const hasLongContent = searchParams.has("long");
 
 const DialogFocusReturnHarness = () => {
   const [open, setOpen] = useState(false);
@@ -34,7 +35,7 @@ const DialogFocusReturnHarness = () => {
         </header>
       ) : null}
       {hasMain ? (
-        <main data-testid="page-main">
+        <main data-testid="page-main" style={hasLongContent ? { minHeight: "180vh" } : undefined}>
           {hasPageAction ? <button data-testid="page-action">Page action</button> : null}
         </main>
       ) : hasPageAction ? (
@@ -63,6 +64,17 @@ const DialogFocusReturnHarness = () => {
         onCloseRequest={() => setOpen(false)}
       >
         <button onClick={() => setOpenerAvailable(false)}>Remove opener</button>
+        {hasLongContent ? (
+          <>
+            <p data-testid="dialog-start">Beginning of long dialog content.</p>
+            {Array.from({ length: 28 }, (_, index) => (
+              <p key={index}>
+                Paragraph {index + 1} keeps this dialog content taller than the window.
+              </p>
+            ))}
+            <p data-testid="dialog-end">End of long dialog content.</p>
+          </>
+        ) : null}
       </Dialog>
     </>
   );

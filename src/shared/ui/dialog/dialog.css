@@ -1,6 +1,8 @@
 @layer components {
   .ui-dialog__mask {
     background-color: var(--ui-color-scrim);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: var(--ui-space-4);
   }
 
@@ -9,6 +11,10 @@
     border: var(--ui-border-width) solid var(--ui-color-border);
     border-radius: var(--ui-radius-lg);
     color: var(--ui-color-text);
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - var(--ui-space-4) - var(--ui-space-4));
+    max-block-size: calc(100dvh - var(--ui-space-4) - var(--ui-space-4));
     width: min(32rem, calc(100vw - 2rem));
   }
 
@@ -19,6 +25,7 @@
     font-size: var(--ui-font-size-lg);
     font-weight: var(--ui-font-weight-semibold);
     padding: var(--ui-space-4);
+    flex-shrink: 0;
   }
 
   .ui-dialog__title {
@@ -38,15 +45,20 @@
     color: var(--ui-color-text);
   }
 
-  .ui-dialog .p-dialog-content {
+  .ui-dialog__content {
     background-color: var(--ui-color-surface);
     color: var(--ui-color-text);
+    flex: 1 1 auto;
+    min-block-size: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: var(--ui-space-4);
   }
 
   .ui-dialog .p-dialog-footer {
     background-color: var(--ui-color-surface);
     border-top: var(--ui-border-width) solid var(--ui-color-border);
+    flex-shrink: 0;
     padding: var(--ui-space-4);
   }
 }
