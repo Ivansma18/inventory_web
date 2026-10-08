@@ -1,3 +1,5 @@
+import "./button.css";
+
 import { Button as PrimeButton } from "primereact/button";
 
 import { Icon } from "../icon/icon";

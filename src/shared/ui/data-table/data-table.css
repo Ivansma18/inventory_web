@@ -1,0 +1,11 @@
+@layer components {
+  .ui-data-table-viewport {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    min-inline-size: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-color: var(--ui-color-control-border) var(--ui-color-surface-muted);
+    scrollbar-width: thin;
+  }
+}

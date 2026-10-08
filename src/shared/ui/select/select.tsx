@@ -1,3 +1,5 @@
+import "./select.css";
+
 import { Dropdown as PrimeDropdown } from "primereact/dropdown";
 import { useId } from "react";
 

@@ -1,3 +1,5 @@
+import "./input.css";
+
 import { InputText as PrimeInputText } from "primereact/inputtext";
 import { useId } from "react";
 import type { ChangeEvent } from "react";

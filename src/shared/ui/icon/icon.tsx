@@ -1,3 +1,5 @@
+import "./icon.css";
+
 export type IconName =
   | "add"
   | "close"

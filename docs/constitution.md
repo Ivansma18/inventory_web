@@ -51,10 +51,18 @@ desarrollo es `docs/ruta.md`.
    comportamiento genérico, extender `shared/ui`; si pertenece al
    negocio, componer primitivas dentro de la feature.
 
+   Cada primitiva visual mantiene sus estilos en un archivo CSS
+   co-localizado (`<componente>.css`) e importado por su propio módulo.
+   `shared/ui/styles.css` conserva únicamente imports globales, tokens y
+   reglas base o transversales; no contiene selectores específicos de una
+   primitiva.
+
    **Verificación:** automatizar restricciones de imports con ESLint,
    revisar los tipos públicos y probar los contratos de los wrappers.
-   Sustituir la librería UI debe tener un impacto localizado en el
-   Design System.
+   Comprobar que cada primitiva visual importa su hoja co-localizada y que
+   los estilos globales no contienen selectores propios de componentes.
+   Sustituir la librería UI debe tener un impacto localizado en el Design
+   System.
 
 4. **Autenticación encapsulada y autorización separada**
 

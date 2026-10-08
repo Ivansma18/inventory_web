@@ -1,3 +1,5 @@
+import "./textarea.css";
+
 import { InputTextarea as PrimeInputTextarea } from "primereact/inputtextarea";
 import { useId } from "react";
 import type { ChangeEvent } from "react";

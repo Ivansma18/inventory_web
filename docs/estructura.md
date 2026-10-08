@@ -174,6 +174,20 @@ Primitivas reutilizables: Button, Icon, Input, Select, Dialog, DataTable, Badge 
 - Opciones limitadas a necesidades reales.
 - Fuera de esta capa se utiliza `Icon`, nunca clases `pi`.
 - Bases transversales de accesibilidad y consistencia visual.
+- Cada primitiva visual mantiene su hoja `<componente>.css` junto al TSX y
+  la importa desde su módulo. `styles.css` queda para imports globales,
+  tokens y reglas base/transversales; no debe acumular estilos de primitivas.
+
+```text
+shared/ui/
+├── button/
+│   ├── button.tsx
+│   └── button.css
+├── input/
+│   ├── input.tsx
+│   └── input.css
+└── styles.css  # imports, tokens y reglas globales/transversales
+```
 
 ### `shared/components`
 

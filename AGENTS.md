@@ -56,6 +56,10 @@ hay `.git`, usar los comandos CLI de calidad.
 - Organizar `src/features` por dominio y vertical slice.
 - Usar `src/shared/ui` para primitivas del Design System y
   `src/shared/components` para composiciones genéricas de aplicación.
+- Mantener el CSS de cada primitiva visual en un archivo co-localizado
+  (`<componente>.css`) importado por su módulo; reservar
+  `src/shared/ui/styles.css` para imports globales, tokens y reglas
+  transversales.
 - Centralizar el cliente HTTP y los contratos generados en `src/shared/api`;
   validar variables de entorno en `src/shared/config/env.ts`.
 - Mantener los componentes específicos de negocio dentro de su feature.
@@ -103,6 +107,8 @@ hay `.git`, usar los comandos CLI de calidad.
 - No incluir secretos en variables `VITE_*` ni registrar contraseñas,
   tokens de sesión, cookies o secretos.
 - Usar tokens y convenciones visuales compartidos.
+- No añadir selectores específicos de componentes a `src/shared/ui/styles.css`;
+  cada primitiva visual importa su hoja CSS local.
 - Crear abstracciones según necesidades reales; mover componentes a
   shared después de demostrar reutilización.
 - Reforzar mediante ESLint las fronteras de importación: features no

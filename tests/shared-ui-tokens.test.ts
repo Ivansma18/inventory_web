@@ -6,6 +6,9 @@ import { describe, expect, it } from "vitest";
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const tokensPath = resolve(projectRoot, "src/shared/ui/tokens.css");
 const stylesPath = resolve(projectRoot, "src/shared/ui/styles.css");
+const dataTableStylesPath = resolve(projectRoot, "src/shared/ui/data-table/data-table.css");
+
+const visualComponents = ["button", "icon", "input", "textarea", "select"] as const;
 
 const readToken = (css: string, name: string): string => {
   const match = css.match(new RegExp(`--${name}\\s*:\\s*(#[0-9a-f]{6})\\s*;`, "i"));
@@ -71,11 +74,32 @@ describe("shared UI visual tokens", () => {
   });
 
   it("provides visible keyboard focus, reduced-motion behavior, and local table overflow", async () => {
-    const styles = await readFile(stylesPath, "utf8");
+    const [styles, dataTableStyles] = await Promise.all([
+      readFile(stylesPath, "utf8"),
+      readFile(dataTableStylesPath, "utf8"),
+    ]);
 
     expect(styles).toContain(":focus-visible");
     expect(styles).toContain("@media (prefers-reduced-motion: reduce)");
-    expect(styles).toMatch(/\.ui-data-table-viewport\s*\{[^}]*overflow-x:\s*auto/is);
-    expect(styles).toMatch(/\.ui-data-table-viewport\s*\{[^}]*min-inline-size:\s*0/is);
+    expect(dataTableStyles).toMatch(/\.ui-data-table-viewport\s*\{[^}]*overflow-x:\s*auto/is);
+    expect(dataTableStyles).toMatch(/\.ui-data-table-viewport\s*\{[^}]*min-inline-size:\s*0/is);
+  });
+
+  it("keeps each visual primitive's styles co-located and imported by its module", async () => {
+    const globalStyles = await readFile(stylesPath, "utf8");
+
+    for (const component of visualComponents) {
+      const componentDirectory = resolve(projectRoot, `src/shared/ui/${component}`);
+      const [moduleSource, componentStyles] = await Promise.all([
+        readFile(resolve(componentDirectory, `${component}.tsx`), "utf8"),
+        readFile(resolve(componentDirectory, `${component}.css`), "utf8"),
+      ]);
+
+      expect(moduleSource).toContain(`import "./${component}.css";`);
+      expect(componentStyles).toContain("@layer components");
+      expect(componentStyles.trim().length).toBeGreaterThan(0);
+    }
+
+    expect(globalStyles).not.toMatch(/\.ui-(?:button|icon|input|textarea|select)(?:[\w-]*)/);
   });
 });
