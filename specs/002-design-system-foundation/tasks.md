@@ -69,7 +69,7 @@ Derivadas de la Spec 002 y del plan aprobado. Cada tarea busca una unidad peque�
       Hecho cuando: pruebas verifican label visible y que distintos significados no dependan únicamente del color.
 - [x] T24. Implementar los tipos, presentación y cierre individual de Toast. (RF-50, RF-52, RF-53, RF-55)
       Hecho cuando: pruebas verifican cuatro tipos, cierre manual, persistencia de warning/error y retirada independiente de avisos simultáneos.
-- [ ] T25. Implementar temporizadores pausables de Toast. (RF-51)
+- [x] T25. Implementar temporizadores pausables de Toast. (RF-51)
       Hecho cuando: fake timers comprueban cinco segundos acumulados y pausa/reanudación por hover y foco solapados.
 - [ ] T26. Implementar el anuncio accesible de Toast sin mover el foco. (RF-4, RF-54)
       Hecho cuando: el árbol accesible y una prueba manual confirman el anuncio sin robo de foco ni doble lectura.
