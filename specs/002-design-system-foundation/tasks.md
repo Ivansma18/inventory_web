@@ -41,7 +41,7 @@ Derivadas de la Spec 002 y del plan aprobado. Todas las tareas están pendientes
       Hecho cuando: pruebas verifican visibilidad controlada, cierre por botón/Escape/clic fuera habilitados por defecto y configuración independiente; el exterior queda inerte para puntero, teclado y AT.
 - [x] T13. Implementar foco inicial, título accesible y contención de foco de Dialog. (RF-30, RF-31, RF-36, RF-82)
       Hecho cuando: Chromium verifica foco interno, ciclo Tab/Mayús+Tab, foco del título cuando no hay controles y nombre accesible.
-- [ ] T14. Implementar retorno de foco y destino alternativo de la página. (RF-35, RF-96)
+- [x] T14. Implementar retorno de foco y destino alternativo de la página. (RF-35, RF-96)
       Hecho cuando: pruebas Chromium recorren activador, encabezado, región principal, primer interactivo y destino alternativo; la página conserva el destino alternativo disponible y enfocable durante el cierre.
 - [ ] T15. Bloquear solo el cierre durante una operación pendiente. (RF-34, RF-84)
       Hecho cuando: las solicitudes de cierre se ignoran mientras están bloqueadas y el contenido del Dialog sigue siendo interactuable.

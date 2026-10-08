@@ -1,14 +1,45 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Dialog } from "@/shared/ui";
 import type { DialogProps } from "@/shared/ui";
 
+const getFocusFallbackTarget = () => {
+  const target = document.querySelector<HTMLElement>("[data-dialog-focus-fallback]");
+
+  if (!target) {
+    throw new Error("Dialog focus fallback target is missing.");
+  }
+
+  return target;
+};
+
+const withFocusFallback = (content: ReactNode) => (
+  <>
+    <button data-dialog-focus-fallback tabIndex={-1}>
+      Page focus fallback
+    </button>
+    {content}
+  </>
+);
+
 const defaultDialog = (props: Partial<DialogProps> = {}) => (
-  <Dialog open title="Confirmar acción" onCloseRequest={() => undefined} {...props}>
-    <p>¿Deseas continuar?</p>
-  </Dialog>
+  <>
+    <button data-dialog-focus-fallback tabIndex={-1}>
+      Page focus fallback
+    </button>
+    <Dialog
+      fallbackFocusTarget={getFocusFallbackTarget}
+      open
+      title="Confirmar acción"
+      onCloseRequest={() => undefined}
+      {...props}
+    >
+      <p>¿Deseas continuar?</p>
+    </Dialog>
+  </>
 );
 
 const getMask = (): HTMLElement => {
@@ -146,10 +177,18 @@ describe("Dialog", () => {
 
   it("names the dialog and initially focuses its first available control", async () => {
     render(
-      <Dialog open showCloseButton={false} title="Focus title" onCloseRequest={() => undefined}>
-        <button>First control</button>
-        <button>Second control</button>
-      </Dialog>,
+      withFocusFallback(
+        <Dialog
+          fallbackFocusTarget={getFocusFallbackTarget}
+          open
+          showCloseButton={false}
+          title="Focus title"
+          onCloseRequest={() => undefined}
+        >
+          <button>First control</button>
+          <button>Second control</button>
+        </Dialog>,
+      ),
     );
 
     const dialog = await screen.findByRole("dialog", { name: "Focus title" });
@@ -161,14 +200,17 @@ describe("Dialog", () => {
 
   it("moves initial focus to its title when it has no focusable controls", async () => {
     render(
-      <Dialog
-        open
-        showCloseButton={false}
-        title="Read-only notice"
-        onCloseRequest={() => undefined}
-      >
-        <p>This dialog contains no controls.</p>
-      </Dialog>,
+      withFocusFallback(
+        <Dialog
+          fallbackFocusTarget={getFocusFallbackTarget}
+          open
+          showCloseButton={false}
+          title="Read-only notice"
+          onCloseRequest={() => undefined}
+        >
+          <p>This dialog contains no controls.</p>
+        </Dialog>,
+      ),
     );
 
     const title = await screen.findByRole("heading", { name: "Read-only notice" });
@@ -180,10 +222,18 @@ describe("Dialog", () => {
     const user = userEvent.setup();
 
     render(
-      <Dialog open showCloseButton={false} title="Focus loop" onCloseRequest={() => undefined}>
-        <button>First control</button>
-        <button>Last control</button>
-      </Dialog>,
+      withFocusFallback(
+        <Dialog
+          fallbackFocusTarget={getFocusFallbackTarget}
+          open
+          showCloseButton={false}
+          title="Focus loop"
+          onCloseRequest={() => undefined}
+        >
+          <button>First control</button>
+          <button>Last control</button>
+        </Dialog>,
+      ),
     );
 
     const first = await screen.findByRole("button", { name: "First control" });

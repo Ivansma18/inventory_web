@@ -15,7 +15,16 @@ createRoot(root).render(
     <main>
       <button>Outside action</button>
     </main>
-    <Dialog open showCloseButton={false} title="Focus dialog" onCloseRequest={() => undefined}>
+    <button data-dialog-focus-fallback id="dialog-fallback" tabIndex={-1}>
+      Dialog focus fallback
+    </button>
+    <Dialog
+      fallbackFocusTarget={() => document.getElementById("dialog-fallback") as HTMLElement}
+      open
+      showCloseButton={false}
+      title="Focus dialog"
+      onCloseRequest={() => undefined}
+    >
       {hasNoControls ? (
         <p>Read-only content.</p>
       ) : (
