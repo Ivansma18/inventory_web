@@ -16,6 +16,7 @@ export interface DialogProps {
   showCloseButton?: boolean;
   closeOnEscape?: boolean;
   closeOnBackdrop?: boolean;
+  closeBlocked?: boolean;
 }
 
 interface OutsideAccessibilityState {
@@ -130,6 +131,7 @@ export const Dialog = ({
   showCloseButton = true,
   closeOnEscape = true,
   closeOnBackdrop = true,
+  closeBlocked = false,
 }: DialogProps) => {
   const [portalContainer] = useState(createPortalContainer);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -250,6 +252,12 @@ export const Dialog = ({
     }
   };
 
+  const handleCloseRequest = () => {
+    if (!closeBlocked) {
+      onCloseRequest();
+    }
+  };
+
   if (!portalContainer) {
     return null;
   }
@@ -275,7 +283,7 @@ export const Dialog = ({
       header={header}
       maskClassName="ui-dialog__mask"
       modal
-      onHide={() => onCloseRequest()}
+      onHide={handleCloseRequest}
       onShow={focusDialogOnShow}
       resizable={false}
       showCloseIcon={showCloseButton}

@@ -247,4 +247,36 @@ describe("Dialog", () => {
     await user.tab({ shift: true });
     expect(last).toHaveFocus();
   });
+
+  it("ignores close requests while blocked without disabling dialog content", async () => {
+    const user = userEvent.setup();
+    const onCloseRequest = vi.fn();
+    const onContentAction = vi.fn();
+
+    render(
+      withFocusFallback(
+        <Dialog
+          closeBlocked
+          fallbackFocusTarget={getFocusFallbackTarget}
+          open
+          title="Pending operation"
+          onCloseRequest={onCloseRequest}
+        >
+          <button onClick={onContentAction}>Continue operation</button>
+        </Dialog>,
+      ),
+    );
+
+    await screen.findByRole("dialog", { name: "Pending operation" });
+    await user.click(screen.getByRole("button", { name: "Cerrar diálogo" }));
+    await user.keyboard("{Escape}");
+    await user.click(getMask());
+
+    expect(onCloseRequest).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Pending operation" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Continue operation" }));
+    expect(onContentAction).toHaveBeenCalledTimes(1);
+    expect(onCloseRequest).not.toHaveBeenCalled();
+  });
 });
