@@ -2,6 +2,8 @@ import "./styles.css";
 
 export { Button } from "./button/button";
 export type { ButtonProps, ButtonVariant } from "./button/button";
+export { DataTable } from "./data-table/data-table";
+export type { DataTableColumn, DataTableProps } from "./data-table/data-table";
 export { Dialog } from "./dialog/dialog";
 export type { DialogProps } from "./dialog/dialog";
 export { Icon } from "./icon/icon";

@@ -50,7 +50,7 @@ Derivadas de la Spec 002 y del plan aprobado. Todas las tareas están pendientes
 
 ### DataTable
 
-- [ ] T17. Implementar filas, columnas y claves estables con contratos propios. (RF-37)
+- [x] T17. Implementar filas, columnas y claves estables con contratos propios. (RF-37)
       Hecho cuando: pruebas con filas tipadas verifican encabezados y celdas; las columnas no aceptan instancias ni eventos PrimeReact.
 - [ ] T18. Implementar estados de carga, vacío y error con snapshots anteriores. (RF-38, RF-39, RF-40)
       Hecho cuando: pruebas cubren carga inicial, vacío solo tras éxito vacío, error inicial y error de actualización conservando filas anteriores.

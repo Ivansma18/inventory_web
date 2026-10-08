@@ -8,7 +8,7 @@ const tokensPath = resolve(projectRoot, "src/shared/ui/tokens.css");
 const stylesPath = resolve(projectRoot, "src/shared/ui/styles.css");
 const dataTableStylesPath = resolve(projectRoot, "src/shared/ui/data-table/data-table.css");
 
-const visualComponents = ["button", "icon", "input", "textarea", "select"] as const;
+const visualComponents = ["button", "icon", "input", "textarea", "select", "data-table"] as const;
 
 const readToken = (css: string, name: string): string => {
   const match = css.match(new RegExp(`--${name}\\s*:\\s*(#[0-9a-f]{6})\\s*;`, "i"));
