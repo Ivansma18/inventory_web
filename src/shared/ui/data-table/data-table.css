@@ -38,4 +38,28 @@
   .ui-data-table__content {
     min-inline-size: 0;
   }
+
+  .ui-data-table .p-paginator {
+    background-color: transparent;
+    border: 0;
+    border-block-start: var(--ui-border-width) solid var(--ui-color-border);
+    flex-wrap: wrap;
+    gap: var(--ui-space-1);
+    justify-content: center;
+    margin-block-start: var(--ui-space-2);
+    padding-block: var(--ui-space-3);
+    padding-inline: 0;
+  }
+
+  .ui-data-table .p-paginator .p-paginator-current {
+    color: var(--ui-color-text-muted);
+    font-size: var(--ui-font-size-sm);
+    margin-inline-start: auto;
+  }
+
+  .ui-data-table .p-paginator .p-paginator-page.p-highlight {
+    background-color: var(--ui-color-selection);
+    border-color: var(--ui-color-selection);
+    color: var(--ui-color-selection-text);
+  }
 }

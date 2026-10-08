@@ -10,24 +10,53 @@ export interface DataTableColumn<Row extends object> {
   render?: (row: Row) => ReactNode;
 }
 
+export interface DataTableSnapshot<Row extends object> {
+  page: number;
+  rows: Row[];
+  total: number;
+}
+
 export type DataTableResult<Row extends object> =
-  | { status: "ready"; rows: Row[] }
-  | { status: "loading"; snapshot?: Row[] }
-  | { status: "error"; message: string; snapshot?: Row[] };
+  | ({ status: "ready" } & DataTableSnapshot<Row>)
+  | { status: "loading"; snapshot?: DataTableSnapshot<Row> }
+  | { status: "error"; message: string; snapshot?: DataTableSnapshot<Row> };
 
 export interface DataTableProps<Row extends object> {
   columns: DataTableColumn<Row>[];
+  onPageChange: (page: number) => void;
+  pageSize: number;
   result: DataTableResult<Row>;
   rowKey: Extract<keyof Row, string>;
 }
 
-export const DataTable = <Row extends object>({ columns, result, rowKey }: DataTableProps<Row>) => {
-  const rows = result.status === "ready" ? result.rows : (result.snapshot ?? []);
+export const DataTable = <Row extends object>({
+  columns,
+  onPageChange,
+  pageSize,
+  result,
+  rowKey,
+}: DataTableProps<Row>) => {
+  const snapshot = result.status === "ready" ? result : result.snapshot;
+  const rows = snapshot?.rows ?? [];
   const hasRows = rows.length > 0;
   const isLoading = result.status === "loading";
   const isEmpty = result.status === "ready" && rows.length === 0;
+  const currentPage = snapshot?.page ?? 1;
+  const total = snapshot?.total ?? 0;
+  const totalPages = pageSize > 0 ? Math.ceil(total / pageSize) : 0;
   const errorMessage =
     result.status === "error" ? result.message.trim() || "No se pudieron cargar los datos." : null;
+
+  const handlePage = (event: { first: number }) => {
+    if (pageSize <= 0) {
+      return;
+    }
+
+    const requestedPage = Math.floor(event.first / pageSize) + 1;
+    if (requestedPage >= 1 && requestedPage <= totalPages && requestedPage !== currentPage) {
+      onPageChange(requestedPage);
+    }
+  };
 
   return (
     <div className="ui-data-table-viewport">
@@ -57,8 +86,17 @@ export const DataTable = <Row extends object>({ columns, result, rowKey }: DataT
       {hasRows ? (
         <div aria-busy={isLoading} className="ui-data-table__content">
           <PrimeDataTable
+            alwaysShowPaginator
             className="ui-data-table"
             dataKey={rowKey}
+            first={Math.max(0, (currentPage - 1) * pageSize)}
+            lazy
+            onPage={handlePage}
+            paginator
+            paginatorTemplate="PrevPageLink PageLinks NextPageLink CurrentPageReport"
+            currentPageReportTemplate="Página {currentPage} de {totalPages}"
+            rows={pageSize}
+            totalRecords={total}
             value={rows as unknown as Array<Record<string, unknown>>}
           >
             {columns.map((column) => (

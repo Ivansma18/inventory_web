@@ -1,8 +1,14 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
 import { DataTable } from "@/shared/ui";
-import type { DataTableColumn, DataTableProps, DataTableResult } from "@/shared/ui";
+import type {
+  DataTableColumn,
+  DataTableProps,
+  DataTableResult,
+  DataTableSnapshot,
+} from "@/shared/ui";
 
 interface InventoryRow {
   id: string;
@@ -15,6 +21,12 @@ const inventoryRows: InventoryRow[] = [
   { id: "product-1", sku: "SKU-01", name: "Keyboard", quantity: 12 },
   { id: "product-2", sku: "SKU-02", name: "Mouse", quantity: 8 },
 ];
+
+const inventorySnapshot: DataTableSnapshot<InventoryRow> = {
+  page: 1,
+  rows: inventoryRows,
+  total: 2,
+};
 
 const inventoryColumns: DataTableColumn<InventoryRow>[] = [
   { key: "sku", header: "SKU" },
@@ -38,11 +50,29 @@ const missingResult: DataTableProps<InventoryRow> = {
 
 void missingResult;
 
+const renderInventoryTable = (
+  result: DataTableResult<InventoryRow>,
+  onPageChange: (page: number) => void = () => undefined,
+  pageSize = 2,
+) =>
+  render(
+    <DataTable
+      columns={inventoryColumns}
+      onPageChange={onPageChange}
+      pageSize={pageSize}
+      result={result}
+      rowKey="id"
+    />,
+  );
+
 describe("DataTable", () => {
   it("renders typed row values under its own column headers", () => {
-    const result: DataTableResult<InventoryRow> = { status: "ready", rows: inventoryRows };
+    const result: DataTableResult<InventoryRow> = {
+      ...inventorySnapshot,
+      status: "ready",
+    };
 
-    render(<DataTable columns={inventoryColumns} result={result} rowKey="id" />);
+    renderInventoryTable(result);
 
     expect(screen.getByRole("table")).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "SKU" })).toBeInTheDocument();
@@ -60,7 +90,13 @@ describe("DataTable", () => {
     ];
     const columns: DataTableColumn<InventoryRow>[] = [{ key: "name", header: "Nombre" }];
     const { rerender } = render(
-      <DataTable columns={columns} result={{ status: "ready", rows }} rowKey="id" />,
+      <DataTable
+        columns={columns}
+        onPageChange={() => undefined}
+        pageSize={2}
+        result={{ status: "ready", rows, page: 1, total: 2 }}
+        rowKey="id"
+      />,
     );
 
     const getBodyRowNames = () =>
@@ -73,7 +109,9 @@ describe("DataTable", () => {
     rerender(
       <DataTable
         columns={columns}
-        result={{ status: "ready", rows: [rows[1], rows[0]] }}
+        onPageChange={() => undefined}
+        pageSize={2}
+        result={{ status: "ready", rows: [rows[1], rows[0]], page: 1, total: 2 }}
         rowKey="id"
       />,
     );
@@ -82,7 +120,7 @@ describe("DataTable", () => {
   });
 
   it("identifies initial loading without presenting an empty state", () => {
-    render(<DataTable columns={inventoryColumns} result={{ status: "loading" }} rowKey="id" />);
+    renderInventoryTable({ status: "loading" });
 
     expect(screen.getByRole("status")).toHaveTextContent("Cargando datos...");
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
@@ -90,27 +128,25 @@ describe("DataTable", () => {
   });
 
   it("shows the empty state only after an empty successful result", () => {
-    render(
-      <DataTable columns={inventoryColumns} result={{ status: "ready", rows: [] }} rowKey="id" />,
-    );
+    renderInventoryTable({ status: "ready", rows: [], page: 0, total: 0 });
 
     expect(screen.getByRole("status")).toHaveTextContent("No hay datos para mostrar.");
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
   it("discards the previous snapshot when an empty result succeeds", () => {
-    const { rerender } = render(
-      <DataTable
-        columns={inventoryColumns}
-        result={{ status: "loading", snapshot: inventoryRows }}
-        rowKey="id"
-      />,
-    );
+    const { rerender } = renderInventoryTable({ status: "loading", snapshot: inventorySnapshot });
 
     expect(screen.getByRole("cell", { name: "SKU-01" })).toBeInTheDocument();
 
     rerender(
-      <DataTable columns={inventoryColumns} result={{ status: "ready", rows: [] }} rowKey="id" />,
+      <DataTable
+        columns={inventoryColumns}
+        onPageChange={() => undefined}
+        pageSize={2}
+        result={{ status: "ready", rows: [], page: 0, total: 0 }}
+        rowKey="id"
+      />,
     );
 
     expect(screen.getByRole("status")).toHaveTextContent("No hay datos para mostrar.");
@@ -119,13 +155,7 @@ describe("DataTable", () => {
   });
 
   it("identifies an initial error without showing an empty state", () => {
-    render(
-      <DataTable
-        columns={inventoryColumns}
-        result={{ status: "error", message: "No se pudo cargar el inventario." }}
-        rowKey="id"
-      />,
-    );
+    renderInventoryTable({ status: "error", message: "No se pudo cargar el inventario." });
 
     expect(screen.getByRole("alert")).toHaveTextContent("No se pudo cargar el inventario.");
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
@@ -133,25 +163,13 @@ describe("DataTable", () => {
   });
 
   it("uses a safe fallback when an error message is blank", () => {
-    render(
-      <DataTable
-        columns={inventoryColumns}
-        result={{ status: "error", message: "   " }}
-        rowKey="id"
-      />,
-    );
+    renderInventoryTable({ status: "error", message: "   " });
 
     expect(screen.getByRole("alert")).toHaveTextContent("No se pudieron cargar los datos.");
   });
 
   it("keeps the last successful rows visible with a loading status", () => {
-    render(
-      <DataTable
-        columns={inventoryColumns}
-        result={{ status: "loading", snapshot: inventoryRows }}
-        rowKey="id"
-      />,
-    );
+    renderInventoryTable({ status: "loading", snapshot: inventorySnapshot });
 
     expect(screen.getByRole("status")).toHaveTextContent("Actualizando datos...");
     expect(screen.getByRole("cell", { name: "SKU-01" })).toBeInTheDocument();
@@ -159,20 +177,71 @@ describe("DataTable", () => {
   });
 
   it("keeps the last successful rows visible when an update fails", () => {
-    render(
-      <DataTable
-        columns={inventoryColumns}
-        result={{
-          status: "error",
-          message: "No se pudo actualizar el inventario.",
-          snapshot: inventoryRows,
-        }}
-        rowKey="id"
-      />,
-    );
+    renderInventoryTable({
+      status: "error",
+      message: "No se pudo actualizar el inventario.",
+      snapshot: inventorySnapshot,
+    });
 
     expect(screen.getByRole("alert")).toHaveTextContent("No se pudo actualizar el inventario.");
     expect(screen.getByRole("cell", { name: "SKU-01" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "Keyboard" })).toBeInTheDocument();
+  });
+
+  it("requests one-based page changes while the consumer controls the visible page", async () => {
+    const user = userEvent.setup();
+    const onPageChange = vi.fn();
+
+    renderInventoryTable(
+      { status: "ready", rows: inventoryRows, page: 2, total: 10 },
+      onPageChange,
+    );
+
+    expect(screen.getByText("Página 2 de 5")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+
+    const pageThreeButton = screen
+      .getAllByRole("button")
+      .find((button) => button.textContent?.trim() === "3");
+    expect(pageThreeButton).toBeDefined();
+    if (!pageThreeButton) {
+      throw new Error("The third page control should be available.");
+    }
+
+    await user.click(pageThreeButton);
+
+    expect(onPageChange).toHaveBeenCalledTimes(1);
+    expect(onPageChange).toHaveBeenCalledWith(3);
+    expect(screen.getByText("Página 2 de 5")).toBeInTheDocument();
+  });
+
+  it("blocks requests before the first page and allows the next page", async () => {
+    const user = userEvent.setup();
+    const onPageChange = vi.fn();
+
+    renderInventoryTable({ status: "ready", rows: inventoryRows, page: 1, total: 6 }, onPageChange);
+
+    const previousPage = screen.getByRole("button", { name: /previous page/i });
+    expect(previousPage).toBeDisabled();
+    await user.click(previousPage);
+    expect(onPageChange).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /next page/i }));
+    expect(onPageChange).toHaveBeenCalledWith(2);
+  });
+
+  it("blocks requests after the last page and allows the previous page", async () => {
+    const user = userEvent.setup();
+    const onPageChange = vi.fn();
+
+    renderInventoryTable({ status: "ready", rows: inventoryRows, page: 3, total: 6 }, onPageChange);
+
+    const nextPage = screen.getByRole("button", { name: /next page/i });
+    expect(nextPage).toBeDisabled();
+    await user.click(nextPage);
+    expect(onPageChange).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /previous page/i }));
+    expect(onPageChange).toHaveBeenCalledWith(2);
   });
 });

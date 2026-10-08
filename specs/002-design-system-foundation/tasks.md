@@ -54,7 +54,7 @@ Derivadas de la Spec 002 y del plan aprobado. Cada tarea busca una unidad peque�
       Hecho cuando: pruebas con filas tipadas verifican encabezados y celdas; las columnas no aceptan instancias ni eventos PrimeReact.
 - [x] T18. Implementar estados de carga, vacío y error con snapshots anteriores. (RF-38, RF-39, RF-40)
       Hecho cuando: pruebas cubren carga inicial, vacío solo tras éxito vacío, error inicial y error de actualización conservando filas anteriores.
-- [ ] T19. Implementar paginación controlada y tamaño fijo. (RF-41, RF-42, RF-43, RF-78)
+- [x] T19. Implementar paginación controlada y tamaño fijo. (RF-41, RF-42, RF-43, RF-78)
       Hecho cuando: pruebas verifican solicitud de página, límites inicial/final, página visible y ausencia de selector de tamaño.
 - [ ] T20. Gestionar la reducción de páginas, la transición de filas y el total cero. (RF-79, RF-80, RF-81, RF-94)
       Hecho cuando: con páginas restantes se solicita una corrección acotada y se conservan filas mientras el consumidor actualiza; con éxito vacío se muestra 0 de 0 y se limpian las filas anteriores.
