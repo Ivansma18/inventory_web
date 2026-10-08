@@ -1,0 +1,45 @@
+@layer components {
+  .ui-dialog__mask {
+    background-color: var(--ui-color-scrim);
+    padding: var(--ui-space-4);
+  }
+
+  .ui-dialog {
+    background-color: var(--ui-color-surface);
+    border: var(--ui-border-width) solid var(--ui-color-border);
+    border-radius: var(--ui-radius-lg);
+    color: var(--ui-color-text);
+    width: min(32rem, calc(100vw - 2rem));
+  }
+
+  .ui-dialog .p-dialog-header {
+    background-color: var(--ui-color-surface);
+    border-bottom: var(--ui-border-width) solid var(--ui-color-border);
+    color: var(--ui-color-text);
+    font-size: var(--ui-font-size-lg);
+    font-weight: var(--ui-font-weight-semibold);
+    padding: var(--ui-space-4);
+  }
+
+  .ui-dialog .p-dialog-header .p-dialog-header-icon {
+    border-radius: var(--ui-radius-sm);
+    color: var(--ui-color-text-muted);
+  }
+
+  .ui-dialog .p-dialog-header .p-dialog-header-icon:hover {
+    background-color: var(--ui-color-surface-muted);
+    color: var(--ui-color-text);
+  }
+
+  .ui-dialog .p-dialog-content {
+    background-color: var(--ui-color-surface);
+    color: var(--ui-color-text);
+    padding: var(--ui-space-4);
+  }
+
+  .ui-dialog .p-dialog-footer {
+    background-color: var(--ui-color-surface);
+    border-top: var(--ui-border-width) solid var(--ui-color-border);
+    padding: var(--ui-space-4);
+  }
+}

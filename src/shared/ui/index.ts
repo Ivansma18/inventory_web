@@ -2,6 +2,8 @@ import "./styles.css";
 
 export { Button } from "./button/button";
 export type { ButtonProps, ButtonVariant } from "./button/button";
+export { Dialog } from "./dialog/dialog";
+export type { DialogProps } from "./dialog/dialog";
 export { Icon } from "./icon/icon";
 export type { IconName, IconProps, IconSize } from "./icon/icon";
 export { Input } from "./input/input";
