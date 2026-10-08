@@ -15,11 +15,13 @@ const options: SelectOption[] = [
 const ControlledSelect = ({
   onValueChange,
   selectOptions = options,
+  initialValue = null,
 }: {
   onValueChange: (value: string | null) => void;
   selectOptions?: SelectOption[];
+  initialValue?: string | null;
 }) => {
-  const [value, setValue] = useState<string | null>(null);
+  const [value, setValue] = useState<string | null>(initialValue);
 
   const handleValueChange = (nextValue: string | null) => {
     setValue(nextValue);
@@ -93,5 +95,114 @@ describe("Select", () => {
     expect(screen.getByLabelText("Estado")).toBeDisabled();
     await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
     expect(onValueChange).not.toHaveBeenCalled();
+  });
+
+  it("clears the selected value when the empty option is chosen", async () => {
+    const user = userEvent.setup();
+    const onValueChange = vi.fn();
+
+    render(<ControlledSelect initialValue="draft" onValueChange={onValueChange} />);
+
+    screen.getByLabelText("Estado").focus();
+    await user.keyboard("{ArrowDown}{Home}{Enter}");
+
+    expect(onValueChange).toHaveBeenCalledExactlyOnceWith(null);
+    expect(screen.getByLabelText("Estado")).toHaveValue("Selecciona una opción");
+  });
+
+  it("reports null once when the selected option is removed", () => {
+    const onValueChange = vi.fn();
+    const selectedOptions: SelectOption[] = [{ label: "Borrador", value: "draft" }];
+    const replacementOptions: SelectOption[] = [{ label: "Publicado", value: "published" }];
+    const { rerender } = render(
+      <Select
+        label="Estado"
+        options={selectedOptions}
+        value="draft"
+        onValueChange={onValueChange}
+      />,
+    );
+    expect(onValueChange).not.toHaveBeenCalled();
+
+    rerender(
+      <Select
+        label="Estado"
+        options={replacementOptions}
+        value="draft"
+        onValueChange={onValueChange}
+      />,
+    );
+    rerender(
+      <Select
+        label="Estado"
+        options={[...replacementOptions]}
+        value="draft"
+        onValueChange={onValueChange}
+      />,
+    );
+
+    expect(onValueChange).toHaveBeenCalledExactlyOnceWith(null);
+  });
+
+  it("reports null when the selected option becomes disabled", () => {
+    const onValueChange = vi.fn();
+    const { rerender } = render(
+      <Select
+        label="Estado"
+        options={[{ label: "Borrador", value: "draft" }]}
+        value="draft"
+        onValueChange={onValueChange}
+      />,
+    );
+    expect(onValueChange).not.toHaveBeenCalled();
+
+    rerender(
+      <Select
+        label="Estado"
+        options={[{ label: "Borrador", value: "draft", disabled: true }]}
+        value="draft"
+        onValueChange={onValueChange}
+      />,
+    );
+    rerender(
+      <Select
+        label="Estado"
+        options={[{ label: "Borrador", value: "draft", disabled: true }]}
+        value="draft"
+        onValueChange={onValueChange}
+      />,
+    );
+
+    expect(onValueChange).toHaveBeenCalledExactlyOnceWith(null);
+  });
+
+  it("associates error text and identifies the select as invalid", () => {
+    render(
+      <Select
+        error="Selecciona un estado."
+        label="Estado"
+        options={options}
+        value={null}
+        onValueChange={() => undefined}
+      />,
+    );
+
+    const select = screen.getByLabelText("Estado");
+    const error = screen.getByText("Selecciona un estado.");
+
+    expect(select).toHaveAttribute("aria-invalid", "true");
+    expect(select).toHaveAttribute("aria-describedby", error.id);
+    expect(select).toHaveAccessibleDescription("Selecciona un estado.");
+  });
+
+  it("disables itself and announces when no options are available", () => {
+    render(<Select label="Estado" options={[]} value={null} onValueChange={() => undefined} />);
+
+    const select = screen.getByLabelText("Estado");
+    const emptyMessage = screen.getByRole("status");
+
+    expect(select).toBeDisabled();
+    expect(emptyMessage).toHaveTextContent("No hay opciones disponibles.");
+    expect(select).toHaveAccessibleDescription("No hay opciones disponibles.");
   });
 });

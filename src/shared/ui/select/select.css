@@ -27,6 +27,10 @@
     width: 100%;
   }
 
+  .ui-select--invalid {
+    border-color: var(--ui-color-error);
+  }
+
   .ui-select .p-dropdown-label {
     align-items: center;
     color: var(--ui-color-text);
@@ -93,5 +97,19 @@
   .ui-select__panel .p-dropdown-item.p-disabled {
     color: var(--ui-color-text-muted);
     cursor: not-allowed;
+  }
+
+  .ui-select__error,
+  .ui-select__empty {
+    font-size: var(--ui-font-size-sm);
+    line-height: var(--ui-line-height-normal);
+  }
+
+  .ui-select__error {
+    color: var(--ui-color-on-error);
+  }
+
+  .ui-select__empty {
+    color: var(--ui-color-text-muted);
   }
 }

@@ -32,7 +32,7 @@ Derivadas de la Spec 002 y del plan aprobado. Todas las tareas están pendientes
       Hecho cuando: pruebas por roles/nombres verifican etiquetas y descripciones asociadas sin filtrar tipos vendor.
 - [x] T10. Implementar Select de selección simple, valor vacío y navegación por teclado. (RF-3, RF-4, RF-22, RF-23, RF-24, RF-25, RF-26, RF-27)
       Hecho cuando: pruebas verifican una sola selección, `null`, emisión del valor, recorrido por teclado, opciones disabled y etiqueta accesible.
-- [ ] T11. Completar errores, limpieza, invalidación y Select sin opciones. (RF-28, RF-29, RF-89, RF-90, RF-91)
+- [x] T11. Completar errores, limpieza, invalidación y Select sin opciones. (RF-28, RF-29, RF-89, RF-90, RF-91)
       Hecho cuando: opción vacía limpia la selección, una opción eliminada/deshabilitada emite `null`, errores se asocian y la lista vacía deshabilita Select con un mensaje.
 
 ### Dialog
