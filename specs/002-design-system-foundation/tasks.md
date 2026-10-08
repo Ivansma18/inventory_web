@@ -67,7 +67,7 @@ Derivadas de la Spec 002 y del plan aprobado. Cada tarea busca una unidad peque�
 
 - [x] T23. Implementar Badge textual con tono semántico. (RF-48, RF-49)
       Hecho cuando: pruebas verifican label visible y que distintos significados no dependan únicamente del color.
-- [ ] T24. Implementar los tipos, presentación y cierre individual de Toast. (RF-50, RF-52, RF-53, RF-55)
+- [x] T24. Implementar los tipos, presentación y cierre individual de Toast. (RF-50, RF-52, RF-53, RF-55)
       Hecho cuando: pruebas verifican cuatro tipos, cierre manual, persistencia de warning/error y retirada independiente de avisos simultáneos.
 - [ ] T25. Implementar temporizadores pausables de Toast. (RF-51)
       Hecho cuando: fake timers comprueban cinco segundos acumulados y pausa/reanudación por hover y foco solapados.

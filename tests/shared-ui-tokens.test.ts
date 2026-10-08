@@ -16,6 +16,7 @@ const visualComponents = [
   "select",
   "data-table",
   "badge",
+  "toast",
 ] as const;
 
 const readToken = (css: string, name: string): string => {
@@ -108,6 +109,8 @@ describe("shared UI visual tokens", () => {
       expect(componentStyles.trim().length).toBeGreaterThan(0);
     }
 
-    expect(globalStyles).not.toMatch(/\.ui-(?:button|icon|input|textarea|select|badge)(?:[\w-]*)/);
+    expect(globalStyles).not.toMatch(
+      /\.ui-(?:button|icon|input|textarea|select|badge|toast)(?:[\w-]*)/,
+    );
   });
 });
