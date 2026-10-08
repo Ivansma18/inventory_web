@@ -7,6 +7,8 @@ export type {
   DataTableColumn,
   DataTableProps,
   DataTableResult,
+  DataTableSort,
+  DataTableSortDirection,
   DataTableSnapshot,
 } from "./data-table/data-table";
 export { Dialog } from "./dialog/dialog";

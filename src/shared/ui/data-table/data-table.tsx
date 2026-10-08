@@ -13,6 +13,14 @@ export interface DataTableColumn<Row extends object> {
   key: Extract<keyof Row, string>;
   header: string;
   render?: (row: Row) => ReactNode;
+  sortable: boolean;
+}
+
+export type DataTableSortDirection = "asc" | "desc";
+
+export interface DataTableSort<Row extends object> {
+  columnId: Extract<keyof Row, string>;
+  direction: DataTableSortDirection;
 }
 
 export interface DataTableSnapshot<Row extends object> {
@@ -29,17 +37,21 @@ export type DataTableResult<Row extends object> =
 export interface DataTableProps<Row extends object> {
   columns: DataTableColumn<Row>[];
   onPageChange: (page: number) => void;
+  onSortChange: (sort: DataTableSort<Row> | null) => void;
   pageSize: number;
   result: DataTableResult<Row>;
   rowKey: Extract<keyof Row, string>;
+  sort: DataTableSort<Row> | null;
 }
 
 export const DataTable = <Row extends object>({
   columns,
   onPageChange,
+  onSortChange,
   pageSize,
   result,
   rowKey,
+  sort,
 }: DataTableProps<Row>) => {
   const snapshot = result.status === "ready" ? result : result.snapshot;
   const rows = snapshot?.rows ?? [];
@@ -49,6 +61,9 @@ export const DataTable = <Row extends object>({
   const currentPage = snapshot?.page ?? 1;
   const total = snapshot?.total ?? 0;
   const totalPages = pageSize > 0 ? Math.ceil(total / pageSize) : 0;
+  const activeSort =
+    sort && columns.some((column) => column.key === sort.columnId && column.sortable) ? sort : null;
+  const sortOrder = activeSort ? (activeSort.direction === "asc" ? 1 : -1) : undefined;
   const isCorrectingPage = totalPages > 0 && currentPage > totalPages;
   const errorMessage =
     result.status === "error" ? result.message.trim() || "No se pudieron cargar los datos." : null;
@@ -78,6 +93,32 @@ export const DataTable = <Row extends object>({
     if (requestedPage >= 1 && requestedPage <= totalPages && requestedPage !== currentPage) {
       onPageChange(requestedPage);
     }
+  };
+
+  const handleSort = (event: { sortField: string | null }) => {
+    if (event.sortField === null) {
+      if (activeSort) {
+        onSortChange(null);
+      }
+
+      return;
+    }
+
+    const column = columns.find(
+      (candidate) => candidate.key === event.sortField && candidate.sortable,
+    );
+    if (!column) {
+      return;
+    }
+
+    const nextSort: DataTableSort<Row> | null =
+      activeSort?.columnId !== column.key
+        ? { columnId: column.key, direction: "asc" }
+        : activeSort.direction === "asc"
+          ? { columnId: column.key, direction: "desc" }
+          : null;
+
+    onSortChange(nextSort);
   };
 
   return (
@@ -118,10 +159,15 @@ export const DataTable = <Row extends object>({
             first={Math.max(0, (currentPage - 1) * pageSize)}
             lazy
             onPage={handlePage}
+            onSort={handleSort}
             paginator={!isCorrectingPage}
             paginatorTemplate={PAGINATOR_TEMPLATE}
             currentPageReportTemplate={PAGE_REPORT_TEMPLATE}
+            removableSort
             rows={pageSize}
+            sortField={activeSort?.columnId}
+            sortMode="single"
+            sortOrder={sortOrder}
             totalRecords={total}
             value={rows as unknown as Array<Record<string, unknown>>}
           >
@@ -131,6 +177,7 @@ export const DataTable = <Row extends object>({
                 field={column.key}
                 header={column.header}
                 key={column.key}
+                sortable={column.sortable}
               />
             ))}
           </PrimeDataTable>

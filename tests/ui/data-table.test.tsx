@@ -8,6 +8,7 @@ import type {
   DataTableColumn,
   DataTableProps,
   DataTableResult,
+  DataTableSort,
   DataTableSnapshot,
 } from "@/shared/ui";
 
@@ -30,15 +31,21 @@ const inventorySnapshot: DataTableSnapshot<InventoryRow> = {
 };
 
 const inventoryColumns: DataTableColumn<InventoryRow>[] = [
-  { key: "sku", header: "SKU" },
-  { key: "name", header: "Producto" },
-  { key: "quantity", header: "Cantidad", render: (row) => `${row.quantity} unidades` },
+  { key: "sku", header: "SKU", sortable: true },
+  { key: "name", header: "Producto", sortable: true },
+  {
+    key: "quantity",
+    header: "Cantidad",
+    render: (row) => `${row.quantity} unidades`,
+    sortable: false,
+  },
 ];
 
 const invalidColumn: DataTableColumn<InventoryRow> = {
   // @ts-expect-error DataTable columns are constrained to keys from their row type.
   key: "missing",
   header: "Dato inexistente",
+  sortable: false,
 };
 
 void invalidColumn;
@@ -51,20 +58,45 @@ const missingResult: DataTableProps<InventoryRow> = {
 
 void missingResult;
 
+interface RenderInventoryTableOptions {
+  onPageChange?: (page: number) => void;
+  onSortChange?: (sort: DataTableSort<InventoryRow> | null) => void;
+  pageSize?: number;
+  sort?: DataTableSort<InventoryRow> | null;
+}
+
+const createInventoryTable = (
+  result: DataTableResult<InventoryRow>,
+  {
+    onPageChange = () => undefined,
+    onSortChange = () => undefined,
+    pageSize = 2,
+    sort = null,
+  }: RenderInventoryTableOptions = {},
+) => (
+  <DataTable
+    columns={inventoryColumns}
+    onPageChange={onPageChange}
+    onSortChange={onSortChange}
+    pageSize={pageSize}
+    result={result}
+    rowKey="id"
+    sort={sort}
+  />
+);
+
 const renderInventoryTable = (
   result: DataTableResult<InventoryRow>,
-  onPageChange: (page: number) => void = () => undefined,
-  pageSize = 2,
-) =>
-  render(
-    <DataTable
-      columns={inventoryColumns}
-      onPageChange={onPageChange}
-      pageSize={pageSize}
-      result={result}
-      rowKey="id"
-    />,
-  );
+  options?: RenderInventoryTableOptions,
+) => render(createInventoryTable(result, options));
+
+const getSortedHeaderNames = () =>
+  screen
+    .getAllByRole("columnheader")
+    .filter((header) =>
+      ["ascending", "descending"].includes(header.getAttribute("aria-sort") ?? ""),
+    )
+    .map((header) => header.textContent);
 
 describe("DataTable", () => {
   it("renders typed row values under its own column headers", () => {
@@ -89,14 +121,18 @@ describe("DataTable", () => {
       { id: "row-a", sku: "SKU-A", name: "Alpha", quantity: 1 },
       { id: "row-b", sku: "SKU-B", name: "Beta", quantity: 2 },
     ];
-    const columns: DataTableColumn<InventoryRow>[] = [{ key: "name", header: "Nombre" }];
+    const columns: DataTableColumn<InventoryRow>[] = [
+      { key: "name", header: "Nombre", sortable: true },
+    ];
     const { rerender } = render(
       <DataTable
         columns={columns}
         onPageChange={() => undefined}
+        onSortChange={() => undefined}
         pageSize={2}
         result={{ status: "ready", rows, page: 1, total: 2 }}
         rowKey="id"
+        sort={null}
       />,
     );
 
@@ -111,9 +147,11 @@ describe("DataTable", () => {
       <DataTable
         columns={columns}
         onPageChange={() => undefined}
+        onSortChange={() => undefined}
         pageSize={2}
         result={{ status: "ready", rows: [rows[1], rows[0]], page: 1, total: 2 }}
         rowKey="id"
+        sort={null}
       />,
     );
 
@@ -142,7 +180,7 @@ describe("DataTable", () => {
     const onPageChange = vi.fn();
     const { rerender } = renderInventoryTable(
       { status: "loading", snapshot: inventorySnapshot },
-      onPageChange,
+      { onPageChange },
     );
 
     expect(screen.getByRole("cell", { name: "SKU-01" })).toBeInTheDocument();
@@ -151,9 +189,11 @@ describe("DataTable", () => {
       <DataTable
         columns={inventoryColumns}
         onPageChange={onPageChange}
+        onSortChange={() => undefined}
         pageSize={2}
         result={{ status: "ready", rows: [], page: 0, total: 0 }}
         rowKey="id"
+        sort={null}
       />,
     );
 
@@ -204,7 +244,7 @@ describe("DataTable", () => {
 
     renderInventoryTable(
       { status: "ready", rows: inventoryRows, page: 2, total: 10 },
-      onPageChange,
+      { onPageChange },
     );
 
     expect(screen.getByText("Página 2 de 5")).toBeInTheDocument();
@@ -229,7 +269,10 @@ describe("DataTable", () => {
     const user = userEvent.setup();
     const onPageChange = vi.fn();
 
-    renderInventoryTable({ status: "ready", rows: inventoryRows, page: 1, total: 6 }, onPageChange);
+    renderInventoryTable(
+      { status: "ready", rows: inventoryRows, page: 1, total: 6 },
+      { onPageChange },
+    );
 
     const previousPage = screen.getByRole("button", { name: /previous page/i });
     expect(previousPage).toBeDisabled();
@@ -244,7 +287,10 @@ describe("DataTable", () => {
     const user = userEvent.setup();
     const onPageChange = vi.fn();
 
-    renderInventoryTable({ status: "ready", rows: inventoryRows, page: 3, total: 6 }, onPageChange);
+    renderInventoryTable(
+      { status: "ready", rows: inventoryRows, page: 3, total: 6 },
+      { onPageChange },
+    );
 
     const nextPage = screen.getByRole("button", { name: /next page/i });
     expect(nextPage).toBeDisabled();
@@ -255,6 +301,101 @@ describe("DataTable", () => {
     expect(onPageChange).toHaveBeenCalledWith(2);
   });
 
+  it("cycles a controlled column through ascending, descending, and no sort", async () => {
+    const user = userEvent.setup();
+    const onSortChange = vi.fn();
+    const rows = [inventoryRows[1], inventoryRows[0]];
+    const result: DataTableResult<InventoryRow> = {
+      status: "ready",
+      rows,
+      page: 1,
+      total: 2,
+    };
+    const { rerender } = renderInventoryTable(result, { onSortChange });
+
+    await user.click(screen.getByRole("columnheader", { name: "Producto" }));
+
+    expect(onSortChange).toHaveBeenNthCalledWith(1, { columnId: "name", direction: "asc" });
+    expect(
+      screen
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => row.textContent),
+    ).toEqual(["SKU-02Mouse8 unidades", "SKU-01Keyboard12 unidades"]);
+
+    rerender(
+      createInventoryTable(result, {
+        onSortChange,
+        sort: { columnId: "name", direction: "asc" },
+      }),
+    );
+    expect(screen.getByRole("columnheader", { name: "Producto" })).toHaveAttribute(
+      "aria-sort",
+      "ascending",
+    );
+
+    await user.click(screen.getByRole("columnheader", { name: "Producto" }));
+    expect(onSortChange).toHaveBeenNthCalledWith(2, { columnId: "name", direction: "desc" });
+
+    rerender(
+      createInventoryTable(result, {
+        onSortChange,
+        sort: { columnId: "name", direction: "desc" },
+      }),
+    );
+    expect(screen.getByRole("columnheader", { name: "Producto" })).toHaveAttribute(
+      "aria-sort",
+      "descending",
+    );
+
+    await user.click(screen.getByRole("columnheader", { name: "Producto" }));
+    expect(onSortChange).toHaveBeenNthCalledWith(3, null);
+
+    rerender(createInventoryTable(result, { onSortChange, sort: null }));
+    expect(getSortedHeaderNames()).toEqual([]);
+    expect(
+      screen
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => row.textContent),
+    ).toEqual(["SKU-02Mouse8 unidades", "SKU-01Keyboard12 unidades"]);
+  });
+
+  it("starts a new sortable column ascending and keeps only that column active", async () => {
+    const user = userEvent.setup();
+    const onSortChange = vi.fn();
+    const result: DataTableResult<InventoryRow> = {
+      status: "ready",
+      rows: inventoryRows,
+      page: 1,
+      total: 2,
+    };
+    const { rerender } = renderInventoryTable(result, {
+      onSortChange,
+      sort: { columnId: "name", direction: "desc" },
+    });
+
+    await user.click(screen.getByRole("columnheader", { name: "Cantidad" }));
+    expect(onSortChange).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("columnheader", { name: "SKU" }));
+    expect(onSortChange).toHaveBeenCalledTimes(1);
+    expect(onSortChange).toHaveBeenCalledWith({ columnId: "sku", direction: "asc" });
+
+    rerender(
+      createInventoryTable(result, {
+        onSortChange,
+        sort: { columnId: "sku", direction: "asc" },
+      }),
+    );
+
+    expect(screen.getByRole("columnheader", { name: "SKU" })).toHaveAttribute(
+      "aria-sort",
+      "ascending",
+    );
+    expect(getSortedHeaderNames()).toEqual(["SKU"]);
+  });
+
   it("requests the last valid page once and keeps rows visible during correction", () => {
     const onPageChange = vi.fn();
     const updatedOnPageChange = vi.fn();
@@ -263,9 +404,11 @@ describe("DataTable", () => {
         <DataTable
           columns={inventoryColumns}
           onPageChange={onPageChange}
+          onSortChange={() => undefined}
           pageSize={2}
           result={{ status: "ready", rows: inventoryRows, page: 7, total: 6 }}
           rowKey="id"
+          sort={null}
         />
       </StrictMode>,
     );
@@ -281,12 +424,14 @@ describe("DataTable", () => {
         <DataTable
           columns={inventoryColumns}
           onPageChange={updatedOnPageChange}
+          onSortChange={() => undefined}
           pageSize={2}
           result={{
             status: "loading",
             snapshot: { rows: inventoryRows, page: 7, total: 6 },
           }}
           rowKey="id"
+          sort={null}
         />
       </StrictMode>,
     );
@@ -301,9 +446,11 @@ describe("DataTable", () => {
         <DataTable
           columns={inventoryColumns}
           onPageChange={updatedOnPageChange}
+          onSortChange={() => undefined}
           pageSize={2}
           result={{ status: "ready", rows: [inventoryRows[1]], page: 3, total: 6 }}
           rowKey="id"
+          sort={null}
         />
       </StrictMode>,
     );
