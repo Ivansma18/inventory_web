@@ -21,6 +21,13 @@
     padding: var(--ui-space-4);
   }
 
+  .ui-dialog__title {
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    margin: 0;
+  }
+
   .ui-dialog .p-dialog-header .p-dialog-header-icon {
     border-radius: var(--ui-radius-sm);
     color: var(--ui-color-text-muted);

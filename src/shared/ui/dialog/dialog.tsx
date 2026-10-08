@@ -1,7 +1,7 @@
 import "./dialog.css";
 
 import { Dialog as PrimeDialog } from "primereact/dialog";
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { Icon } from "../icon/icon";
@@ -22,6 +22,26 @@ interface OutsideAccessibilityState {
   hadInert: boolean;
   ariaHidden: string | null;
 }
+
+const focusableSelector = [
+  "a[href]",
+  "area[href]",
+  "button:not(:disabled)",
+  'input:not(:disabled):not([type="hidden"])',
+  "select:not(:disabled)",
+  "textarea:not(:disabled)",
+  '[contenteditable="true"]',
+  '[tabindex]:not([tabindex="-1"])',
+].join(",");
+
+const getFirstFocusableElement = (container: HTMLElement): HTMLElement | undefined =>
+  Array.from(container.querySelectorAll<HTMLElement>(focusableSelector)).find(
+    (element) =>
+      !element.matches(":disabled") &&
+      !element.hidden &&
+      element.getAttribute("role") !== "presentation" &&
+      !element.closest('[hidden], [inert], [aria-hidden="true"]'),
+  );
 
 const createPortalContainer = () => {
   if (typeof document === "undefined") {
@@ -44,6 +64,7 @@ export const Dialog = ({
   closeOnBackdrop = true,
 }: DialogProps) => {
   const [portalContainer] = useState(createPortalContainer);
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
   useLayoutEffect(() => {
     if (!portalContainer) {
@@ -91,9 +112,24 @@ export const Dialog = ({
     };
   }, [open, portalContainer]);
 
+  const focusDialogOnShow = () => {
+    if (!portalContainer) {
+      return;
+    }
+
+    const initialFocusTarget = getFirstFocusableElement(portalContainer) ?? titleRef.current;
+    initialFocusTarget?.focus();
+  };
+
   if (!portalContainer) {
     return null;
   }
+
+  const header = (
+    <h2 className="ui-dialog__title" ref={titleRef} tabIndex={-1}>
+      {title}
+    </h2>
+  );
 
   return (
     <PrimeDialog
@@ -106,10 +142,12 @@ export const Dialog = ({
       dismissableMask={closeOnBackdrop}
       draggable={false}
       footer={footer}
-      header={title}
+      focusOnShow={false}
+      header={header}
       maskClassName="ui-dialog__mask"
       modal
       onHide={() => onCloseRequest()}
+      onShow={focusDialogOnShow}
       resizable={false}
       showCloseIcon={showCloseButton}
       visible={open}

@@ -143,4 +143,58 @@ describe("Dialog", () => {
     await user.click(screen.getByRole("button", { name: "Outside action" }));
     expect(onOutsideAction).toHaveBeenCalledTimes(1);
   });
+
+  it("names the dialog and initially focuses its first available control", async () => {
+    render(
+      <Dialog open showCloseButton={false} title="Focus title" onCloseRequest={() => undefined}>
+        <button>First control</button>
+        <button>Second control</button>
+      </Dialog>,
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "Focus title" });
+    expect(dialog).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "First control" })).toHaveFocus(),
+    );
+  });
+
+  it("moves initial focus to its title when it has no focusable controls", async () => {
+    render(
+      <Dialog
+        open
+        showCloseButton={false}
+        title="Read-only notice"
+        onCloseRequest={() => undefined}
+      >
+        <p>This dialog contains no controls.</p>
+      </Dialog>,
+    );
+
+    const title = await screen.findByRole("heading", { name: "Read-only notice" });
+    expect(screen.getByRole("dialog", { name: "Read-only notice" })).toBeInTheDocument();
+    await waitFor(() => expect(title).toHaveFocus());
+  });
+
+  it("contains Tab and Shift+Tab navigation within the dialog", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <Dialog open showCloseButton={false} title="Focus loop" onCloseRequest={() => undefined}>
+        <button>First control</button>
+        <button>Last control</button>
+      </Dialog>,
+    );
+
+    const first = await screen.findByRole("button", { name: "First control" });
+    const last = screen.getByRole("button", { name: "Last control" });
+    await waitFor(() => expect(first).toHaveFocus());
+
+    await user.tab();
+    expect(last).toHaveFocus();
+    await user.tab();
+    expect(first).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(last).toHaveFocus();
+  });
 });
