@@ -60,7 +60,7 @@ Derivadas de la Spec 002 y del plan aprobado. Cada tarea busca una unidad peque�
       Hecho cuando: con páginas restantes se solicita una corrección acotada y se conservan filas mientras el consumidor actualiza; con éxito vacío se muestra 0 de 0 y se limpian las filas anteriores.
 - [x] T21. Implementar el ciclo de ordenación de una columna. (RF-44, RF-45, RF-73, RF-74, RF-75, RF-76, RF-77)
       Hecho cuando: pruebas verifican ascendente → descendente → sin orden, cambio de columna a ascendente y una sola columna activa; el consumidor aplica la ordenación.
-- [ ] T22. Verificar teclado y overflow local de DataTable. (RF-46, RF-47)
+- [x] T22. Verificar teclado y overflow local de DataTable. (RF-46, RF-47)
       Hecho cuando: Chromium recorre paginación/ordenación por teclado y una tabla ancha se desplaza sin desbordar horizontalmente la página.
 
 ### Badge, Toast, Tooltip y Skeleton
