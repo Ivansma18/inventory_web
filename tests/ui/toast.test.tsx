@@ -75,6 +75,32 @@ describe("Toast", () => {
     },
   );
 
+  it.each(toastExamples)(
+    "announces $kind once without moving keyboard focus",
+    async ({ kind, message, summary }) => {
+      const user = userEvent.setup();
+
+      render(
+        <UiProvider>
+          <ToastControls />
+        </UiProvider>,
+      );
+
+      const trigger = screen.getByRole("button", { name: `Show ${kind}` });
+      trigger.focus();
+      expect(trigger).toHaveFocus();
+
+      await user.keyboard("{Enter}");
+
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent(summary);
+      expect(alert).toHaveTextContent(message);
+      expect(screen.getAllByRole("alert")).toHaveLength(1);
+      expect(document.querySelectorAll('[aria-live]:not([aria-live="off"])')).toHaveLength(1);
+      expect(trigger).toHaveFocus();
+    },
+  );
+
   it.each(["warning", "error"] as const)("keeps %s visible until it is dismissed", (kind) => {
     vi.useFakeTimers();
     const example = toastExamples.find((toast) => toast.kind === kind);

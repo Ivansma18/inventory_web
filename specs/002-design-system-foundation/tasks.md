@@ -71,7 +71,7 @@ Derivadas de la Spec 002 y del plan aprobado. Cada tarea busca una unidad peque�
       Hecho cuando: pruebas verifican cuatro tipos, cierre manual, persistencia de warning/error y retirada independiente de avisos simultáneos.
 - [x] T25. Implementar temporizadores pausables de Toast. (RF-51)
       Hecho cuando: fake timers comprueban cinco segundos acumulados y pausa/reanudación por hover y foco solapados.
-- [ ] T26. Implementar el anuncio accesible de Toast sin mover el foco. (RF-4, RF-54)
+- [x] T26. Implementar el anuncio accesible de Toast sin mover el foco. (RF-4, RF-54)
       Hecho cuando: el árbol accesible y una prueba manual confirman el anuncio sin robo de foco ni doble lectura.
 - [ ] T27. Implementar visibilidad y descripción accesible de Tooltip. (RF-56, RF-57, RF-59, RF-60, RF-86, RF-87)
       Hecho cuando: pruebas verifican pointer/foco, tránsito al contenido, descripción sin reemplazar otras y ocultación al salir.

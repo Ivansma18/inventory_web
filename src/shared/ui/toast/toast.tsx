@@ -221,7 +221,14 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
         className="ui-toast"
         onRemove={handleRemove}
         position="top-right"
-        pt={{ closeButton: { "aria-label": "Cerrar notificación" } }}
+        pt={{
+          closeButton: { "aria-label": "Cerrar notificación" },
+          message: {
+            role: "alert",
+            "aria-live": "assertive",
+            "aria-atomic": true,
+          },
+        }}
         ref={toastRef}
       />
     </toastContext.Provider>
