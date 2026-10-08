@@ -28,7 +28,7 @@ Derivadas de la Spec 002 y del plan aprobado. Todas las tareas están pendientes
       Hecho cuando: pruebas por roles/nombres verifican label, asociación de ayuda/error y `aria-invalid` sin depender de estructura vendor.
 - [x] T8. Implementar Textarea controlado y multilínea. (RF-3, RF-15, RF-20, RF-21)
       Hecho cuando: pruebas verifican emisión del valor, saltos de línea y bloqueo de edición en readOnly/disabled.
-- [ ] T9. Asociar etiquetas, ayuda y errores accesibles a Textarea. (RF-4, RF-16, RF-17, RF-18, RF-19)
+- [x] T9. Asociar etiquetas, ayuda y errores accesibles a Textarea. (RF-4, RF-16, RF-17, RF-18, RF-19)
       Hecho cuando: pruebas por roles/nombres verifican etiquetas y descripciones asociadas sin filtrar tipos vendor.
 - [ ] T10. Implementar Select de selección simple, valor vacío y navegación por teclado. (RF-3, RF-4, RF-22, RF-23, RF-24, RF-25, RF-26, RF-27)
       Hecho cuando: pruebas verifican una sola selección, `null`, emisión del valor, recorrido por teclado, opciones disabled y etiqueta accesible.

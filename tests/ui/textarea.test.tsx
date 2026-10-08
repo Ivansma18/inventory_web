@@ -55,4 +55,79 @@ describe("Textarea", () => {
     await user.type(textarea, "Line two");
     expect(onValueChange).not.toHaveBeenCalled();
   });
+
+  it("associates a visible label and preserves its generated textarea id", () => {
+    const onValueChange = vi.fn();
+    const { rerender } = render(
+      <Textarea label="Descripción" value="" onValueChange={onValueChange} />,
+    );
+    const textarea = screen.getByRole("textbox", { name: "Descripción" });
+    const textareaId = textarea.getAttribute("id");
+
+    expect(textareaId).toBeTruthy();
+    expect(screen.getByLabelText("Descripción")).toBe(textarea);
+
+    rerender(<Textarea label="Descripción" value="Detalle" onValueChange={onValueChange} />);
+
+    expect(screen.getByRole("textbox", { name: "Descripción" })).toHaveAttribute("id", textareaId);
+  });
+
+  it("associates help and error text and marks the textarea invalid", () => {
+    render(
+      <Textarea
+        error="La descripción es demasiado larga."
+        helpText="Incluye los detalles relevantes."
+        label="Descripción"
+        value="Detalle"
+        onValueChange={() => undefined}
+      />,
+    );
+
+    const textarea = screen.getByRole("textbox", { name: "Descripción" });
+    const help = screen.getByText("Incluye los detalles relevantes.");
+    const error = screen.getByText("La descripción es demasiado larga.");
+
+    expect(textarea).toHaveAttribute("aria-invalid", "true");
+    expect(textarea).toHaveAttribute("aria-describedby", `${help.id} ${error.id}`);
+    expect(textarea).toHaveAccessibleDescription(
+      "Incluye los detalles relevantes. La descripción es demasiado larga.",
+    );
+  });
+
+  it("associates help text without marking the textarea invalid", () => {
+    render(
+      <Textarea
+        helpText="Puedes incluir varias líneas."
+        label="Descripción"
+        value="Detalle"
+        onValueChange={() => undefined}
+      />,
+    );
+
+    const textarea = screen.getByRole("textbox", { name: "Descripción" });
+    const help = screen.getByText("Puedes incluir varias líneas.");
+
+    expect(textarea).not.toHaveAttribute("aria-invalid", "true");
+    expect(textarea).toHaveAttribute("aria-describedby", help.id);
+  });
+
+  it("preserves a caller-supplied id for label, help, and error associations", () => {
+    render(
+      <Textarea
+        error="Dato requerido"
+        helpText="Información del campo"
+        id="product-description"
+        label="Descripción"
+        value=""
+        onValueChange={() => undefined}
+      />,
+    );
+
+    const textarea = screen.getByRole("textbox", { name: "Descripción" });
+    expect(textarea).toHaveAttribute("id", "product-description");
+    expect(textarea).toHaveAttribute(
+      "aria-describedby",
+      "product-description-help product-description-error",
+    );
+  });
 });
