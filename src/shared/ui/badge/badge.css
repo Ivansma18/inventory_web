@@ -1,0 +1,44 @@
+@layer components {
+  .ui-badge {
+    align-items: center;
+    background-color: var(--ui-color-surface-muted);
+    border: var(--ui-border-width) solid var(--ui-color-border);
+    border-radius: var(--ui-radius-pill);
+    color: var(--ui-color-text);
+    display: inline-flex;
+    font-family: var(--ui-font-family-sans);
+    font-size: var(--ui-font-size-sm);
+    font-weight: var(--ui-font-weight-medium);
+    line-height: var(--ui-line-height-tight);
+    max-inline-size: 100%;
+    min-block-size: var(--ui-control-height-sm);
+    overflow-wrap: anywhere;
+    padding-block: var(--ui-space-1);
+    padding-inline: var(--ui-space-2);
+    vertical-align: middle;
+  }
+
+  .ui-badge--success {
+    background-color: var(--ui-color-success-surface);
+    border-color: transparent;
+    color: var(--ui-color-success-ink);
+  }
+
+  .ui-badge--info {
+    background-color: var(--ui-color-info-surface);
+    border-color: transparent;
+    color: var(--ui-color-info-ink);
+  }
+
+  .ui-badge--warning {
+    background-color: var(--ui-color-warning);
+    border-color: transparent;
+    color: var(--ui-color-on-warning);
+  }
+
+  .ui-badge--error {
+    background-color: var(--ui-color-error-surface);
+    border-color: transparent;
+    color: var(--ui-color-on-error);
+  }
+}

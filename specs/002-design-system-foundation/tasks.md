@@ -65,7 +65,7 @@ Derivadas de la Spec 002 y del plan aprobado. Cada tarea busca una unidad peque�
 
 ### Badge, Toast, Tooltip y Skeleton
 
-- [ ] T23. Implementar Badge textual con tono semántico. (RF-48, RF-49)
+- [x] T23. Implementar Badge textual con tono semántico. (RF-48, RF-49)
       Hecho cuando: pruebas verifican label visible y que distintos significados no dependan únicamente del color.
 - [ ] T24. Implementar los tipos, presentación y cierre individual de Toast. (RF-50, RF-52, RF-53, RF-55)
       Hecho cuando: pruebas verifican cuatro tipos, cierre manual, persistencia de warning/error y retirada independiente de avisos simultáneos.

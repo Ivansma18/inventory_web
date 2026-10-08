@@ -1,5 +1,7 @@
 import "./styles.css";
 
+export { Badge } from "./badge/badge";
+export type { BadgeProps, BadgeTone } from "./badge/badge";
 export { Button } from "./button/button";
 export type { ButtonProps, ButtonVariant } from "./button/button";
 export { DataTable } from "./data-table/data-table";
