@@ -56,7 +56,7 @@ Derivadas de la Spec 002 y del plan aprobado. Cada tarea busca una unidad peque�
       Hecho cuando: pruebas cubren carga inicial, vacío solo tras éxito vacío, error inicial y error de actualización conservando filas anteriores.
 - [x] T19. Implementar paginación controlada y tamaño fijo. (RF-41, RF-42, RF-43, RF-78)
       Hecho cuando: pruebas verifican solicitud de página, límites inicial/final, página visible y ausencia de selector de tamaño.
-- [ ] T20. Gestionar la reducción de páginas, la transición de filas y el total cero. (RF-79, RF-80, RF-81, RF-94)
+- [x] T20. Gestionar la reducción de páginas, la transición de filas y el total cero. (RF-79, RF-80, RF-81, RF-94)
       Hecho cuando: con páginas restantes se solicita una corrección acotada y se conservan filas mientras el consumidor actualiza; con éxito vacío se muestra 0 de 0 y se limpian las filas anteriores.
 - [ ] T21. Implementar el ciclo de ordenación de una columna. (RF-44, RF-45, RF-73, RF-74, RF-75, RF-76, RF-77)
       Hecho cuando: pruebas verifican ascendente → descendente → sin orden, cambio de columna a ascendente y una sola columna activa; el consumidor aplica la ordenación.

@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { DataTable } from "@/shared/ui";
@@ -131,18 +132,25 @@ describe("DataTable", () => {
     renderInventoryTable({ status: "ready", rows: [], page: 0, total: 0 });
 
     expect(screen.getByRole("status")).toHaveTextContent("No hay datos para mostrar.");
+    expect(screen.getByText("0 de 0 páginas")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /previous page/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /next page/i })).toBeDisabled();
   });
 
   it("discards the previous snapshot when an empty result succeeds", () => {
-    const { rerender } = renderInventoryTable({ status: "loading", snapshot: inventorySnapshot });
+    const onPageChange = vi.fn();
+    const { rerender } = renderInventoryTable(
+      { status: "loading", snapshot: inventorySnapshot },
+      onPageChange,
+    );
 
     expect(screen.getByRole("cell", { name: "SKU-01" })).toBeInTheDocument();
 
     rerender(
       <DataTable
         columns={inventoryColumns}
-        onPageChange={() => undefined}
+        onPageChange={onPageChange}
         pageSize={2}
         result={{ status: "ready", rows: [], page: 0, total: 0 }}
         rowKey="id"
@@ -150,8 +158,10 @@ describe("DataTable", () => {
     );
 
     expect(screen.getByRole("status")).toHaveTextContent("No hay datos para mostrar.");
+    expect(screen.getByText("0 de 0 páginas")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.queryByRole("cell", { name: "SKU-01" })).not.toBeInTheDocument();
+    expect(onPageChange).not.toHaveBeenCalled();
   });
 
   it("identifies an initial error without showing an empty state", () => {
@@ -243,5 +253,63 @@ describe("DataTable", () => {
 
     await user.click(screen.getByRole("button", { name: /previous page/i }));
     expect(onPageChange).toHaveBeenCalledWith(2);
+  });
+
+  it("requests the last valid page once and keeps rows visible during correction", () => {
+    const onPageChange = vi.fn();
+    const updatedOnPageChange = vi.fn();
+    const { rerender } = render(
+      <StrictMode>
+        <DataTable
+          columns={inventoryColumns}
+          onPageChange={onPageChange}
+          pageSize={2}
+          result={{ status: "ready", rows: inventoryRows, page: 7, total: 6 }}
+          rowKey="id"
+        />
+      </StrictMode>,
+    );
+
+    expect(onPageChange).toHaveBeenCalledTimes(1);
+    expect(onPageChange).toHaveBeenCalledWith(3);
+    expect(screen.getByRole("status")).toHaveTextContent("Ajustando página...");
+    expect(screen.getByRole("cell", { name: "SKU-01" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "Keyboard" })).toBeInTheDocument();
+
+    rerender(
+      <StrictMode>
+        <DataTable
+          columns={inventoryColumns}
+          onPageChange={updatedOnPageChange}
+          pageSize={2}
+          result={{
+            status: "loading",
+            snapshot: { rows: inventoryRows, page: 7, total: 6 },
+          }}
+          rowKey="id"
+        />
+      </StrictMode>,
+    );
+
+    expect(onPageChange).toHaveBeenCalledTimes(1);
+    expect(updatedOnPageChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toHaveTextContent("Ajustando página...");
+    expect(screen.getByRole("cell", { name: "SKU-01" })).toBeInTheDocument();
+
+    rerender(
+      <StrictMode>
+        <DataTable
+          columns={inventoryColumns}
+          onPageChange={updatedOnPageChange}
+          pageSize={2}
+          result={{ status: "ready", rows: [inventoryRows[1]], page: 3, total: 6 }}
+          rowKey="id"
+        />
+      </StrictMode>,
+    );
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByText("Página 3 de 3")).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "Mouse" })).toBeInTheDocument();
   });
 });

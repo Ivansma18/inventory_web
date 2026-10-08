@@ -2,7 +2,12 @@ import "./data-table.css";
 
 import { Column as PrimeColumn } from "primereact/column";
 import { DataTable as PrimeDataTable } from "primereact/datatable";
-import type { ReactNode } from "react";
+import { Paginator as PrimePaginator } from "primereact/paginator";
+import { useEffect, useRef, type ReactNode } from "react";
+
+const PAGINATOR_TEMPLATE = "PrevPageLink PageLinks NextPageLink CurrentPageReport";
+const PAGE_REPORT_TEMPLATE = "Página {currentPage} de {totalPages}";
+const EMPTY_PAGE_REPORT = "0 de 0 páginas";
 
 export interface DataTableColumn<Row extends object> {
   key: Extract<keyof Row, string>;
@@ -44,8 +49,25 @@ export const DataTable = <Row extends object>({
   const currentPage = snapshot?.page ?? 1;
   const total = snapshot?.total ?? 0;
   const totalPages = pageSize > 0 ? Math.ceil(total / pageSize) : 0;
+  const isCorrectingPage = totalPages > 0 && currentPage > totalPages;
   const errorMessage =
     result.status === "error" ? result.message.trim() || "No se pudieron cargar los datos." : null;
+  const correctionKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isCorrectingPage) {
+      correctionKey.current = null;
+      return;
+    }
+
+    const currentCorrectionKey = `${currentPage}:${total}:${pageSize}`;
+    if (correctionKey.current === currentCorrectionKey) {
+      return;
+    }
+
+    correctionKey.current = currentCorrectionKey;
+    onPageChange(totalPages);
+  }, [currentPage, isCorrectingPage, onPageChange, pageSize, total, totalPages]);
 
   const handlePage = (event: { first: number }) => {
     if (pageSize <= 0) {
@@ -60,13 +82,17 @@ export const DataTable = <Row extends object>({
 
   return (
     <div className="ui-data-table-viewport">
-      {isLoading ? (
+      {isLoading || isCorrectingPage ? (
         <p
           aria-atomic="true"
           className="ui-data-table__feedback ui-data-table__feedback--loading"
           role="status"
         >
-          {hasRows ? "Actualizando datos..." : "Cargando datos..."}
+          {isCorrectingPage
+            ? "Ajustando página..."
+            : hasRows
+              ? "Actualizando datos..."
+              : "Cargando datos..."}
         </p>
       ) : null}
       {errorMessage ? (
@@ -84,7 +110,7 @@ export const DataTable = <Row extends object>({
         </p>
       ) : null}
       {hasRows ? (
-        <div aria-busy={isLoading} className="ui-data-table__content">
+        <div aria-busy={isLoading || isCorrectingPage} className="ui-data-table__content">
           <PrimeDataTable
             alwaysShowPaginator
             className="ui-data-table"
@@ -92,9 +118,9 @@ export const DataTable = <Row extends object>({
             first={Math.max(0, (currentPage - 1) * pageSize)}
             lazy
             onPage={handlePage}
-            paginator
-            paginatorTemplate="PrevPageLink PageLinks NextPageLink CurrentPageReport"
-            currentPageReportTemplate="Página {currentPage} de {totalPages}"
+            paginator={!isCorrectingPage}
+            paginatorTemplate={PAGINATOR_TEMPLATE}
+            currentPageReportTemplate={PAGE_REPORT_TEMPLATE}
             rows={pageSize}
             totalRecords={total}
             value={rows as unknown as Array<Record<string, unknown>>}
@@ -109,6 +135,18 @@ export const DataTable = <Row extends object>({
             ))}
           </PrimeDataTable>
         </div>
+      ) : null}
+      {isEmpty && total === 0 ? (
+        <PrimePaginator
+          alwaysShow
+          className="ui-data-table__paginator"
+          currentPageReportTemplate={EMPTY_PAGE_REPORT}
+          first={0}
+          onPageChange={handlePage}
+          rows={pageSize}
+          template={PAGINATOR_TEMPLATE}
+          totalRecords={0}
+        />
       ) : null}
     </div>
   );

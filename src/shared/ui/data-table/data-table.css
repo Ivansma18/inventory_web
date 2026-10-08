@@ -39,7 +39,8 @@
     min-inline-size: 0;
   }
 
-  .ui-data-table .p-paginator {
+  .ui-data-table .p-paginator,
+  .ui-data-table__paginator {
     background-color: transparent;
     border: 0;
     border-block-start: var(--ui-border-width) solid var(--ui-color-border);
@@ -51,7 +52,8 @@
     padding-inline: 0;
   }
 
-  .ui-data-table .p-paginator .p-paginator-current {
+  .ui-data-table .p-paginator .p-paginator-current,
+  .ui-data-table__paginator .p-paginator-current {
     color: var(--ui-color-text-muted);
     font-size: var(--ui-font-size-sm);
     margin-inline-start: auto;
