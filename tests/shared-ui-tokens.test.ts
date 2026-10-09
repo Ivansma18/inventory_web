@@ -17,6 +17,7 @@ const visualComponents = [
   "data-table",
   "badge",
   "toast",
+  "tooltip",
 ] as const;
 
 const readToken = (css: string, name: string): string => {
@@ -62,6 +63,7 @@ describe("shared UI visual tokens", () => {
       ["color-on-primary", "color-primary-hover", 4.5],
       ["color-text", "color-surface-muted", 4.5],
       ["color-text-muted", "color-surface-muted", 4.5],
+      ["color-surface", "color-text", 4.5],
       ["color-success-ink", "color-success-surface", 4.5],
       ["color-info-ink", "color-info-surface", 4.5],
       ["color-on-warning", "color-warning", 4.5],
@@ -110,7 +112,7 @@ describe("shared UI visual tokens", () => {
     }
 
     expect(globalStyles).not.toMatch(
-      /\.ui-(?:button|icon|input|textarea|select|badge|toast)(?:[\w-]*)/,
+      /\.ui-(?:button|icon|input|textarea|select|badge|toast|tooltip)(?:[\w-]*)/,
     );
   });
 });

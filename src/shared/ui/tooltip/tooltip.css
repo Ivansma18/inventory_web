@@ -1,0 +1,31 @@
+@layer components {
+  .ui-tooltip .p-tooltip-text {
+    background-color: var(--ui-color-text);
+    border-radius: var(--ui-radius-md);
+    box-shadow: 0 0.25rem 0.75rem color-mix(in srgb, var(--ui-color-text) 18%, transparent);
+    color: var(--ui-color-surface);
+    font-family: var(--ui-font-family-sans);
+    font-size: var(--ui-font-size-sm);
+    line-height: var(--ui-line-height-normal);
+    max-inline-size: min(18rem, calc(100vw - 2rem));
+    overflow-wrap: anywhere;
+    padding-block: var(--ui-space-2);
+    padding-inline: var(--ui-space-3);
+  }
+
+  .ui-tooltip.p-tooltip-top .p-tooltip-arrow {
+    border-top-color: var(--ui-color-text);
+  }
+
+  .ui-tooltip.p-tooltip-bottom .p-tooltip-arrow {
+    border-bottom-color: var(--ui-color-text);
+  }
+
+  .ui-tooltip.p-tooltip-left .p-tooltip-arrow {
+    border-left-color: var(--ui-color-text);
+  }
+
+  .ui-tooltip.p-tooltip-right .p-tooltip-arrow {
+    border-right-color: var(--ui-color-text);
+  }
+}
