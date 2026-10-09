@@ -120,6 +120,13 @@ body {
   inline-size: 100%;
 }
 
+.design-system-demo__interaction-feedback {
+  flex-basis: 100%;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-font-size-sm);
+  line-height: var(--ui-line-height-normal);
+}
+
 .design-system-demo__tooltip-target {
   min-block-size: var(--ui-control-height);
   border: var(--ui-border-width) solid var(--ui-color-control-border);

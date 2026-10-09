@@ -14,7 +14,7 @@ import {
   useToast,
 } from "@/shared/ui";
 import type { DataTableColumn } from "@/shared/ui";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface DemoRow {
   code: string;
@@ -82,7 +82,25 @@ const ToastExample = () => {
 };
 
 export const DesignSystemDemo = () => {
+  const [actionCount, setActionCount] = useState(0);
+  const [iconActionCount, setIconActionCount] = useState(0);
+  const [badgeAvailable, setBadgeAvailable] = useState(false);
+  const [articleCode, setArticleCode] = useState("ART-2048");
+  const [description, setDescription] = useState(
+    "Contenido ficticio para revisar texto multilínea.",
+  );
+  const [selectedStatus, setSelectedStatus] = useState<string | null>("available");
+  const [statusError, setStatusError] = useState<string | undefined>();
   const tooltipTarget = useRef<HTMLButtonElement>(null);
+  const articleCodeError = articleCode.trim()
+    ? undefined
+    : "El código de artículo no puede estar vacío.";
+  const selectedStatusLabel =
+    selectedStatus === "available"
+      ? "Disponible"
+      : selectedStatus === "review"
+        ? "Por revisar"
+        : "sin selección";
 
   return (
     <main className="design-system-demo" id="design-system-main">
@@ -102,13 +120,23 @@ export const DesignSystemDemo = () => {
 
         <div className="design-system-demo__sections">
           <DemoSection
-            description="Etiquetas textuales con tonos semánticos."
+            description="Etiquetas textuales con tonos semánticos y un estado alternable."
             id="badge"
             title="Badge"
           >
             <Badge label="Disponible" tone="success" />
             <Badge label="Por revisar" tone="warning" />
             <Badge label="Neutral" />
+            <Button
+              onClick={() => setBadgeAvailable((available) => !available)}
+              variant="secondary"
+            >
+              Cambiar estado de ejemplo
+            </Button>
+            <Badge
+              label={`Estado: ${badgeAvailable ? "Disponible" : "Por revisar"}`}
+              tone={badgeAvailable ? "success" : "warning"}
+            />
           </DemoSection>
 
           <DemoSection
@@ -116,8 +144,8 @@ export const DesignSystemDemo = () => {
             id="button"
             title="Button"
           >
-            <Button onClick={() => undefined}>Acción primaria</Button>
-            <Button onClick={() => undefined} variant="secondary">
+            <Button onClick={() => setActionCount((count) => count + 1)}>Acción primaria</Button>
+            <Button onClick={() => setActionCount((count) => count + 1)} variant="secondary">
               Acción secundaria
             </Button>
             <Button disabled onClick={() => undefined}>
@@ -126,6 +154,9 @@ export const DesignSystemDemo = () => {
             <Button loading onClick={() => undefined}>
               Cargando
             </Button>
+            <output aria-live="polite" className="design-system-demo__interaction-feedback">
+              Acciones activadas: {actionCount}
+            </output>
           </DemoSection>
 
           <DemoSection
@@ -162,23 +193,35 @@ export const DesignSystemDemo = () => {
             </Dialog>
           </DemoSection>
 
-          <DemoSection description="Iconos decorativos e informativos." id="icon" title="Icon">
+          <DemoSection
+            description="Iconos decorativos, informativos y una acción con icono."
+            id="icon"
+            title="Icon"
+          >
             <Icon name="info" />
             <Icon decorative={false} label="Información" name="info" />
             <Icon name="success" size="lg" />
+            <Button
+              accessibleLabel="Activar acción con icono"
+              icon="add"
+              onClick={() => setIconActionCount((count) => count + 1)}
+            />
+            <output aria-live="polite" className="design-system-demo__interaction-feedback">
+              Acciones con icono activadas: {iconActionCount}
+            </output>
           </DemoSection>
 
           <DemoSection
-            description="Campo de texto con ayuda y estado de solo lectura."
+            description="Campo editable con ayuda y validación de ejemplo."
             id="input"
             title="Input"
           >
             <Input
               helpText="Valor ficticio para revisar la presentación."
               label="Código de artículo"
-              onValueChange={() => undefined}
-              readOnly
-              value="ART-2048"
+              onValueChange={setArticleCode}
+              error={articleCodeError}
+              value={articleCode}
             />
             <Input
               disabled
@@ -189,19 +232,27 @@ export const DesignSystemDemo = () => {
           </DemoSection>
 
           <DemoSection
-            description="Selección simple con opciones de ejemplo."
+            description="Selección simple, opción deshabilitada y error al limpiar."
             id="select"
             title="Select"
           >
             <Select
-              disabled
               label="Estado"
-              onValueChange={() => undefined}
+              error={statusError}
+              onValueChange={(value) => {
+                setSelectedStatus(value);
+                setStatusError(value ? undefined : "Selecciona un estado para revisar el error.");
+              }}
               options={[
                 { value: "available", label: "Disponible" },
                 { value: "review", label: "Por revisar" },
+                { value: "archived", label: "Archivado", disabled: true },
               ]}
-              value="available"
+              value={selectedStatus}
+            />
+            <Badge
+              label={`Estado de ejemplo: ${selectedStatusLabel}`}
+              tone={selectedStatus === "available" ? "success" : "neutral"}
             />
           </DemoSection>
 
@@ -214,16 +265,16 @@ export const DesignSystemDemo = () => {
           </DemoSection>
 
           <DemoSection
-            description="Campo multilínea con contenido de ejemplo."
+            description="Campo multilínea con valor controlado editable."
             id="textarea"
             title="Textarea"
           >
             <Textarea
+              helpText="Puedes editar el texto para comprobar el valor controlado."
               label="Descripción"
-              onValueChange={() => undefined}
-              readOnly
+              onValueChange={setDescription}
               rows={3}
-              value="Contenido ficticio para revisar texto multilínea."
+              value={description}
             />
           </DemoSection>
 
