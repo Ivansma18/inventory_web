@@ -8,10 +8,8 @@ const designSystemDemoHtml = `<!doctype html>
     <title>Inventory — Design System</title>
   </head>
   <body>
-    <main>
-      <h1>Demostración del sistema de diseño</h1>
-      <p>Revisión de primitivas de interfaz en modo desarrollo.</p>
-    </main>
+    <div id="root"></div>
+    <script type="module" src="/src/dev/design-system/main.tsx"></script>
   </body>
 </html>`;
 

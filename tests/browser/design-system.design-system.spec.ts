@@ -17,6 +17,26 @@ test("opens the development Design System route without contacting the backend",
   await expect(
     page.getByRole("heading", { level: 1, name: "Demostración del sistema de diseño" }),
   ).toBeVisible();
-  await expect(page.locator("form, input")).toHaveCount(0);
+  await expect(page.locator("form")).toHaveCount(0);
+  for (const primitive of [
+    "Badge",
+    "Button",
+    "DataTable",
+    "Dialog",
+    "Icon",
+    "Input",
+    "Select",
+    "Skeleton",
+    "Textarea",
+    "Toast",
+    "Tooltip",
+  ]) {
+    await expect(page.getByRole("heading", { level: 2, name: primitive })).toBeVisible();
+  }
+  await expect(page.getByText("Teclado compacto")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Código de artículo" })).toHaveValue("ART-2048");
+  await expect(page.locator(".ui-skeleton__shape")).toHaveCount(3);
+  await expect(page.locator(".ui-skeleton__shape").first()).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText("Notificación informativa de ejemplo.");
   expect(apiRequests).toEqual([]);
 });
