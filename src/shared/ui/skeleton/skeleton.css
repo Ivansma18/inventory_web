@@ -1,0 +1,28 @@
+@layer components {
+  .ui-skeleton {
+    display: grid;
+    gap: var(--ui-space-2);
+    min-inline-size: 0;
+  }
+
+  .ui-skeleton__announcement {
+    block-size: 1px;
+    clip-path: inset(50%);
+    inline-size: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    white-space: nowrap;
+  }
+
+  .ui-skeleton__shape {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-skeleton__shape::after {
+    animation: none;
+  }
+}

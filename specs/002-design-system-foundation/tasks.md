@@ -77,7 +77,7 @@ Derivadas de la Spec 002 y del plan aprobado. Cada tarea busca una unidad peque�
       Hecho cuando: pruebas verifican pointer/foco, tránsito al contenido, descripción sin reemplazar otras y ocultación al salir.
 - [x] T28. Implementar Escape y reactivación de Tooltip por puntero. (RF-58, RF-88)
       Hecho cuando: después de Escape, ciclos de foco por sí solos no reabren Tooltip; salida y reentrada del puntero en el elemento asociado sí.
-- [ ] T29. Implementar Skeleton decorativo con anuncio único de carga. (RF-61, RF-62, RF-63, RF-92)
+- [x] T29. Implementar Skeleton decorativo con anuncio único de carga. (RF-61, RF-62, RF-63, RF-92)
       Hecho cuando: pruebas verifican formas no enfocables/no anunciadas, un único estado accesible de carga y movimiento reducido sin animación no esencial.
 
 ### API pública y demostración

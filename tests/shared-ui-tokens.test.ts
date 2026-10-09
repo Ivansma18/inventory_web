@@ -7,6 +7,7 @@ const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const tokensPath = resolve(projectRoot, "src/shared/ui/tokens.css");
 const stylesPath = resolve(projectRoot, "src/shared/ui/styles.css");
 const dataTableStylesPath = resolve(projectRoot, "src/shared/ui/data-table/data-table.css");
+const skeletonStylesPath = resolve(projectRoot, "src/shared/ui/skeleton/skeleton.css");
 
 const visualComponents = [
   "button",
@@ -18,6 +19,7 @@ const visualComponents = [
   "badge",
   "toast",
   "tooltip",
+  "skeleton",
 ] as const;
 
 const readToken = (css: string, name: string): string => {
@@ -96,6 +98,14 @@ describe("shared UI visual tokens", () => {
     expect(dataTableStyles).toMatch(/\.ui-data-table-viewport\s*\{[^}]*min-inline-size:\s*0/is);
   });
 
+  it("disables Skeleton's wave animation for reduced-motion preferences", async () => {
+    const skeletonStyles = await readFile(skeletonStylesPath, "utf8");
+
+    expect(skeletonStyles).toMatch(
+      /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.ui-skeleton__shape::after\s*\{[^}]*animation:\s*none;/i,
+    );
+  });
+
   it("keeps each visual primitive's styles co-located and imported by its module", async () => {
     const globalStyles = await readFile(stylesPath, "utf8");
 
@@ -112,7 +122,7 @@ describe("shared UI visual tokens", () => {
     }
 
     expect(globalStyles).not.toMatch(
-      /\.ui-(?:button|icon|input|textarea|select|badge|toast|tooltip)(?:[\w-]*)/,
+      /\.ui-(?:button|icon|input|textarea|select|badge|toast|tooltip|skeleton)(?:[\w-]*)/,
     );
   });
 });
