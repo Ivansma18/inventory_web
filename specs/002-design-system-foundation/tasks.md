@@ -94,7 +94,7 @@ Derivadas de la Spec 002 y del plan aprobado. Cada tarea busca una unidad peque�
       Hecho cuando: la demo prueba cierres configurables, bloqueo pendiente, navegación, ordenación y estados sin backend.
 - [x] T35. Añadir interacciones de demo para Toast, Tooltip y Skeleton. (RF-65, RF-68)
       Hecho cuando: la demo permite observar los cuatro Toast, sus tiempos, Tooltip y anuncios/animación de Skeleton.
-- [ ] T36. Comprobar que producción no distribuye ni sirve la demostración. (RF-70)
+- [x] T36. Comprobar que producción no distribuye ni sirve la demostración. (RF-70)
       Hecho cuando: build/preview no permiten acceder a la demo y los artefactos emitidos no contienen su código, datos de ejemplo ni recursos exclusivos.
 
 ### Verificación transversal y cierre
