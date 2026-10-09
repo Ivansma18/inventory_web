@@ -19,7 +19,7 @@ import type {
   DataTableSnapshot,
   DataTableSort,
 } from "@/shared/ui";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 interface DemoRow {
   code: string;
@@ -90,23 +90,8 @@ const DemoSection = ({ children, description, id, title }: DemoSectionProps) => 
   </section>
 );
 
-const ToastExample = () => {
-  const { show } = useToast();
-  const shown = useRef(false);
-
-  useEffect(() => {
-    if (shown.current) {
-      return;
-    }
-
-    shown.current = true;
-    show({ kind: "info", message: "Notificación informativa de ejemplo." });
-  }, [show]);
-
-  return <p>La notificación aparece como ejemplo al abrir esta página.</p>;
-};
-
 export const DesignSystemDemo = () => {
+  const { show: showToast } = useToast();
   const [actionCount, setActionCount] = useState(0);
   const [iconActionCount, setIconActionCount] = useState(0);
   const [badgeAvailable, setBadgeAvailable] = useState(false);
@@ -126,6 +111,7 @@ export const DesignSystemDemo = () => {
   const [tableSort, setTableSort] = useState<DataTableSort<DemoRow> | null>(null);
   const [tableScenario, setTableScenario] = useState<DemoTableScenario>("ready");
   const [tableHasSnapshot, setTableHasSnapshot] = useState(true);
+  const [skeletonVisible, setSkeletonVisible] = useState(true);
   const tooltipTarget = useRef<HTMLButtonElement>(null);
   const articleCodeError = articleCode.trim()
     ? undefined
@@ -413,11 +399,18 @@ export const DesignSystemDemo = () => {
           </DemoSection>
 
           <DemoSection
-            description="Formas decorativas para contenido pendiente."
+            description="El estado se anuncia una vez; las formas animadas respetan movimiento reducido."
             id="skeleton"
             title="Skeleton"
           >
-            <Skeleton count={3} loadingText="Cargando resumen de ejemplo" />
+            <Button onClick={() => setSkeletonVisible((visible) => !visible)} variant="secondary">
+              {skeletonVisible ? "Ocultar carga de ejemplo" : "Mostrar carga de ejemplo"}
+            </Button>
+            {skeletonVisible ? (
+              <Skeleton count={3} loadingText="Cargando resumen de ejemplo" />
+            ) : (
+              <p>El ejemplo de carga está oculto.</p>
+            )}
           </DemoSection>
 
           <DemoSection
@@ -435,15 +428,55 @@ export const DesignSystemDemo = () => {
           </DemoSection>
 
           <DemoSection
-            description="Avisos breves para comunicar resultados."
+            description="Éxito e información duran 5 segundos activos y se pausan con foco o puntero. Advertencia y error requieren cierre manual."
             id="toast"
             title="Toast"
           >
-            <ToastExample />
+            <Button
+              onClick={() =>
+                showToast({ kind: "success", message: "Ejemplo de éxito: cambios guardados." })
+              }
+              variant="secondary"
+            >
+              Mostrar éxito (5 segundos)
+            </Button>
+            <Button
+              onClick={() =>
+                showToast({
+                  kind: "info",
+                  message: "Ejemplo informativo: hay una actualización disponible.",
+                })
+              }
+              variant="secondary"
+            >
+              Mostrar información (5 segundos)
+            </Button>
+            <Button
+              onClick={() =>
+                showToast({
+                  kind: "warning",
+                  message: "Ejemplo de advertencia: revisa este aviso.",
+                })
+              }
+              variant="secondary"
+            >
+              Mostrar advertencia (manual)
+            </Button>
+            <Button
+              onClick={() =>
+                showToast({
+                  kind: "error",
+                  message: "Ejemplo de error: no se completó la acción.",
+                })
+              }
+              variant="secondary"
+            >
+              Mostrar error (manual)
+            </Button>
           </DemoSection>
 
           <DemoSection
-            description="Ayuda contextual disponible por puntero y foco."
+            description="Enfoca o apunta para mostrar ayuda; Escape la oculta hasta salir y volver."
             id="tooltip"
             title="Tooltip"
           >
