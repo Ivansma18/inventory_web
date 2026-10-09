@@ -166,4 +166,59 @@ describe("Tooltip", () => {
 
     expect(target).toHaveAttribute("aria-describedby", "existing-description");
   });
+
+  it("hides immediately when Escape is pressed", () => {
+    render(<TooltipFixture />);
+
+    const target = screen.getByRole("button", { name: "Archive item" });
+    fireEvent.focus(target);
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(target).toHaveAttribute("aria-describedby", "existing-description");
+  });
+
+  it("allows Escape to hide the tooltip while the pointer is over its content", () => {
+    render(<TooltipFixture />);
+
+    const target = screen.getByRole("button", { name: "Archive item" });
+    fireEvent.mouseEnter(target);
+    const tooltip = screen.getByRole("tooltip");
+    fireEvent.pointerEnter(tooltip);
+    fireEvent.mouseEnter(tooltip);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("waits for pointer exit and re-entry after Escape, ignoring focus changes", () => {
+    render(<TooltipFixture />);
+
+    const target = screen.getByRole("button", { name: "Archive item" });
+    fireEvent.focus(target);
+    fireEvent.pointerEnter(target);
+    fireEvent.mouseEnter(target);
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    fireEvent.blur(target);
+    fireEvent.focus(target);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    fireEvent.blur(target);
+    fireEvent.pointerLeave(target);
+    fireEvent.mouseLeave(target);
+    fireEvent.focus(target);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    fireEvent.blur(target);
+    fireEvent.pointerEnter(target);
+    fireEvent.mouseEnter(target);
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+  });
 });
