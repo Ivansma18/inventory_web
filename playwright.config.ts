@@ -6,6 +6,7 @@ const healthRealWasSelected = process.env.INVENTORY_E2E_HEALTH_REAL === "1";
 const authHarnessProjectSelected = process.env.INVENTORY_E2E_AUTH_HARNESS_PROJECT === "1";
 const proxyContractProjectSelected = process.env.INVENTORY_E2E_PROXY_CONTRACT === "1";
 const previewProjectSelected = process.env.INVENTORY_E2E_PREVIEW === "1";
+const designSystemProjectSelected = process.env.INVENTORY_E2E_DESIGN_SYSTEM_PROJECT === "1";
 const proxyTestBackendTarget = "http://127.0.0.1:5175";
 const unavailablePreviewBackendTarget = "http://127.0.0.1:65534";
 
@@ -17,7 +18,9 @@ const webServerEnv: NodeJS.ProcessEnv = {
     ? proxyTestBackendTarget
     : previewProjectSelected
       ? unavailablePreviewBackendTarget
-      : (process.env.API_PROXY_TARGET ?? "http://localhost:3000"),
+      : designSystemProjectSelected
+        ? unavailablePreviewBackendTarget
+        : (process.env.API_PROXY_TARGET ?? "http://localhost:3000"),
   INVENTORY_AUTH_E2E_HARNESS: process.env.INVENTORY_AUTH_E2E_HARNESS ?? "0",
   INVENTORY_HEALTH_E2E_HARNESS: healthRealWasSelected ? "1" : "0",
 };
@@ -47,6 +50,16 @@ const projects = [
           name: "preview-smoke",
           testDir: "./tests/browser",
           testMatch: "**/*.preview-smoke.spec.ts",
+          use: { ...devices["Desktop Chrome"], baseURL },
+        },
+      ]
+    : []),
+  ...(designSystemProjectSelected
+    ? [
+        {
+          name: "design-system",
+          testDir: "./tests/browser",
+          testMatch: "**/*.design-system.spec.ts",
           use: { ...devices["Desktop Chrome"], baseURL },
         },
       ]

@@ -9,6 +9,8 @@ const forbiddenBundleMarkers = [
   "/__health-test",
   "Inventory Local Health Check",
   "health-real-client-harness.ts",
+  "/__design-system",
+  "Demostración del sistema de diseño",
   "INVENTORY_HEALTH_E2E_HARNESS",
   "AUTH_TEST_EMAIL",
   "AUTH_TEST_PASSWORD",
@@ -73,4 +75,8 @@ test("serves the built app in preview without Auth harness or backend access", a
   expect(healthFallback).not.toContain("Local backend health check");
   expect(healthFallback).not.toContain("health-real-client-harness.ts");
   expect(healthFallback).not.toContain("/src/main.tsx");
+
+  const designSystemFallback = await page.request.get("/__design-system");
+  expect([200, 404]).toContain(designSystemFallback.status());
+  expect(await designSystemFallback.text()).not.toContain("Demostración del sistema de diseño");
 });

@@ -55,6 +55,26 @@ const flattenPluginNames = (plugins: unknown[]): string[] =>
     return [];
   });
 
+const findPlugin = (plugins: unknown[], name: string): unknown => {
+  for (const plugin of plugins) {
+    if (Array.isArray(plugin)) {
+      const nestedPlugin = findPlugin(plugin, name);
+      if (nestedPlugin) {
+        return nestedPlugin;
+      }
+    } else if (
+      typeof plugin === "object" &&
+      plugin !== null &&
+      "name" in plugin &&
+      plugin.name === name
+    ) {
+      return plugin;
+    }
+  }
+
+  return undefined;
+};
+
 describe("Vite environment validation", () => {
   it.each(["serve", "build"] as const)(
     "rejects invalid configuration before the %s command proceeds",
@@ -115,6 +135,22 @@ describe("Vite environment validation", () => {
 });
 
 describe("Vite project configuration", () => {
+  it("registers the Design System demo through a serve-only Vite plugin", async () => {
+    await withEnvironment(
+      {
+        VITE_APP_NAME: "Inventory",
+        VITE_API_URL: "/api/backend",
+        API_PROXY_TARGET: "http://localhost:3000",
+      },
+      async () => {
+        const config = await loadViteConfig("serve");
+        const demoPlugin = findPlugin(config.plugins ?? [], "inventory-design-system-demo");
+
+        expect(demoPlugin).toMatchObject({ apply: "serve" });
+      },
+    );
+  });
+
   it("sets strict development and preview ports and configured plugins/aliases", async () => {
     await withEnvironment(
       {
