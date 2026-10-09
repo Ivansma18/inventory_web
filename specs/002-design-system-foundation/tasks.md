@@ -90,7 +90,7 @@ Derivadas de la Spec 002 y del plan aprobado. Cada tarea busca una unidad peque�
       Hecho cuando: la página muestra las once secciones con datos ficticios y estados aplicables, sin formularios ni flujos de negocio.
 - [x] T33. Añadir interacciones de demo para Button, Icon, Input, Textarea, Select y Badge. (RF-65)
       Hecho cuando: Chromium permite activar acciones, editar campos y probar selección/errores mediante la API pública.
-- [ ] T34. Añadir interacciones de demo para Dialog y DataTable. (RF-65, RF-66, RF-67)
+- [x] T34. Añadir interacciones de demo para Dialog y DataTable. (RF-65, RF-66, RF-67)
       Hecho cuando: la demo prueba cierres configurables, bloqueo pendiente, navegación, ordenación y estados sin backend.
 - [ ] T35. Añadir interacciones de demo para Toast, Tooltip y Skeleton. (RF-65, RF-68)
       Hecho cuando: la demo permite observar los cuatro Toast, sus tiempos, Tooltip y anuncios/animación de Skeleton.

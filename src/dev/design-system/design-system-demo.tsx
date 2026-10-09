@@ -13,7 +13,12 @@ import {
   Tooltip,
   useToast,
 } from "@/shared/ui";
-import type { DataTableColumn } from "@/shared/ui";
+import type {
+  DataTableColumn,
+  DataTableResult,
+  DataTableSnapshot,
+  DataTableSort,
+} from "@/shared/ui";
 import { useEffect, useRef, useState } from "react";
 
 interface DemoRow {
@@ -21,6 +26,9 @@ interface DemoRow {
   item: string;
   stock: number;
 }
+
+type DemoTableScenario = "ready" | "loading" | "empty" | "error";
+type DemoOperationState = "ready" | "pending" | "completed";
 
 interface DemoSectionProps {
   children: React.ReactNode;
@@ -33,13 +41,30 @@ const demoRows: DemoRow[] = [
   { code: "ART-2048", item: "Teclado compacto", stock: 18 },
   { code: "ART-1072", item: "Ratón inalámbrico", stock: 7 },
   { code: "ART-3105", item: "Cable USB-C", stock: 42 },
+  { code: "ART-0540", item: "Monitor portátil", stock: 6 },
+  { code: "ART-2013", item: "Adaptador HDMI", stock: 24 },
+  { code: "ART-4077", item: "Soporte portátil", stock: 11 },
+  { code: "ART-0905", item: "Hub USB", stock: 9 },
 ];
+
+const demoPageSize = 3;
+const demoTableError = "Error de carga de ejemplo.";
 
 const demoColumns: DataTableColumn<DemoRow>[] = [
   { key: "code", header: "Código", sortable: true },
   { key: "item", header: "Artículo", sortable: true },
   { key: "stock", header: "Existencias", sortable: true },
 ];
+
+const getDesignSystemDialogFallback = (): HTMLElement => {
+  const target = document.getElementById("design-system-title");
+
+  if (!(target instanceof HTMLElement)) {
+    throw new Error("El encabezado de la demo debe seguir disponible para devolver el foco.");
+  }
+
+  return target;
+};
 
 const primitiveLinks = [
   { id: "badge", label: "Badge" },
@@ -91,6 +116,16 @@ export const DesignSystemDemo = () => {
   );
   const [selectedStatus, setSelectedStatus] = useState<string | null>("available");
   const [statusError, setStatusError] = useState<string | undefined>();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogShowCloseButton, setDialogShowCloseButton] = useState(true);
+  const [dialogCloseOnEscape, setDialogCloseOnEscape] = useState(true);
+  const [dialogCloseOnBackdrop, setDialogCloseOnBackdrop] = useState(true);
+  const [dialogCloseBlocked, setDialogCloseBlocked] = useState(false);
+  const [dialogOperationState, setDialogOperationState] = useState<DemoOperationState>("ready");
+  const [tablePage, setTablePage] = useState(1);
+  const [tableSort, setTableSort] = useState<DataTableSort<DemoRow> | null>(null);
+  const [tableScenario, setTableScenario] = useState<DemoTableScenario>("ready");
+  const [tableHasSnapshot, setTableHasSnapshot] = useState(true);
   const tooltipTarget = useRef<HTMLButtonElement>(null);
   const articleCodeError = articleCode.trim()
     ? undefined
@@ -101,11 +136,53 @@ export const DesignSystemDemo = () => {
       : selectedStatus === "review"
         ? "Por revisar"
         : "sin selección";
+  const sortedTableRows = tableSort
+    ? [...demoRows].sort((left, right) => {
+        const leftValue = left[tableSort.columnId];
+        const rightValue = right[tableSort.columnId];
+        const comparison =
+          typeof leftValue === "number" && typeof rightValue === "number"
+            ? leftValue - rightValue
+            : String(leftValue).localeCompare(String(rightValue), "es", { numeric: true });
+
+        return tableSort.direction === "asc" ? comparison : -comparison;
+      })
+    : demoRows;
+  const tablePageRows = sortedTableRows.slice(
+    Math.max(0, (tablePage - 1) * demoPageSize),
+    tablePage * demoPageSize,
+  );
+  const tableSnapshot: DataTableSnapshot<DemoRow> = {
+    page: tablePage,
+    rows: tablePageRows,
+    total: demoRows.length,
+  };
+  const visibleTableResult: DataTableResult<DemoRow> =
+    tableScenario === "empty"
+      ? { status: "ready", page: 0, rows: [], total: 0 }
+      : tableScenario === "loading"
+        ? tableHasSnapshot
+          ? { status: "loading", snapshot: tableSnapshot }
+          : { status: "loading" }
+        : tableScenario === "error"
+          ? tableHasSnapshot
+            ? { status: "error", message: demoTableError, snapshot: tableSnapshot }
+            : { status: "error", message: demoTableError }
+          : { status: "ready", ...tableSnapshot };
+
+  const resetDemoTable = () => {
+    setTableScenario("ready");
+    setTableHasSnapshot(true);
+    setTablePage(1);
+    setTableSort(null);
+  };
 
   return (
     <main className="design-system-demo" id="design-system-main">
       <header className="design-system-demo__header">
-        <h1 id="design-system-title">Demostración del sistema de diseño</h1>
+        <h1 id="design-system-title" tabIndex={-1}>
+          Demostración del sistema de diseño
+        </h1>
         <p>Primitivas de interfaz y estados disponibles para las pantallas de Inventory.</p>
       </header>
 
@@ -160,18 +237,40 @@ export const DesignSystemDemo = () => {
           </DemoSection>
 
           <DemoSection
-            description="Filas de ejemplo y columnas ordenables."
+            description="Paginación, ordenación y estados con datos ficticios locales."
             id="data-table"
             title="DataTable"
           >
+            <Button onClick={() => setTableScenario("loading")} variant="secondary">
+              Simular carga
+            </Button>
+            <Button onClick={() => setTableScenario("error")} variant="secondary">
+              Simular error
+            </Button>
+            <Button
+              onClick={() => {
+                setTableScenario("empty");
+                setTableHasSnapshot(false);
+                setTablePage(0);
+              }}
+              variant="secondary"
+            >
+              Vaciar tabla
+            </Button>
+            <Button onClick={resetDemoTable} variant="secondary">
+              Restablecer tabla
+            </Button>
             <DataTable
               columns={demoColumns}
-              onPageChange={() => undefined}
-              onSortChange={() => undefined}
-              pageSize={5}
-              result={{ status: "ready", page: 1, rows: demoRows, total: demoRows.length }}
+              onPageChange={setTablePage}
+              onSortChange={(sort) => {
+                setTableSort(sort);
+                setTablePage(1);
+              }}
+              pageSize={demoPageSize}
+              result={visibleTableResult}
               rowKey="code"
-              sort={null}
+              sort={tableSort}
             />
           </DemoSection>
 
@@ -180,15 +279,72 @@ export const DesignSystemDemo = () => {
             id="dialog"
             title="Dialog"
           >
-            <p>El diálogo de ejemplo permanece cerrado para mantener accesible la revisión.</p>
+            <Button
+              onClick={() => setDialogShowCloseButton((enabled) => !enabled)}
+              variant="secondary"
+            >
+              {`Botón de cierre: ${dialogShowCloseButton ? "habilitado" : "deshabilitado"}`}
+            </Button>
+            <Button
+              onClick={() => setDialogCloseOnEscape((enabled) => !enabled)}
+              variant="secondary"
+            >
+              {`Escape: ${dialogCloseOnEscape ? "habilitado" : "deshabilitado"}`}
+            </Button>
+            <Button
+              onClick={() => setDialogCloseOnBackdrop((enabled) => !enabled)}
+              variant="secondary"
+            >
+              {`Clic exterior: ${dialogCloseOnBackdrop ? "habilitado" : "deshabilitado"}`}
+            </Button>
+            <Button
+              onClick={() => {
+                const nextBlocked = !dialogCloseBlocked;
+                setDialogCloseBlocked(nextBlocked);
+                setDialogOperationState(nextBlocked ? "pending" : "ready");
+              }}
+              variant="secondary"
+            >
+              {`Bloqueo pendiente: ${dialogCloseBlocked ? "activo" : "inactivo"}`}
+            </Button>
+            <Button onClick={() => setDialogOpen(true)}>Abrir diálogo</Button>
             <Dialog
-              fallbackFocusTarget={() =>
-                document.getElementById("design-system-title") ?? document.body
+              closeBlocked={dialogCloseBlocked}
+              closeOnBackdrop={dialogCloseOnBackdrop}
+              closeOnEscape={dialogCloseOnEscape}
+              fallbackFocusTarget={getDesignSystemDialogFallback}
+              footer={
+                <div className="design-system-demo__dialog-actions">
+                  <Button
+                    disabled={dialogCloseBlocked}
+                    onClick={() => setDialogOpen(false)}
+                    variant="secondary"
+                  >
+                    Cerrar desde el contenido
+                  </Button>
+                  <Button
+                    disabled={!dialogCloseBlocked}
+                    onClick={() => {
+                      setDialogCloseBlocked(false);
+                      setDialogOperationState("completed");
+                    }}
+                  >
+                    Completar operación de ejemplo
+                  </Button>
+                </div>
               }
-              onCloseRequest={() => undefined}
-              open={false}
+              onCloseRequest={() => setDialogOpen(false)}
+              open={dialogOpen}
+              showCloseButton={dialogShowCloseButton}
               title="Diálogo de ejemplo"
             >
+              <p role="status">
+                {dialogOperationState === "pending"
+                  ? "Operación de ejemplo pendiente. El cierre está bloqueado."
+                  : dialogOperationState === "completed"
+                    ? "Operación completada. Ya puedes cerrar el diálogo."
+                    : "Prueba los mecanismos de cierre y la operación pendiente."}
+              </p>
               <p>Contenido ficticio de la demostración.</p>
             </Dialog>
           </DemoSection>
