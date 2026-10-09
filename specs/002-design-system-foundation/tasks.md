@@ -82,7 +82,7 @@ Derivadas de la Spec 002 y del plan aprobado. Cada tarea busca una unidad peque�
 
 ### API pública y demostración
 
-- [ ] T30. Completar y probar la API pública de las once primitivas. (RF-1)
+- [x] T30. Completar y probar la API pública de las once primitivas. (RF-1)
       Hecho cuando: `shared/ui` exporta las once, un consumidor importa solo el barrel y TypeScript no filtra tipos vendor.
 - [ ] T31. Servir la demostración solo en desarrollo y seleccionarla explícitamente en Playwright. (RF-64, RF-69)
       Hecho cuando: ruta/plugin se habilita únicamente en dev por selección explícita, no llama al backend y Playwright la abre sin credenciales.
