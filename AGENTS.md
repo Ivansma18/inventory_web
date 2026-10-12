@@ -38,7 +38,8 @@ Instalación reproducible: `pnpm install --frozen-lockfile`.
 - Real backend: `pnpm test:e2e --project=health-real` y
   `pnpm test:e2e --project=auth-real`; este último requiere backend, trusted
   origin de development y cuenta privada configurada en `.env`.
-- E2E adicionales verificados: `pnpm test:e2e --project=preview-smoke`,
+- E2E adicionales verificados: `pnpm test:e2e --project=design-system`,
+  `pnpm test:e2e --project=preview-smoke`,
   `pnpm test:e2e --project=proxy-contract` y
   `pnpm test:e2e --project=auth-harness`.
 - Comprobaciones de proceso/hooks: `pnpm verify:startup` y
@@ -47,6 +48,10 @@ Instalación reproducible: `pnpm install --frozen-lockfile`.
 Las suites simuladas no requieren backend ni credenciales. La prueba `auth-real`
 solo corre al seleccionar su proyecto expresamente. Consultar `README.md` para
 configuración segura, cuenta/backend, alcance de cada suite y operación de Git.
+La demo `/__design-system` solo se sirve en desarrollo; su suite debe elegirse
+con `pnpm test:e2e --project=design-system`, queda fuera del E2E predeterminado
+y usa datos ficticios sin backend ni credenciales. `preview-smoke` verifica que
+el bundle de producción no incluya la ruta, el código ni los recursos de la demo.
 Husky solo puede instalar hooks dentro de la raíz de un repositorio Git; si no
 hay `.git`, usar los comandos CLI de calidad.
 
@@ -56,6 +61,10 @@ hay `.git`, usar los comandos CLI de calidad.
 - Organizar `src/features` por dominio y vertical slice.
 - Usar `src/shared/ui` para primitivas del Design System y
   `src/shared/components` para composiciones genéricas de aplicación.
+- Mantener el CSS de cada primitiva visual en un archivo co-localizado
+  (`<componente>.css`) importado por su módulo; reservar
+  `src/shared/ui/styles.css` para imports globales, tokens y reglas
+  transversales.
 - Centralizar el cliente HTTP y los contratos generados en `src/shared/api`;
   validar variables de entorno en `src/shared/config/env.ts`.
 - Mantener los componentes específicos de negocio dentro de su feature.
@@ -103,6 +112,8 @@ hay `.git`, usar los comandos CLI de calidad.
 - No incluir secretos en variables `VITE_*` ni registrar contraseñas,
   tokens de sesión, cookies o secretos.
 - Usar tokens y convenciones visuales compartidos.
+- No añadir selectores específicos de componentes a `src/shared/ui/styles.css`;
+  cada primitiva visual importa su hoja CSS local.
 - Crear abstracciones según necesidades reales; mover componentes a
   shared después de demostrar reutilización.
 - Reforzar mediante ESLint las fronteras de importación: features no

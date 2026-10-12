@@ -41,6 +41,7 @@ if (authRealWasSelected) {
 }
 
 const healthRealWasSelected = selectedProjects.includes("health-real");
+const designSystemProjectSelected = selectedProjects.includes("design-system");
 const authHarnessProjectSelected =
   !hasExplicitProjectSelection || selectedProjects.includes("auth-harness");
 const authHarnessRouteEnabled = authHarnessProjectSelected || authRealWasSelected;
@@ -57,6 +58,7 @@ const child = spawn(process.execPath, [playwrightCli, "test", ...playwrightArgs]
     INVENTORY_E2E_AUTH_HARNESS_PROJECT: authHarnessProjectSelected ? "1" : "0",
     INVENTORY_E2E_PROXY_CONTRACT: proxyContractProjectSelected ? "1" : "0",
     INVENTORY_E2E_PREVIEW: previewProjectSelected ? "1" : "0",
+    INVENTORY_E2E_DESIGN_SYSTEM_PROJECT: designSystemProjectSelected ? "1" : "0",
     INVENTORY_AUTH_E2E_HARNESS: authHarnessRouteEnabled ? "1" : "0",
     INVENTORY_HEALTH_E2E_HARNESS: healthRealWasSelected ? "1" : "0",
   },

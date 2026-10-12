@@ -6,6 +6,7 @@ import { defineConfig, loadEnv } from "vite";
 
 import { createViteAliases } from "./scripts/vite-aliases.ts";
 import { createAuthTestHarnessPlugin } from "./scripts/vite-auth-test-harness.ts";
+import { createDesignSystemDemoPlugin } from "./scripts/vite-design-system-demo.ts";
 import { createHealthTestHarnessPlugin } from "./scripts/vite-health-test-harness.ts";
 import { createApiProxy } from "./scripts/vite-proxy.ts";
 import { publicEnvSchema, toolEnvSchema } from "./src/shared/config/env.schema.ts";
@@ -62,6 +63,7 @@ export default defineConfig(({ mode, command }) => {
       tailwindcss(),
       ...(authTestHarnessEnabled ? [createAuthTestHarnessPlugin(projectRoot)] : []),
       ...(healthTestHarnessEnabled ? [createHealthTestHarnessPlugin(projectRoot)] : []),
+      createDesignSystemDemoPlugin(),
     ],
     resolve: {
       alias: createViteAliases(projectRoot),

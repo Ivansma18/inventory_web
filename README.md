@@ -106,10 +106,13 @@ Ejecuta los smoke de bootstrap, el contrato del proxy contra un backend simulado
 ```sh
 pnpm test:e2e --project=proxy-contract
 pnpm test:e2e --project=auth-harness
+pnpm test:e2e --project=design-system
 pnpm test:e2e --project=preview-smoke
 ```
 
 `preview-smoke` crea un build y sirve temporalmente el preview en el puerto `5174`; no requiere el backend personal.
+
+La demostración del Design System se sirve únicamente en desarrollo por la ruta `/__design-system`. Su E2E se selecciona explícitamente con `pnpm test:e2e --project=design-system`; no forma parte de `pnpm test:e2e`. Usa datos ficticios locales, sin backend ni credenciales. `preview-smoke` comprueba que la ruta, el código y los recursos de la demo no se incluyan en el bundle de producción.
 
 Health real es una consulta GET no destructiva y requiere el backend activo, pero no una cuenta:
 

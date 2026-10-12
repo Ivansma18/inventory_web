@@ -1,0 +1,22 @@
+@layer components {
+  .ui-icon {
+    display: inline-block;
+    flex: 0 0 auto;
+    font-size: var(--ui-font-size-md);
+    line-height: 1;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  .ui-icon--sm {
+    font-size: var(--ui-font-size-sm);
+  }
+
+  .ui-icon--md {
+    font-size: var(--ui-font-size-md);
+  }
+
+  .ui-icon--lg {
+    font-size: var(--ui-font-size-xl);
+  }
+}
