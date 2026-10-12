@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -44,8 +44,10 @@ describe("Select", () => {
       <Select label="Estado" options={options} value={null} onValueChange={() => undefined} />,
     );
 
-    const select = screen.getByLabelText("Estado");
+    const select = screen.getByRole("textbox", { name: "Estado" });
     expect(select).toHaveAccessibleName("Estado");
+    expect(select).toHaveAttribute("aria-haspopup", "listbox");
+    expect(screen.getAllByRole("textbox", { name: "Estado" })).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Selecciona una opción" })).toBeInTheDocument();
   });
 
@@ -76,6 +78,22 @@ describe("Select", () => {
     await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
 
     expect(onValueChange).toHaveBeenCalledExactlyOnceWith("draft");
+  });
+
+  it("exposes disabled options as unavailable to assistive technology", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <Select label="Estado" options={options} value={null} onValueChange={() => undefined} />,
+    );
+
+    screen.getByRole("textbox", { name: "Estado" }).focus();
+    await user.keyboard("{ArrowDown}");
+
+    const listbox = screen.getByRole("listbox", { hidden: true });
+    expect(
+      within(listbox).getByRole("option", { name: "Archivado", hidden: true }),
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("does not report changes when disabled", async () => {

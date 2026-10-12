@@ -67,8 +67,16 @@ test("exercises the development Design System without contacting the backend", a
   await expect(description).toHaveValue("Descripción editada\ncon dos líneas.");
 
   const statusSelect = page.getByLabel("Estado");
+  await expect(page.getByRole("textbox", { name: "Estado" })).toHaveAttribute(
+    "aria-haspopup",
+    "listbox",
+  );
   await statusSelect.focus();
   await statusSelect.press("ArrowDown");
+  await expect(page.getByRole("option", { name: "Archivado" })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
   await page.getByRole("option", { name: "Por revisar" }).click();
   await expect(page.getByText("Estado de ejemplo: Por revisar", { exact: true })).toBeVisible();
 
@@ -192,7 +200,7 @@ test("lets the demo paginate, sort, and show table states without a backend", as
   await expect(codeHeader).toHaveAttribute("aria-sort", "ascending");
   await expect(dataTable.getByRole("cell", { name: "ART-0540" })).toBeVisible();
 
-  await dataTable.getByRole("button", { name: /next page/i }).click();
+  await dataTable.getByRole("button", { name: "Página siguiente" }).click();
   await expect(dataTable.getByText("Página 2 de 3")).toBeVisible();
   await expect(dataTable.getByRole("cell", { name: "ART-2013" })).toBeVisible();
 

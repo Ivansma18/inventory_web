@@ -101,7 +101,7 @@ Derivadas de la Spec 002 y del plan aprobado. Cada tarea busca una unidad peque�
 
 - [x] T37. Revisar accesibilidad, contraste, escalas visuales y responsive de las primitivas. (RF-2, RF-47)
       Hecho cuando: revisión Impeccable y pruebas manuales acreditan escalas compartidas, umbrales de contraste, foco, movimiento reducido y uso a 360 px/escritorio.
-- [ ] T38. Revisar manualmente accesibilidad de formularios, Icon, Select, Badge y DataTable. (RF-10, RF-12, RF-13, RF-16, RF-17, RF-19, RF-25, RF-27, RF-29, RF-46, RF-49)
+- [x] T38. Revisar manualmente accesibilidad de formularios, Icon, Select, Badge y DataTable. (RF-10, RF-12, RF-13, RF-16, RF-17, RF-19, RF-25, RF-27, RF-29, RF-46, RF-49)
       Hecho cuando: con teclado y tecnología de asistencia se verifican nombres, descripciones, opciones, tabla y significados no dependientes del color; incidencias se registran.
 - [ ] T39. Revisar manualmente Dialog, Toast, Tooltip y Skeleton con tecnología de asistencia. (RF-31, RF-35, RF-36, RF-54, RF-60, RF-62, RF-63, RF-83, RF-92, RF-96)
       Hecho cuando: modal/foco/restauración, anuncios y ocultación de formas decorativas se comprueban en Chromium y una tecnología de asistencia disponible.

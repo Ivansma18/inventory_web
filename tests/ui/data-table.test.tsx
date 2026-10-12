@@ -172,8 +172,8 @@ describe("DataTable", () => {
     expect(screen.getByRole("status")).toHaveTextContent("No hay datos para mostrar.");
     expect(screen.getByText("0 de 0 páginas")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /previous page/i })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /next page/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Página anterior" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Página siguiente" })).toBeDisabled();
   });
 
   it("discards the previous snapshot when an empty result succeeds", () => {
@@ -250,13 +250,8 @@ describe("DataTable", () => {
     expect(screen.getByText("Página 2 de 5")).toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
 
-    const pageThreeButton = screen
-      .getAllByRole("button")
-      .find((button) => button.textContent?.trim() === "3");
+    const pageThreeButton = screen.getByRole("button", { name: "Página 3" });
     expect(pageThreeButton).toBeDefined();
-    if (!pageThreeButton) {
-      throw new Error("The third page control should be available.");
-    }
 
     await user.click(pageThreeButton);
 
@@ -274,12 +269,12 @@ describe("DataTable", () => {
       { onPageChange },
     );
 
-    const previousPage = screen.getByRole("button", { name: /previous page/i });
+    const previousPage = screen.getByRole("button", { name: "Página anterior" });
     expect(previousPage).toBeDisabled();
     await user.click(previousPage);
     expect(onPageChange).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: /next page/i }));
+    await user.click(screen.getByRole("button", { name: "Página siguiente" }));
     expect(onPageChange).toHaveBeenCalledWith(2);
   });
 
@@ -292,12 +287,12 @@ describe("DataTable", () => {
       { onPageChange },
     );
 
-    const nextPage = screen.getByRole("button", { name: /next page/i });
+    const nextPage = screen.getByRole("button", { name: "Página siguiente" });
     expect(nextPage).toBeDisabled();
     await user.click(nextPage);
     expect(onPageChange).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: /previous page/i }));
+    await user.click(screen.getByRole("button", { name: "Página anterior" }));
     expect(onPageChange).toHaveBeenCalledWith(2);
   });
 

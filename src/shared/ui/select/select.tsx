@@ -108,6 +108,10 @@ export const Select = ({
         showClear={false}
         editable={false}
         filter={false}
+        pt={{
+          item: (options) => ({ "aria-disabled": options?.context.disabled || undefined }),
+          select: { id: `${selectId}-native`, "aria-hidden": true },
+        }}
         value={dropdownValue}
       />
       {visibleError ? (

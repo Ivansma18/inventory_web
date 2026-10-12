@@ -12,9 +12,9 @@ test("sorts and changes pages with keyboard navigation in Chromium", async ({ pa
 
   await page.getByRole("columnheader", { name: "Referencia" }).focus();
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("button", { name: "Page 1" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Página 1" })).toBeFocused();
   await page.keyboard.press("Tab");
-  const secondPage = page.getByRole("button", { name: "Page 2" });
+  const secondPage = page.getByRole("button", { name: "Página 2" });
   await expect(secondPage).toBeFocused();
   await page.keyboard.press("Enter");
 
