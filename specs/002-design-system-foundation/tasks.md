@@ -106,8 +106,9 @@ Derivadas de la Spec 002 y del plan aprobado. Cada tarea busca una unidad peque�
 - [x] T39. Revisar manualmente Dialog, Toast, Tooltip y Skeleton con tecnología de asistencia. (RF-31, RF-35, RF-36, RF-54, RF-60, RF-62, RF-63, RF-83, RF-92, RF-96)
       Hecho cuando: modal/foco/restauración, anuncios y ocultación de formas decorativas se comprueban en Chromium y una tecnología de asistencia disponible.
       Evidencia: `specs/002-design-system-foundation/t39-accessibility-review.md`.
-- [ ] T40. Documentar el comando de demo y su separación del flujo E2E habitual. (RF-64, RF-69, RF-70)
-      Hecho cuando: `pnpm test:e2e --project=design-system` pasa sin backend ni credenciales; después README y AGENTS documentan el comando y su selección explícita, y la demo no se habilita en producción.
+- [x] T40. Documentar el comando de demo y su separación del flujo E2E habitual. (RF-64, RF-69, RF-70)
+      Hecho cuando: `pnpm test:e2e --project=design-system` pasa sin backend ni credenciales; README y AGENTS documentan el comando y su selección explícita, y `preview-smoke` comprueba que la demo no se habilita en producción.
+      Evidencia: `pnpm test:e2e` (13 pruebas), `pnpm test:e2e --project=design-system` (7 pruebas) y `pnpm test:e2e --project=preview-smoke` (1 prueba) pasan.
 - [ ] T41. Ejecutar el cierre automatizado de la fase y conservar resultados. (RF-1 a RF-96)
       Hecho cuando: pasan `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test:run`, `pnpm build`, `pnpm test:e2e`, `pnpm test:e2e --project=design-system` y `pnpm test:e2e --project=preview-smoke`; no queda listener inesperado en `5174`.
 
