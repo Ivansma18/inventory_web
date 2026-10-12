@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-12  
 **Superficie:** `/__design-system`  
-**Estado:** parcial; hallazgos corregidos y revalidados en Chromium; falta una pasada con lector de pantalla real.
+**Estado:** completada con Windows Narrator y Chromium.
 
 ## Método y evidencia
 
@@ -16,6 +16,7 @@
   Input/Textarea, contratos de Icon/Badge/Select y estados de DataTable.
 - Playwright: pasan las **7 pruebas** de `design-system` y la prueba Chromium de
   teclado/paginación de DataTable.
+- Windows Narrator se mantuvo activo durante la revisión manual de los controles.
 
 ## Comprobaciones
 
@@ -41,10 +42,14 @@
 3. **Resuelto — Nombres del paginador en inglés.** PrimeReact usa locale `es` con
    «Página anterior», «Página siguiente» y «Página {page}».
 
-## Alcance de la tecnología de asistencia
+## Verificación con tecnología de asistencia
 
-La verificación de nombres, roles y estados se hizo con el árbol de accesibilidad
-de Chromium y Lighthouse, además de la navegación por teclado. No se validó salida
-hablada con un lector de pantalla real. Por ese motivo T38 permanece sin marcar
-hasta completar esa pasada; T39 también requiere verificar anuncios con una
-tecnología de asistencia disponible.
+Durante esta sesión el usuario confirmó haber oído con Narrator los nombres y
+descripciones de Input y Textarea, el nombre y las opciones de Select, los
+encabezados/estados de DataTable, la alternativa de Icon informativo, las
+etiquetas textuales de Badge y la ausencia de anuncio del Icon decorativo.
+También confirmó que la revisión de teclado/foco y los estados observados en
+Chromium coincidían con la salida de Narrator.
+
+No se conserva una grabación de audio; la confirmación auditiva fue proporcionada
+por el usuario durante la revisión interactiva.

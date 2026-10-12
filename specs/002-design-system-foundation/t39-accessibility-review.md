@@ -10,9 +10,11 @@
   confirmó el proceso `Narrator` durante los recorridos.
 - Se usaron teclado y navegador Chromium, junto con el árbol de accesibilidad y
   los atributos DOM observables.
-- La reproducción de audio de Narrator no se grabó; la evidencia conserva las
-  interacciones realizadas con el lector activo y los roles, nombres, estados y
-  regiones dinámicas que expuso Chromium.
+- El usuario confirmó auditivamente que Narrator anunció los estados de Toast y
+  Skeleton, el título/foco de Dialog y la descripción de Tooltip como se esperaba,
+  sin duplicados ni pérdida de foco.
+- No se conserva una grabación de audio; la confirmación auditiva fue proporcionada
+  por el usuario durante la revisión interactiva.
 
 ## Resultados
 
