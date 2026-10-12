@@ -79,6 +79,8 @@ describe("Toast", () => {
     "announces $kind once without moving keyboard focus",
     async ({ kind, message, summary }) => {
       const user = userEvent.setup();
+      const isUrgent = kind === "warning" || kind === "error";
+      const announcementRole = isUrgent ? "alert" : "status";
 
       render(
         <UiProvider>
@@ -92,10 +94,13 @@ describe("Toast", () => {
 
       await user.keyboard("{Enter}");
 
-      const alert = screen.getByRole("alert");
-      expect(alert).toHaveTextContent(summary);
-      expect(alert).toHaveTextContent(message);
-      expect(screen.getAllByRole("alert")).toHaveLength(1);
+      const announcement = screen.getByRole(announcementRole);
+      expect(announcement).toHaveTextContent(summary);
+      expect(announcement).toHaveTextContent(message);
+      expect(screen.getAllByRole(announcementRole)).toHaveLength(1);
+      expect(screen.queryByRole(isUrgent ? "status" : "alert")).not.toBeInTheDocument();
+      expect(announcement).toHaveAttribute("aria-live", isUrgent ? "assertive" : "polite");
+      expect(announcement).toHaveAttribute("aria-atomic", "true");
       expect(document.querySelectorAll('[aria-live]:not([aria-live="off"])')).toHaveLength(1);
       expect(trigger).toHaveFocus();
     },
@@ -171,7 +176,7 @@ describe("Toast", () => {
       vi.advanceTimersByTime(2_000);
     });
 
-    const toast = screen.getByRole("alert");
+    const toast = screen.getByRole("status");
     fireEvent.pointerEnter(toast);
     act(() => {
       vi.advanceTimersByTime(10_000);
@@ -212,7 +217,7 @@ describe("Toast", () => {
       vi.advanceTimersByTime(1_000);
     });
 
-    const toast = screen.getByRole("alert");
+    const toast = screen.getByRole("status");
     const closeButton = within(toast).getByRole("button", { name: "Cerrar notificación" });
     fireEvent.pointerEnter(toast);
     act(() => {

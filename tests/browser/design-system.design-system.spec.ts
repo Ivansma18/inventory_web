@@ -252,16 +252,19 @@ test("demonstrates all Toast kinds and their automatic or manual lifetime", asyn
   await toastSection.getByRole("button", { name: "Mostrar advertencia (manual)" }).click();
   await toastSection.getByRole("button", { name: "Mostrar error (manual)" }).click();
 
-  const successToast = page.getByRole("alert").filter({ hasText: successMessage });
-  const infoToast = page.getByRole("alert").filter({ hasText: infoMessage });
+  const successToast = page.getByRole("status").filter({ hasText: successMessage });
+  const infoToast = page.getByRole("status").filter({ hasText: infoMessage });
   const warningToast = page.getByRole("alert").filter({ hasText: warningMessage });
   const errorToast = page.getByRole("alert").filter({ hasText: errorMessage });
 
-  await expect(page.getByRole("alert")).toHaveCount(4);
   await expect(successToast).toBeVisible();
   await expect(infoToast).toBeVisible();
   await expect(warningToast).toBeVisible();
   await expect(errorToast).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: successMessage })).toHaveCount(1);
+  await expect(page.getByRole("status").filter({ hasText: infoMessage })).toHaveCount(1);
+  await expect(page.getByRole("alert").filter({ hasText: warningMessage })).toHaveCount(1);
+  await expect(page.getByRole("alert").filter({ hasText: errorMessage })).toHaveCount(1);
 
   await expect(successToast).toBeHidden({ timeout: 8_000 });
   await expect(infoToast).toBeHidden({ timeout: 1_000 });

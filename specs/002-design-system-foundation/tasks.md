@@ -103,8 +103,9 @@ Derivadas de la Spec 002 y del plan aprobado. Cada tarea busca una unidad peque�
       Hecho cuando: revisión Impeccable y pruebas manuales acreditan escalas compartidas, umbrales de contraste, foco, movimiento reducido y uso a 360 px/escritorio.
 - [x] T38. Revisar manualmente accesibilidad de formularios, Icon, Select, Badge y DataTable. (RF-10, RF-12, RF-13, RF-16, RF-17, RF-19, RF-25, RF-27, RF-29, RF-46, RF-49)
       Hecho cuando: con teclado y tecnología de asistencia se verifican nombres, descripciones, opciones, tabla y significados no dependientes del color; incidencias se registran.
-- [ ] T39. Revisar manualmente Dialog, Toast, Tooltip y Skeleton con tecnología de asistencia. (RF-31, RF-35, RF-36, RF-54, RF-60, RF-62, RF-63, RF-83, RF-92, RF-96)
+- [x] T39. Revisar manualmente Dialog, Toast, Tooltip y Skeleton con tecnología de asistencia. (RF-31, RF-35, RF-36, RF-54, RF-60, RF-62, RF-63, RF-83, RF-92, RF-96)
       Hecho cuando: modal/foco/restauración, anuncios y ocultación de formas decorativas se comprueban en Chromium y una tecnología de asistencia disponible.
+      Evidencia: `specs/002-design-system-foundation/t39-accessibility-review.md`.
 - [ ] T40. Documentar el comando de demo y su separación del flujo E2E habitual. (RF-64, RF-69, RF-70)
       Hecho cuando: `pnpm test:e2e --project=design-system` pasa sin backend ni credenciales; después README y AGENTS documentan el comando y su selección explícita, y la demo no se habilita en producción.
 - [ ] T41. Ejecutar el cierre automatizado de la fase y conservar resultados. (RF-1 a RF-96)

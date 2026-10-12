@@ -152,9 +152,12 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
         detail: message,
         sticky: true,
         closable: true,
-        ...(hasAutoDismiss && {
-          pt: {
-            root: {
+        pt: {
+          root: {
+            role: hasAutoDismiss ? "status" : "alert",
+            "aria-live": hasAutoDismiss ? "polite" : "assertive",
+            "aria-atomic": true,
+            ...(hasAutoDismiss && {
               onPointerEnter: () => setTimerPaused(id, "pointer", true),
               onPointerLeave: () => setTimerPaused(id, "pointer", false),
               onFocusCapture: () => setTimerPaused(id, "focus", true),
@@ -168,9 +171,9 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
 
                 setTimerPaused(id, "focus", false);
               },
-            },
+            }),
           },
-        }),
+        },
       };
 
       messagesById.current.set(id, toastMessage);
@@ -223,11 +226,6 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
         position="top-right"
         pt={{
           closeButton: { "aria-label": "Cerrar notificación" },
-          message: {
-            role: "alert",
-            "aria-live": "assertive",
-            "aria-atomic": true,
-          },
         }}
         ref={toastRef}
       />
