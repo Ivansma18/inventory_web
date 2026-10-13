@@ -116,18 +116,14 @@ export const createInventoryAuthPlugin = () => {
 
   const refreshSession = async (
     request: () => Promise<BetterFetchResponse<unknown>>,
-    publishInitialVerification = false,
   ): Promise<InventorySessionQueryResult> => {
-    const setInitialVerification = (verification: InventorySessionVerificationState) => {
-      if (publishInitialVerification) {
-        inventorySessionVerification.set(verification);
-      }
-    };
     const requestOperationVersion = sessionOperationVersion;
     const responseIsStale = () => requestOperationVersion !== sessionOperationVersion;
     const current = inventorySession.get();
     const hasConfirmedSession =
       current.status === "authenticated" || current.status === "unauthenticated";
+
+    inventorySessionVerification.set({ status: "pending", error: null });
 
     if (current.status !== "pending") {
       inventorySession.set({ ...current, isRefetching: true });
@@ -142,12 +138,12 @@ export const createInventoryAuthPlugin = () => {
       if (result.error) {
         if (result.error.status === 401) {
           inventorySession.set(createUnauthenticatedState());
-          setInitialVerification({ status: "success", error: null });
+          inventorySessionVerification.set({ status: "success", error: null });
           return { data: null, error: null };
         }
 
         const error = createHttpError("session", result.error.status);
-        setInitialVerification({ status: "error", error });
+        inventorySessionVerification.set({ status: "error", error });
         if (!hasConfirmedSession) {
           inventorySession.set(createUnconfirmedState(error));
         }
@@ -158,7 +154,7 @@ export const createInventoryAuthPlugin = () => {
       if (!parsed.success) {
         const error = createContractError(200, "session");
         inventorySession.set(createUnconfirmedState(error));
-        setInitialVerification({ status: "error", error });
+        inventorySessionVerification.set({ status: "error", error });
         return { data: null, error };
       }
 
@@ -171,7 +167,7 @@ export const createInventoryAuthPlugin = () => {
         isUnauthenticated: false,
         error: null,
       });
-      setInitialVerification({ status: "success", error: null });
+      inventorySessionVerification.set({ status: "success", error: null });
       return { data: parsed.data, error: null };
     } catch (error: unknown) {
       if (responseIsStale()) {
@@ -181,12 +177,12 @@ export const createInventoryAuthPlugin = () => {
       if (error instanceof AuthResponseContractError) {
         const contractError = createContractError(error.status, "session");
         inventorySession.set(createUnconfirmedState(contractError));
-        setInitialVerification({ status: "error", error: contractError });
+        inventorySessionVerification.set({ status: "error", error: contractError });
         return { data: null, error: contractError };
       }
 
       const networkError = createNetworkError("session");
-      setInitialVerification({ status: "error", error: networkError });
+      inventorySessionVerification.set({ status: "error", error: networkError });
       if (!hasConfirmedSession) {
         inventorySession.set(createUnconfirmedState(networkError));
       }
@@ -329,15 +325,12 @@ export const createInventoryAuthPlugin = () => {
         }
 
         initialSessionQueryStarted = true;
-        inventorySessionVerification.set({ status: "pending", error: null });
-        void refreshSession(
-          () =>
-            $fetch<unknown>("/get-session", {
-              method: "GET",
-              credentials: "include",
-              timeout: AUTH_REQUEST_TIMEOUT_MS,
-            }),
-          true,
+        void refreshSession(() =>
+          $fetch<unknown>("/get-session", {
+            method: "GET",
+            credentials: "include",
+            timeout: AUTH_REQUEST_TIMEOUT_MS,
+          }),
         ).catch(() => undefined);
       });
 
