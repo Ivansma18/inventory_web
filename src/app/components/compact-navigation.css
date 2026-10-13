@@ -1,0 +1,17 @@
+.compact-navigation__trigger {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.compact-navigation__content {
+  inline-size: 100%;
+}
+
+.compact-navigation__brand {
+  margin: 0 0 var(--ui-space-4);
+  color: var(--ui-color-text);
+  font-size: var(--ui-font-size-xl);
+  font-weight: var(--ui-font-weight-semibold);
+  letter-spacing: -0.02em;
+  line-height: var(--ui-line-height-tight);
+}

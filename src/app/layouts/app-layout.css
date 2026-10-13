@@ -1,12 +1,16 @@
 .app-layout {
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: 16rem minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   min-block-size: 100vh;
   min-block-size: 100svh;
   background-color: var(--ui-color-canvas);
   color: var(--ui-color-text);
   font-family: var(--ui-font-family-sans);
+}
+
+.app-layout[data-navigation-mode="persistent"] {
+  grid-template-columns: 16rem minmax(0, 1fr);
 }
 
 .app-layout__sidebar {
@@ -39,17 +43,18 @@
   flex: 0 0 auto;
 }
 
-.app-layout[data-sidebar-collapsed="true"] .app-layout__sidebar {
+.app-layout[data-navigation-mode="persistent"][data-sidebar-collapsed="true"] .app-layout__sidebar {
   padding-inline: var(--ui-space-2);
 }
 
-.app-layout[data-sidebar-collapsed="true"] .app-layout__sidebar-header {
+.app-layout[data-navigation-mode="persistent"][data-sidebar-collapsed="true"]
+  .app-layout__sidebar-header {
   flex-direction: column;
   justify-content: center;
   gap: var(--ui-space-3);
 }
 
-.app-layout[data-sidebar-collapsed="true"] .app-layout__brand {
+.app-layout[data-navigation-mode="persistent"][data-sidebar-collapsed="true"] .app-layout__brand {
   max-inline-size: 100%;
   overflow: hidden;
   font-size: var(--ui-font-size-xs);
@@ -102,31 +107,12 @@
   transform: translateY(0);
 }
 
-@media (max-width: 63.999rem) {
-  .app-layout {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-
-  .app-layout__sidebar {
-    padding-block: var(--ui-space-3);
-    border-inline-end: 0;
-    border-block-end: var(--ui-border-width) solid var(--ui-color-border);
-  }
-
-  .app-layout__sidebar-toggle {
-    display: none;
-  }
-
-  .app-layout__header {
-    min-block-size: 3.5rem;
-  }
+.app-layout[data-navigation-mode="compact"] .app-layout__header {
+  min-block-size: 3.5rem;
 }
 
-@media (min-width: 64rem) {
-  .app-layout[data-sidebar-collapsed="true"] {
-    grid-template-columns: 5rem minmax(0, 1fr);
-  }
+.app-layout[data-navigation-mode="persistent"][data-sidebar-collapsed="true"] {
+  grid-template-columns: 5rem minmax(0, 1fr);
 }
 
 @media (max-width: 30rem) {
