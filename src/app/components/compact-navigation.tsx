@@ -1,17 +1,42 @@
 import "./compact-navigation.css";
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { AppNavigation } from "@/app/components/app-navigation";
 import { Button, Drawer } from "@/shared/ui";
 
-export const CompactNavigation = () => {
+interface CompactNavigationProps {
+  onUnmountWhileOpen?: () => void;
+}
+
+export const CompactNavigation = ({ onUnmountWhileOpen }: CompactNavigationProps) => {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
   const focusPageHeadingAfterClose = useRef(false);
+  const wasOpenBeforeUnmount = useRef(false);
+
+  useLayoutEffect(
+    () => () => {
+      if (wasOpenBeforeUnmount.current) {
+        onUnmountWhileOpen?.();
+      }
+    },
+    [onUnmountWhileOpen],
+  );
 
   const handleSelect = (isCurrentPage: boolean) => {
+    wasOpenBeforeUnmount.current = false;
     focusPageHeadingAfterClose.current = !isCurrentPage;
+    setOpen(false);
+  };
+
+  const handleOpen = () => {
+    wasOpenBeforeUnmount.current = true;
+    setOpen(true);
+  };
+
+  const handleClose = () => {
+    wasOpenBeforeUnmount.current = false;
     setOpen(false);
   };
 
@@ -35,12 +60,12 @@ export const CompactNavigation = () => {
           accessibleLabel="Abrir navegación"
           ariaExpanded={open}
           icon="menu"
-          onClick={() => setOpen(true)}
+          onClick={handleOpen}
           variant="secondary"
         />
       </div>
       <Drawer
-        onCloseRequest={() => setOpen(false)}
+        onCloseRequest={handleClose}
         open={open}
         resolveFocusTargetOnClose={resolveFocusTarget}
         title="Navegación principal"

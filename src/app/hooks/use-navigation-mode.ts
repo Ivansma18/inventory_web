@@ -12,6 +12,8 @@ const getNavigationMode = (): NavigationMode => {
   return window.matchMedia(persistentNavigationQuery).matches ? "persistent" : "compact";
 };
 
+export const isPersistentNavigationViewport = () => getNavigationMode() === "persistent";
+
 const subscribeToNavigationMode = (onChange: () => void) => {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
     return () => undefined;

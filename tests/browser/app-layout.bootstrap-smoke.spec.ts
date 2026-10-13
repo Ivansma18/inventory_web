@@ -322,3 +322,62 @@ test("selecting active Inicio closes the Drawer and restores focus without reloa
   await expect(page).toHaveURL("/");
   expect(documentRequests).toBe(1);
 });
+
+for (const path of ["/", "/not-registered"] as const) {
+  test(`closes compact navigation and restores focus at 1024px from ${path}`, async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 800 });
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "inventory.shell.preferences.v1",
+        JSON.stringify({ state: { sidebarCollapsed: false }, version: 1 }),
+      );
+    });
+    await page.route("**/api/auth/get-session", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            user: { id: "breakpoint-user", email: "operator@example.com", role: "OPERATOR" },
+            session: { id: "breakpoint-session", createdAt: "2026-01-01T00:00:00.000Z" },
+          },
+        }),
+      });
+    });
+
+    await page.goto(path);
+    await page.getByRole("button", { name: "Abrir navegación" }).click();
+
+    const drawer = page.getByRole("dialog", { name: "Navegación principal" });
+    const root = page.locator("#root");
+    const preferencesBeforeResize = await page.evaluate(() =>
+      localStorage.getItem("inventory.shell.preferences.v1"),
+    );
+    await expect(drawer).toBeVisible();
+    await expect(root).toHaveAttribute("inert", "");
+
+    await page.setViewportSize({ width: 1024, height: 800 });
+
+    await expect(drawer).toHaveCount(0);
+    await expect(root).not.toHaveAttribute("inert");
+    await expect(root).not.toHaveAttribute("aria-hidden");
+    await expect
+      .poll(() => page.evaluate(() => window.getComputedStyle(document.body).overflowY))
+      .not.toBe("hidden");
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem("inventory.shell.preferences.v1")))
+      .toBe(preferencesBeforeResize);
+
+    if (path === "/") {
+      const activeLink = page
+        .getByRole("navigation", { name: "Navegación principal" })
+        .getByRole("link", { name: "Inicio", exact: true });
+      await expect(activeLink).toBeVisible();
+      await expect(activeLink).toBeFocused();
+    } else {
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Página no encontrada" }),
+      ).toBeFocused();
+    }
+  });
+}
