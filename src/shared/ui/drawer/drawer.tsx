@@ -17,6 +17,7 @@ export interface DrawerProps {
   title: string;
   children: ReactNode;
   onCloseRequest: () => void;
+  resolveFocusTargetOnClose: () => HTMLElement | null;
 }
 
 const createPortalContainer = () => {
@@ -29,10 +30,21 @@ const createPortalContainer = () => {
   return container;
 };
 
-export const Drawer = ({ open, title, children, onCloseRequest }: DrawerProps) => {
+export const Drawer = ({
+  open,
+  title,
+  children,
+  onCloseRequest,
+  resolveFocusTargetOnClose,
+}: DrawerProps) => {
   const titleId = useId();
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [portalContainer] = useState(createPortalContainer);
+  const focusTargetResolverRef = useRef(resolveFocusTargetOnClose);
+
+  useLayoutEffect(() => {
+    focusTargetResolverRef.current = resolveFocusTargetOnClose;
+  }, [resolveFocusTargetOnClose]);
 
   useLayoutEffect(() => {
     if (!portalContainer) {
@@ -58,6 +70,13 @@ export const Drawer = ({ open, title, children, onCloseRequest }: DrawerProps) =
 
     const initialFocusTarget = getFirstFocusableElement(portalContainer) ?? titleRef.current;
     initialFocusTarget?.focus({ preventScroll: true });
+  };
+
+  const focusTargetAfterClose = () => {
+    const focusTarget = focusTargetResolverRef.current();
+    if (focusTarget) {
+      focusElement(focusTarget, true);
+    }
   };
 
   const containTabNavigation = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -115,6 +134,7 @@ export const Drawer = ({ open, title, children, onCloseRequest }: DrawerProps) =
       position="left"
       role="dialog"
       showCloseIcon
+      transitionOptions={{ onExited: focusTargetAfterClose, timeout: 300 }}
       visible={open}
     >
       {children}

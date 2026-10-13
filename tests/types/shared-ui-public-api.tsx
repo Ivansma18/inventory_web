@@ -51,6 +51,7 @@ const vendorDrawerProp: DrawerProps = {
   open: true,
   title: "Navigation",
   children: "Home",
+  resolveFocusTargetOnClose: () => null,
   onCloseRequest: () => {},
   // @ts-expect-error PrimeReact sidebar positioning is not part of the Drawer API.
   position: "right",

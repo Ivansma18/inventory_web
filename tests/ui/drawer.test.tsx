@@ -1,12 +1,19 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Drawer } from "@/shared/ui";
 import type { DrawerProps } from "@/shared/ui";
 
 const defaultDrawer = (props: Partial<DrawerProps> = {}) => (
-  <Drawer open title="Navegación principal" onCloseRequest={() => undefined} {...props}>
+  <Drawer
+    open
+    resolveFocusTargetOnClose={() => null}
+    title="Navegación principal"
+    onCloseRequest={() => undefined}
+    {...props}
+  >
     <nav aria-label="Destinos">
       <a href="/">Inicio</a>
     </nav>
@@ -75,7 +82,12 @@ describe("Drawer", () => {
         <main>
           <button>Outside action</button>
         </main>
-        <Drawer open title="Focus navigation" onCloseRequest={() => undefined}>
+        <Drawer
+          open
+          resolveFocusTargetOnClose={() => null}
+          title="Focus navigation"
+          onCloseRequest={() => undefined}
+        >
           <button>First destination</button>
           <button>Last destination</button>
         </Drawer>
@@ -110,5 +122,89 @@ describe("Drawer", () => {
     expect(container).toHaveAttribute("inert");
     expect(container).toHaveAttribute("aria-hidden", "true");
     expect(screen.queryByRole("button", { name: "Outside action" })).not.toBeInTheDocument();
+  });
+
+  it("resolves the latest focus target after outside content and scroll are restored", async () => {
+    const user = userEvent.setup();
+    const focusChecks: Array<{ inert: boolean; ariaHidden: boolean; scrollLocked: boolean }> = [];
+    let closeRequests = 0;
+
+    const DrawerHarness = () => {
+      const [open, setOpen] = useState(true);
+      const [destinationName, setDestinationName] = useState("Initial destination");
+      const pageHeadingRef = useRef<HTMLHeadingElement>(null);
+      const pageContentRef = useRef<HTMLDivElement>(null);
+
+      const resolveFocusTargetOnClose = () => {
+        const inertAncestor = pageContentRef.current?.closest<HTMLElement>("[inert]");
+        focusChecks.push({
+          inert: Boolean(inertAncestor),
+          ariaHidden: inertAncestor?.getAttribute("aria-hidden") === "true",
+          scrollLocked: document.body.classList.contains("p-overflow-hidden"),
+        });
+        return pageHeadingRef.current;
+      };
+
+      return (
+        <div ref={pageContentRef}>
+          <h1 key={destinationName} ref={pageHeadingRef} tabIndex={-1}>
+            {destinationName}
+          </h1>
+          <Drawer
+            open={open}
+            resolveFocusTargetOnClose={resolveFocusTargetOnClose}
+            title="Navegación principal"
+            onCloseRequest={() => {
+              closeRequests += 1;
+              setDestinationName("Destino actualizado");
+              setOpen(false);
+            }}
+          >
+            <a href="/">Inicio</a>
+          </Drawer>
+        </div>
+      );
+    };
+
+    const { container } = render(<DrawerHarness />);
+    const closeButton = await screen.findByRole("button", { name: "Cerrar panel" });
+    expect(container).toHaveAttribute("inert");
+    await waitFor(() => expect(document.body).toHaveClass("p-overflow-hidden"));
+    expect(document.body).toHaveClass("p-overflow-hidden");
+
+    await user.click(closeButton);
+
+    const updatedHeading = await screen.findByRole("heading", { name: "Destino actualizado" });
+    await waitFor(() => expect(updatedHeading).toHaveFocus());
+    expect(closeRequests).toBe(1);
+    expect(focusChecks).toEqual([{ inert: false, ariaHidden: false, scrollLocked: false }]);
+    expect(container).not.toHaveAttribute("inert");
+    expect(container).not.toHaveAttribute("aria-hidden");
+  });
+
+  it("cleans up modality on unmount without resolving focus to a removed destination", async () => {
+    const resolveFocusTargetOnClose = vi.fn(() => document.body);
+    const { container, unmount } = render(
+      <Drawer
+        open
+        resolveFocusTargetOnClose={resolveFocusTargetOnClose}
+        title="Navegación principal"
+        onCloseRequest={() => undefined}
+      >
+        <a href="/">Inicio</a>
+      </Drawer>,
+    );
+
+    await screen.findByRole("dialog", { name: "Navegación principal" });
+    expect(container).toHaveAttribute("inert");
+    await waitFor(() => expect(document.body).toHaveClass("p-overflow-hidden"));
+    expect(document.body).toHaveClass("p-overflow-hidden");
+
+    unmount();
+
+    expect(container).not.toHaveAttribute("inert");
+    expect(container).not.toHaveAttribute("aria-hidden");
+    expect(document.body).not.toHaveClass("p-overflow-hidden");
+    expect(resolveFocusTargetOnClose).not.toHaveBeenCalled();
   });
 });
