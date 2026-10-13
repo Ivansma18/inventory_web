@@ -21,8 +21,8 @@ Cada tarea busca una unidad de aproximadamente 15–30 minutos de trabajo activo
       Hecho cuando: pruebas verifican pending → error → success después de sesión válida; el error posterior no queda solo en el retorno de refetch y se conservan las garantías previas del estado confirmado del plugin. Evidencia: `tests/auth-session-plugin.test.tsx` cubre errores HTTP/red, recuperación 200, contrato inválido y 401; regresión Auth 27/27 pruebas.
 - [x] T5. Deduplicar comprobaciones concurrentes de la misma generación. (RF-31, RF-39, RF-55; NFR-9, NFR-10)
       Hecho cuando: pruebas de StrictMode, consumidores múltiples y refetch simultáneos verifican una consulta inicial y una operación compartida por generación; todos observan el mismo resultado vigente. Evidencia: `tests/auth-session-concurrency.test.tsx` verifica una sola petición inicial, identidad de la promesa compartida y aislamiento de flags ante una respuesta obsoleta; suite completa 29/29 archivos y 245/245 pruebas.
-- [ ] T6. Invalidar verificaciones anteriores al confirmar logout sin restaurar estados obsoletos. (RF-40, RF-45–RF-46, RF-49; NFR-9)
-      Hecho cuando: pruebas con respuestas diferidas verifican que 204 establece ausencia confirmada y deja verificación coherente; respuestas anteriores no alteran sesión, errores o banderas vigentes y un logout fallido no sobrescribe un 401 concurrente.
+- [x] T6. Invalidar verificaciones anteriores al confirmar logout sin restaurar estados obsoletos. (RF-40, RF-45–RF-46, RF-49; NFR-9)
+      Hecho cuando: pruebas con respuestas diferidas verifican que 204 establece ausencia confirmada y deja verificación coherente; respuestas anteriores no alteran sesión, errores o banderas vigentes y un logout fallido no sobrescribe un 401 concurrente. Evidencia: `tests/auth-session-concurrency.test.tsx` cubre respuesta obsoleta tras 204 y fallo de logout concurrente con 401; suite completa 29/29 archivos y 246/246 pruebas.
 
 ### Preferencias de interfaz
 

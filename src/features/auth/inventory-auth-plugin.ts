@@ -336,6 +336,7 @@ export const createInventoryAuthPlugin = () => {
 
       sessionOperationVersion += 1;
       inventorySession.set(createUnauthenticatedState());
+      inventorySessionVerification.set({ status: "success", error: null });
       return { data: null, error: null };
     } catch (error: unknown) {
       if (error instanceof AuthResponseContractError) {

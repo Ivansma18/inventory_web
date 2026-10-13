@@ -259,24 +259,28 @@ describe("Inventory Auth concurrency", () => {
     );
 
     const client = createTestAuthClient();
-    const { result } = renderHook(() => client.useInventorySession());
-    await waitFor(() => expect(result.current.status).toBe("authenticated"));
+    const { result } = renderHook(() => ({
+      session: client.useInventorySession(),
+      verification: client.useInventorySessionVerification(),
+    }));
+    await waitFor(() => expect(result.current.session.status).toBe("authenticated"));
 
     let staleRefetch!: ReturnType<typeof client.refreshSession>;
     act(() => {
       staleRefetch = client.refreshSession();
     });
     await staleQueryStarted;
-    expect(result.current.isRefetching).toBe(true);
+    expect(result.current.session.isRefetching).toBe(true);
 
     await act(async () => client.signOutInventory());
-    expect(result.current).toMatchObject({
+    expect(result.current.session).toMatchObject({
       status: "unauthenticated",
       user: null,
       session: null,
       isAuthenticated: false,
       isUnauthenticated: true,
     });
+    expect(result.current.verification).toEqual({ status: "success", error: null });
 
     resolveStaleQuery();
     let staleResult: unknown;
@@ -285,7 +289,7 @@ describe("Inventory Auth concurrency", () => {
     });
 
     expect(staleResult).toEqual({ data: null, error: null, stale: true });
-    expect(result.current).toMatchObject({
+    expect(result.current.session).toMatchObject({
       status: "unauthenticated",
       user: null,
       session: null,
@@ -293,6 +297,92 @@ describe("Inventory Auth concurrency", () => {
       isUnauthenticated: true,
       isRefetching: false,
     });
+    expect(result.current.verification).toEqual({ status: "success", error: null });
+  });
+
+  it("does not let a failed logout overwrite a concurrent confirmed 401", async () => {
+    let sessionRequests = 0;
+    let resolveSignOutStarted!: () => void;
+    let resolveSignOutResponse!: () => void;
+    const signOutStarted = new Promise<void>((resolve) => {
+      resolveSignOutStarted = resolve;
+    });
+    const signOutResponse = new Promise<void>((resolve) => {
+      resolveSignOutResponse = resolve;
+    });
+
+    server.use(
+      http.get(sessionEndpoint, () => {
+        sessionRequests += 1;
+        return sessionRequests === 1
+          ? HttpResponse.json(authResponse("logout-race-user"))
+          : unauthenticatedResponse();
+      }),
+      http.post(signOutEndpoint, async () => {
+        resolveSignOutStarted();
+        await signOutResponse;
+        return HttpResponse.json(
+          { error: { code: "INTERNAL", message: "Sensitive logout failure." } },
+          { status: 503 },
+        );
+      }),
+    );
+
+    const client = createTestAuthClient();
+    const { result } = renderHook(() => ({
+      session: client.useInventorySession(),
+      verification: client.useInventorySessionVerification(),
+      signOut: client.useInventorySignOut(),
+    }));
+    await waitFor(() => expect(result.current.session.status).toBe("authenticated"));
+
+    let signOutPromise!: ReturnType<typeof client.signOutInventory>;
+    act(() => {
+      signOutPromise = client.signOutInventory();
+    });
+    await signOutStarted;
+    expect(result.current.signOut.isPending).toBe(true);
+
+    let refetchPromise!: ReturnType<typeof client.refreshSession>;
+    act(() => {
+      refetchPromise = client.refreshSession();
+    });
+    await act(async () => refetchPromise);
+
+    expect(result.current.session).toMatchObject({
+      status: "unauthenticated",
+      user: null,
+      session: null,
+      isAuthenticated: false,
+      isUnauthenticated: true,
+    });
+    expect(result.current.verification).toEqual({ status: "success", error: null });
+
+    resolveSignOutResponse();
+    let signOutResult: unknown;
+    await act(async () => {
+      signOutResult = await signOutPromise;
+    });
+
+    expect(signOutResult).toMatchObject({
+      data: null,
+      error: {
+        kind: "http",
+        operation: "sign-out",
+        status: 503,
+        message: expect.any(String),
+      },
+    });
+    expect(JSON.stringify(signOutResult)).not.toContain("Sensitive");
+    expect(result.current.signOut.isPending).toBe(false);
+    expect(result.current.session).toMatchObject({
+      status: "unauthenticated",
+      user: null,
+      session: null,
+      isAuthenticated: false,
+      isUnauthenticated: true,
+    });
+    expect(result.current.verification).toEqual({ status: "success", error: null });
   });
 
   it("serializes sign-in and sign-out requests and returns precondition errors for overlap", async () => {
