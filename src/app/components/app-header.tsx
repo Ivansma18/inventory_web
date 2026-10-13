@@ -3,6 +3,8 @@ import "./app-header.css";
 import type { ReactNode } from "react";
 
 import { usePublicIdentity } from "@/app/hooks/use-public-identity";
+import { useAuth } from "@/features/auth";
+import { Button } from "@/shared/ui";
 
 export interface AppHeaderProps {
   identity: string;
@@ -32,10 +34,23 @@ export const AppHeader = ({ identity, actions }: AppHeaderProps) => {
 
 export const CurrentUserAppHeader = ({ actions }: CurrentUserAppHeaderProps) => {
   const identity = usePublicIdentity();
+  const { isSigningOut, signOut } = useAuth();
 
   if (!identity) {
     return null;
   }
 
-  return <AppHeader identity={identity} actions={actions} />;
+  return (
+    <AppHeader
+      identity={identity}
+      actions={
+        <>
+          {actions}
+          <Button loading={isSigningOut} onClick={() => void signOut()} variant="secondary">
+            {isSigningOut ? "Cerrando sesión…" : "Cerrar sesión"}
+          </Button>
+        </>
+      }
+    />
+  );
 };

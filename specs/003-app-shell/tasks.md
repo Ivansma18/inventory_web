@@ -78,8 +78,8 @@ Cada tarea busca una unidad de aproximadamente 15–30 minutos de trabajo activo
 
 ### Cierre de sesión desde el encabezado
 
-- [ ] T27. Conectar logout con indicador pendiente y bloqueo de activaciones duplicadas. (RF-41–RF-45, RF-51; NFR-5)
-      Hecho cuando: pruebas MSW verifican acción de header, una solicitud durante pending y pantalla informativa tras 204; la vista no asume éxito antes de confirmación.
+- [x] T27. Conectar logout con indicador pendiente y bloqueo de activaciones duplicadas. (RF-41–RF-45, RF-51; NFR-5)
+      Hecho cuando: pruebas MSW verifican acción de header, una solicitud durante pending y pantalla informativa tras 204; la vista no asume éxito antes de confirmación. Evidencia: `src/app/components/app-header.tsx` consume `useAuth`, presenta «Cerrar sesión» y refleja `isSigningOut` como «Cerrando sesión…» con el control deshabilitado; `tests/app-shell/logout.test.tsx` confirma que Home permanece hasta 204, que una segunda activación no genera solicitud y que después se muestra «Sesión no iniciada». E2E secuencial 40/40, `preview-smoke` 1/1 y unitarias 38/38 archivos, 279/279 pruebas.
 - [ ] T28. Presentar el fallo de logout y reintento condicionado a sesión vigente. (RF-46–RF-48; NFR-5, NFR-8)
       Hecho cuando: pruebas cubren fallo con sesión confirmada y reintento exitoso; el mensaje español es accesible y no se ofrece logout cuando no hay sesión confirmada.
 - [ ] T29. Mantener la prioridad de ausencia confirmada ante fallo concurrente de logout. (RF-35, RF-40, RF-46–RF-49; NFR-9)

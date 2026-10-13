@@ -35,6 +35,7 @@ for (const width of [360, 768, 1280]) {
     const homeLink = page.getByRole("link", { name: "Inicio", exact: true });
 
     await expect(banner).toContainText("operator@example.com");
+    await expect(page.getByRole("button", { name: "Cerrar sesión", exact: true })).toBeVisible();
     if (width >= 1024) {
       await expect(sidebar).toBeVisible();
       await expect(sidebar).toContainText("Inventory");
