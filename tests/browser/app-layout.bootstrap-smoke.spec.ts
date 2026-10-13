@@ -239,3 +239,86 @@ test("switches the navigation mode at the shared breakpoint without changing pre
     .poll(() => page.evaluate(() => localStorage.getItem("inventory.shell.preferences.v1")))
     .toBe(preferencesBeforeResize);
 });
+
+test("selecting Inicio from Not Found closes the Drawer and focuses the new page heading", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  let documentRequests = 0;
+  page.on("request", (request) => {
+    if (request.resourceType() === "document") {
+      documentRequests += 1;
+    }
+  });
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          user: { id: "new-destination-user", email: "operator@example.com", role: "OPERATOR" },
+          session: { id: "new-destination-session", createdAt: "2026-01-01T00:00:00.000Z" },
+        },
+      }),
+    });
+  });
+
+  await page.goto("/not-registered");
+  await page.getByRole("button", { name: "Abrir navegación" }).click();
+
+  const drawer = page.getByRole("dialog", { name: "Navegación principal" });
+  await expect(drawer).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Navegación principal" })
+    .getByRole("link", { name: "Inicio", exact: true })
+    .click();
+
+  const homeHeading = page.getByRole("heading", { level: 1, name: "Bienvenido a Inventory" });
+  await expect(drawer).toBeHidden();
+  await expect(homeHeading).toBeFocused();
+  await expect(page).toHaveURL("/");
+  expect(documentRequests).toBe(1);
+});
+
+test("selecting active Inicio closes the Drawer and restores focus without reloading", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  let documentRequests = 0;
+  page.on("request", (request) => {
+    if (request.resourceType() === "document") {
+      documentRequests += 1;
+    }
+  });
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          user: { id: "active-destination-user", email: "operator@example.com", role: "OPERATOR" },
+          session: { id: "active-destination-session", createdAt: "2026-01-01T00:00:00.000Z" },
+        },
+      }),
+    });
+  });
+
+  await page.goto("/");
+  const opener = page.getByRole("button", { name: "Abrir navegación" });
+  await opener.click();
+
+  const drawer = page.getByRole("dialog", { name: "Navegación principal" });
+  await expect(drawer).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Navegación principal" })
+    .getByRole("link", { name: "Inicio", exact: true })
+    .click();
+
+  await expect(drawer).toBeHidden();
+  await expect(opener).toBeFocused();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+  ).toBeVisible();
+  await expect(page).toHaveURL("/");
+  expect(documentRequests).toBe(1);
+});
