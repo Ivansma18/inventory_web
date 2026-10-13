@@ -3,6 +3,7 @@ import type {
   ButtonProps,
   DataTableProps,
   DialogProps,
+  DrawerProps,
   IconProps,
   InputProps,
   SelectProps,
@@ -44,6 +45,15 @@ const vendorDialogProp: DialogProps = {
   fallbackFocusTarget: () => document.body,
   // @ts-expect-error PrimeReact drag behavior is not part of the Dialog API.
   draggable: true,
+};
+
+const vendorDrawerProp: DrawerProps = {
+  open: true,
+  title: "Navigation",
+  children: "Home",
+  onCloseRequest: () => {},
+  // @ts-expect-error PrimeReact sidebar positioning is not part of the Drawer API.
+  position: "right",
 };
 
 const vendorIconProp: IconProps = {
@@ -99,6 +109,7 @@ void [
   vendorButtonProp,
   vendorTableProp,
   vendorDialogProp,
+  vendorDrawerProp,
   vendorIconProp,
   vendorInputProp,
   vendorSelectProp,

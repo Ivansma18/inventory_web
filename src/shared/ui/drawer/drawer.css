@@ -1,0 +1,33 @@
+@layer components {
+  .ui-drawer {
+    background-color: var(--ui-color-surface);
+    color: var(--ui-color-text);
+  }
+
+  .ui-drawer__mask {
+    background-color: var(--ui-color-scrim);
+  }
+
+  .ui-drawer .p-sidebar-header {
+    background-color: var(--ui-color-surface);
+    border-bottom: var(--ui-border-width) solid var(--ui-color-border);
+    color: var(--ui-color-text);
+  }
+
+  .ui-drawer__title {
+    color: inherit;
+    font-size: var(--ui-font-size-lg);
+    font-weight: var(--ui-font-weight-semibold);
+    line-height: var(--ui-line-height-tight);
+    margin: 0;
+  }
+
+  .ui-drawer .p-sidebar-close {
+    color: var(--ui-color-text-muted);
+  }
+
+  .ui-drawer .p-sidebar-close:hover {
+    background-color: var(--ui-color-surface-muted);
+    color: var(--ui-color-text);
+  }
+}

@@ -33,8 +33,8 @@ Cada tarea busca una unidad de aproximadamente 15–30 minutos de trabajo activo
 
 ### Primitiva Drawer
 
-- [ ] T9. Incorporar Drawer controlado con título y mecanismos de cierre. (RF-22, RF-26, RF-51, RF-53; NFR-6)
-      Hecho cuando: pruebas verifican open, título accesible, botón, Escape y fondo exterior; el consumidor recibe solicitudes de cierre mediante un contrato propio exportado desde shared/ui.
+- [x] T9. Incorporar Drawer controlado con título y mecanismos de cierre. (RF-22, RF-26, RF-51, RF-53; NFR-6)
+      Hecho cuando: pruebas verifican open, título accesible, botón, Escape y fondo exterior; el consumidor recibe solicitudes de cierre mediante un contrato propio exportado desde shared/ui. Evidencia: `tests/ui/drawer.test.tsx`, `tests/ui/public-api.test.tsx` y `tests/types/shared-ui-public-api.tsx`; suite completa 31/31 archivos y 255/255 pruebas.
 - [ ] T10. Incorporar foco inicial, contención y bloqueo de interacción exterior de Drawer. (RF-23–RF-25; NFR-2)
       Hecho cuando: pruebas focalizadas verifican foco interior, Tab/Mayús+Tab y exterior no interactivo; la modalidad se resuelve dentro de shared/ui, con regresión de Dialog si se extraen utilidades compartidas.
 - [ ] T11. Resolver el foco de salida de Drawer y limpiar la modalidad al cerrar o desmontar. (RF-27, RF-29, RF-58, RF-61–RF-65; NFR-2)

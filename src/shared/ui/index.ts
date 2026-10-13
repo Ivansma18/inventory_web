@@ -15,6 +15,8 @@ export type {
 } from "./data-table/data-table";
 export { Dialog } from "./dialog/dialog";
 export type { DialogProps } from "./dialog/dialog";
+export { Drawer } from "./drawer/drawer";
+export type { DrawerProps } from "./drawer/drawer";
 export { Icon } from "./icon/icon";
 export type { IconName, IconProps, IconSize } from "./icon/icon";
 export { Input } from "./input/input";
