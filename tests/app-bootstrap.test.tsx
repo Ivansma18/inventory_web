@@ -1,7 +1,9 @@
 import { cleanup, render, screen } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppProviders } from "@/app/providers/app-providers";
+import { server } from "./mocks/server";
 
 afterEach(() => {
   cleanup();
@@ -12,12 +14,24 @@ afterEach(() => {
 });
 
 describe("minimum application bootstrap", () => {
-  it("renders the Inventory page at the initial route without API data", async () => {
+  it("shows the signed-out state after the initial session check confirms no session", async () => {
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () =>
+        HttpResponse.json(
+          { error: { code: "UNAUTHORIZED", message: "No active session." } },
+          { status: 401 },
+        ),
+      ),
+    );
+
     render(<AppProviders />);
 
     expect(await screen.findByRole("main")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "Inventory" })).toBeInTheDocument();
-    expect(screen.getByText("Frontend base para la gestión de inventario.")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Sesión no iniciada" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("rejects invalid public configuration before creating the React root", async () => {

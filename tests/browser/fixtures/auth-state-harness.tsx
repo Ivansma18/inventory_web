@@ -1,7 +1,6 @@
 import { createRoot } from "react-dom/client";
 
 import "@/shared/ui/styles.css";
-import "@/app/bootstrap-page.css";
 
 import { SessionState } from "@/app/components/session-state";
 import { AuthLayout } from "@/app/layouts/auth-layout";

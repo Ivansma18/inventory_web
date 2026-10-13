@@ -72,6 +72,14 @@ test("serves the built app without development harnesses, demo, or backend acces
     }
   });
 
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "UNAUTHORIZED", message: "No active session." } }),
+    });
+  });
+
   const previewResponse = await page.goto("/");
   expect(previewResponse).not.toBeNull();
   if (!previewResponse) {
@@ -80,10 +88,13 @@ test("serves the built app without development harnesses, demo, or backend acces
 
   expect(previewResponse.status()).toBe(200);
   expect(await previewResponse.text()).toMatch(/src="\/assets\/index-[^"]+\.js"/);
-  await expect(page.getByRole("main")).toBeVisible();
-  await expect(page.getByRole("heading", { level: 1, name: "Inventory" })).toBeVisible();
-  await expect(page.getByText("Frontend base para la gestión de inventario.")).toBeVisible();
-  expect(apiRequests).toEqual([]);
+  await expect(page.getByRole("heading", { level: 1, name: "Sesión no iniciada" })).toBeVisible();
+  expect(apiRequests).toEqual(["/api/auth/get-session"]);
+  const viewport = await page.evaluate(() => ({
+    documentHeight: document.documentElement.scrollHeight,
+    viewportHeight: window.innerHeight,
+  }));
+  expect(viewport.documentHeight).toBeLessThanOrEqual(viewport.viewportHeight);
 
   const harnessResponse = await page.request.get("/__auth-test");
   expect(harnessResponse.status()).toBe(200);

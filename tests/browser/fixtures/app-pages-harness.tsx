@@ -2,7 +2,6 @@ import { createRoot } from "react-dom/client";
 import { MemoryRouter, useLocation } from "react-router";
 
 import "@/shared/ui/styles.css";
-import "@/app/bootstrap-page.css";
 
 import { HomePage } from "@/app/pages/home-page";
 import { NotFoundPage } from "@/app/pages/not-found-page";
