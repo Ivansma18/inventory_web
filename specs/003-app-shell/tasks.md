@@ -41,8 +41,8 @@ Cada tarea busca una unidad de aproximadamente 15–30 minutos de trabajo activo
       Hecho cuando: pruebas verifican un único resolvedor de foco consultado tras desbloquear el exterior; destinos actualizados y desmontajes no dejan inert, bloqueo de scroll ni retornos automáticos que compitan. Evidencia: `tests/ui/drawer.test.tsx` verifica destino actualizado tras cerrar, estado exterior restaurado y desmontaje sin retorno; regresión de Drawer/Dialog 18/18 y suite completa 31/31 archivos, 259/259 pruebas.
 - [x] T12. Estilizar Drawer como panel lateral acotado al viewport con CSS local. (RF-22, RF-25, RF-52; NFR-1, NFR-4, NFR-6)
       Hecho cuando: el panel permite alcanzar todo su contenido a altura reducida, respeta movimiento reducido y usa tokens; no añade selectores específicos a styles.css global. Evidencia: `tests/browser/drawer.layout.bootstrap-smoke.spec.ts` verifica 360×320, scroll interno, ausencia de overflow de página, uso de token y reduced-motion; E2E predeterminado 15/15, suite unitaria 31/31 archivos y 259/259 pruebas.
-- [ ] T13. Verificar en Chromium el contrato completo de Drawer. (RF-23–RF-27, RF-51–RF-53, RF-61–RF-64; NFR-2)
-      Hecho cuando: pruebas de navegador verifican ciclo de foco, cierres, bloqueo exterior y limpieza; el resolvedor puede escoger activador, enlace o encabezado sin depender de selectores internos del vendor.
+- [x] T13. Verificar en Chromium el contrato completo de Drawer. (RF-23–RF-27, RF-51–RF-53, RF-61–RF-64; NFR-2)
+      Hecho cuando: pruebas de navegador verifican ciclo de foco, cierres, bloqueo exterior y limpieza; el resolvedor puede escoger activador, enlace o encabezado sin depender de selectores internos del vendor. Evidencia: `tests/browser/drawer.contract.bootstrap-smoke.spec.ts` y `tests/browser/fixtures/drawer-contract-harness.tsx` cubren foco inicial, Tab/Mayús+Tab, cierre por botón/Escape/fondo, inert/aria-hidden, scroll lock y los tres destinos de foco; E2E focalizado 5/5, E2E predeterminado 18/18 y unitarias 31/31 archivos, 259/259 pruebas.
 
 ### Estados, páginas y rutas
 
