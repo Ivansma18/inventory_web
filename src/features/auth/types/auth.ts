@@ -28,6 +28,11 @@ export interface AuthNetworkError {
 
 export type AuthSessionError = AuthContractError | AuthHttpError | AuthNetworkError;
 
+export type AuthSessionVerificationState =
+  | { status: "pending"; error: null }
+  | { status: "success"; error: null }
+  | { status: "error"; error: AuthSessionError };
+
 export type AuthSessionState =
   | {
       status: "pending";
@@ -105,6 +110,7 @@ export type AuthSessionQueryResult =
   | { data: null; error: null; stale: true };
 
 export type UseSessionResult = AuthSessionState & {
+  verification: AuthSessionVerificationState;
   isPending: boolean;
   refetch: () => Promise<AuthSessionQueryResult>;
 };

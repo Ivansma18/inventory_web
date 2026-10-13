@@ -15,8 +15,8 @@ Cada tarea busca una unidad de aproximadamente 15–30 minutos de trabajo activo
 
 - [x] T2. Ampliar el catálogo propio de Icon con home, menu y logout. (RF-2, RF-16, RF-22, RF-41; NFR-6)
       Hecho cuando: pruebas de contrato escritas primero verifican las nuevas opciones decorativas/informativas; la API pública no expone tipos ni clases vendor y las opciones anteriores siguen operativas. Evidencia: `tests/ui/icon.test.tsx` valida las 15 opciones decorativas, las 3 nuevas opciones informativas y la restricción de `className`; `pnpm typecheck` confirma la API tipada.
-- [ ] T3. Exponer metadatos reactivos de verificación inicial mediante la API pública de Auth. (RF-31–RF-32, RF-35, RF-38; NFR-9)
-      Hecho cuando: pruebas MSW verifican pending, success ante sesión válida o 401 y error ante red/HTTP/contrato; useSession publica verification sin duplicar usuario/sesión ni romper sus campos existentes.
+- [x] T3. Exponer metadatos reactivos de verificación inicial mediante la API pública de Auth. (RF-31–RF-32, RF-35, RF-38; NFR-9)
+      Hecho cuando: pruebas MSW verifican pending, success ante sesión válida o 401 y error ante red/HTTP/contrato; useSession publica verification sin duplicar usuario/sesión ni romper sus campos existentes. Evidencia: `tests/auth-session-plugin.test.tsx` y `tests/auth-public-api.test.tsx`; suite completa 29/29 archivos y 241/241 pruebas, typecheck y lint.
 - [ ] T4. Publicar el resultado reactivo de recomprobaciones posteriores. (RF-31–RF-32, RF-38–RF-40, RF-55; NFR-9)
       Hecho cuando: pruebas verifican pending → error → success después de sesión válida; el error posterior no queda solo en el retorno de refetch y se conservan las garantías previas del estado confirmado del plugin.
 - [ ] T5. Deduplicar comprobaciones concurrentes de la misma generación. (RF-31, RF-39, RF-55; NFR-9, NFR-10)

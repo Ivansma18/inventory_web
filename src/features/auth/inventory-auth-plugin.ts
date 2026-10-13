@@ -12,6 +12,7 @@ import type {
   AuthSessionError as InventorySessionError,
   AuthSessionQueryResult as InventorySessionQueryResult,
   AuthSessionState as InventorySessionState,
+  AuthSessionVerificationState as InventorySessionVerificationState,
   AuthSignInResult as InventorySignInResult,
   AuthSignOutResult as InventorySignOutResult,
   SignInCredentials as AuthCredentials,
@@ -103,6 +104,10 @@ const hasUnauthorizedCode = (error: unknown): boolean => {
 
 export const createInventoryAuthPlugin = () => {
   const inventorySession = atom<InventorySessionState>(createPendingState());
+  const inventorySessionVerification = atom<InventorySessionVerificationState>({
+    status: "pending",
+    error: null,
+  });
   const inventorySignIn = atom<InventorySignInState>({ isPending: false });
   const inventorySignOut = atom<InventorySignOutState>({ isPending: false });
   let initialSessionQueryStarted = false;
@@ -111,7 +116,13 @@ export const createInventoryAuthPlugin = () => {
 
   const refreshSession = async (
     request: () => Promise<BetterFetchResponse<unknown>>,
+    publishInitialVerification = false,
   ): Promise<InventorySessionQueryResult> => {
+    const setInitialVerification = (verification: InventorySessionVerificationState) => {
+      if (publishInitialVerification) {
+        inventorySessionVerification.set(verification);
+      }
+    };
     const requestOperationVersion = sessionOperationVersion;
     const responseIsStale = () => requestOperationVersion !== sessionOperationVersion;
     const current = inventorySession.get();
@@ -131,10 +142,12 @@ export const createInventoryAuthPlugin = () => {
       if (result.error) {
         if (result.error.status === 401) {
           inventorySession.set(createUnauthenticatedState());
+          setInitialVerification({ status: "success", error: null });
           return { data: null, error: null };
         }
 
         const error = createHttpError("session", result.error.status);
+        setInitialVerification({ status: "error", error });
         if (!hasConfirmedSession) {
           inventorySession.set(createUnconfirmedState(error));
         }
@@ -145,6 +158,7 @@ export const createInventoryAuthPlugin = () => {
       if (!parsed.success) {
         const error = createContractError(200, "session");
         inventorySession.set(createUnconfirmedState(error));
+        setInitialVerification({ status: "error", error });
         return { data: null, error };
       }
 
@@ -157,6 +171,7 @@ export const createInventoryAuthPlugin = () => {
         isUnauthenticated: false,
         error: null,
       });
+      setInitialVerification({ status: "success", error: null });
       return { data: parsed.data, error: null };
     } catch (error: unknown) {
       if (responseIsStale()) {
@@ -166,10 +181,12 @@ export const createInventoryAuthPlugin = () => {
       if (error instanceof AuthResponseContractError) {
         const contractError = createContractError(error.status, "session");
         inventorySession.set(createUnconfirmedState(contractError));
+        setInitialVerification({ status: "error", error: contractError });
         return { data: null, error: contractError };
       }
 
       const networkError = createNetworkError("session");
+      setInitialVerification({ status: "error", error: networkError });
       if (!hasConfirmedSession) {
         inventorySession.set(createUnconfirmedState(networkError));
       }
@@ -312,16 +329,24 @@ export const createInventoryAuthPlugin = () => {
         }
 
         initialSessionQueryStarted = true;
-        void refreshSession(() =>
-          $fetch<unknown>("/get-session", {
-            method: "GET",
-            credentials: "include",
-            timeout: AUTH_REQUEST_TIMEOUT_MS,
-          }),
+        inventorySessionVerification.set({ status: "pending", error: null });
+        void refreshSession(
+          () =>
+            $fetch<unknown>("/get-session", {
+              method: "GET",
+              credentials: "include",
+              timeout: AUTH_REQUEST_TIMEOUT_MS,
+            }),
+          true,
         ).catch(() => undefined);
       });
 
-      return { inventorySession, inventorySignIn, inventorySignOut };
+      return {
+        inventorySession,
+        inventorySessionVerification,
+        inventorySignIn,
+        inventorySignOut,
+      };
     },
     getActions: ($fetch) => ({
       signInWithEmail: (credentials: AuthCredentials) =>

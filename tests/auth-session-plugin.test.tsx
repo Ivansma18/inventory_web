@@ -67,9 +67,12 @@ describe("Inventory auth session atom", () => {
     );
 
     const client = createTestAuthClient();
-    const { result } = renderHook(() => client.useInventorySession());
+    const { result } = renderHook(() => ({
+      session: client.useInventorySession(),
+      verification: client.useInventorySessionVerification(),
+    }));
 
-    expect(result.current).toEqual({
+    expect(result.current.session).toEqual({
       status: "pending",
       user: null,
       session: null,
@@ -78,9 +81,10 @@ describe("Inventory auth session atom", () => {
       isUnauthenticated: false,
       error: null,
     });
+    expect(result.current.verification).toEqual({ status: "pending", error: null });
 
-    await waitFor(() => expect(result.current.status).toBe("authenticated"));
-    expect(result.current).toMatchObject({
+    await waitFor(() => expect(result.current.session.status).toBe("authenticated"));
+    expect(result.current.session).toMatchObject({
       user: authResponse("first-user").data.user,
       session: authResponse("first-user").data.session,
       isRefetching: false,
@@ -88,6 +92,7 @@ describe("Inventory auth session atom", () => {
       isUnauthenticated: false,
       error: null,
     });
+    expect(result.current.verification).toEqual({ status: "success", error: null });
   });
 
   it("confirms unauthenticated when the initial session query returns 401", async () => {
@@ -101,11 +106,15 @@ describe("Inventory auth session atom", () => {
     );
 
     const client = createTestAuthClient();
-    const { result } = renderHook(() => client.useInventorySession());
+    const { result } = renderHook(() => ({
+      session: client.useInventorySession(),
+      verification: client.useInventorySessionVerification(),
+    }));
 
-    expect(result.current.status).toBe("pending");
-    await waitFor(() => expect(result.current.status).toBe("unauthenticated"));
-    expect(result.current).toMatchObject({
+    expect(result.current.session.status).toBe("pending");
+    expect(result.current.verification).toEqual({ status: "pending", error: null });
+    await waitFor(() => expect(result.current.session.status).toBe("unauthenticated"));
+    expect(result.current.session).toMatchObject({
       user: null,
       session: null,
       isRefetching: false,
@@ -113,6 +122,7 @@ describe("Inventory auth session atom", () => {
       isUnauthenticated: true,
       error: null,
     });
+    expect(result.current.verification).toEqual({ status: "success", error: null });
   });
 
   it.each(["http", "network"] as const)(
@@ -130,10 +140,13 @@ describe("Inventory auth session atom", () => {
       const client = createTestAuthClient(
         failureKind === "network" ? failFetchFor("/get-session") : undefined,
       );
-      const { result } = renderHook(() => client.useInventorySession());
+      const { result } = renderHook(() => ({
+        session: client.useInventorySession(),
+        verification: client.useInventorySessionVerification(),
+      }));
 
-      await waitFor(() => expect(result.current.status).toBe("unconfirmed"));
-      expect(result.current).toMatchObject({
+      await waitFor(() => expect(result.current.session.status).toBe("unconfirmed"));
+      expect(result.current.session).toMatchObject({
         user: null,
         session: null,
         isAuthenticated: false,
@@ -145,7 +158,17 @@ describe("Inventory auth session atom", () => {
           message: expect.any(String),
         },
       });
-      expect(JSON.stringify(result.current.error)).not.toContain("Sensitive");
+      expect(JSON.stringify(result.current.session.error)).not.toContain("Sensitive");
+      expect(result.current.verification).toMatchObject({
+        status: "error",
+        error: {
+          kind: failureKind,
+          operation: "session",
+          ...(failureKind === "http" ? { status: 503 } : {}),
+          message: expect.any(String),
+        },
+      });
+      expect(JSON.stringify(result.current.verification.error)).not.toContain("Sensitive");
     },
   );
 
@@ -242,10 +265,13 @@ describe("Inventory auth session atom", () => {
     );
 
     const client = createTestAuthClient();
-    const { result } = renderHook(() => client.useInventorySession());
+    const { result } = renderHook(() => ({
+      session: client.useInventorySession(),
+      verification: client.useInventorySessionVerification(),
+    }));
 
-    await waitFor(() => expect(result.current.status).toBe("unconfirmed"));
-    expect(result.current).toMatchObject({
+    await waitFor(() => expect(result.current.session.status).toBe("unconfirmed"));
+    expect(result.current.session).toMatchObject({
       user: null,
       session: null,
       isAuthenticated: false,
@@ -255,6 +281,10 @@ describe("Inventory auth session atom", () => {
         status: 200,
         message: expect.any(String),
       },
+    });
+    expect(result.current.verification).toMatchObject({
+      status: "error",
+      error: { kind: "contract", operation: "session", status: 200 },
     });
   });
 
