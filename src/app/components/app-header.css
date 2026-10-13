@@ -31,6 +31,24 @@
   gap: var(--ui-space-2);
 }
 
+.app-header__logout {
+  display: flex;
+  min-inline-size: 0;
+  flex: 0 1 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--ui-space-1);
+}
+
+.app-header__logout-error {
+  max-inline-size: min(14rem, 40vw);
+  color: var(--ui-color-on-error);
+  font-size: var(--ui-font-size-xs);
+  line-height: var(--ui-line-height-normal);
+  overflow-wrap: anywhere;
+  text-align: end;
+}
+
 @media (max-width: 30rem) {
   .app-header {
     gap: var(--ui-space-2);

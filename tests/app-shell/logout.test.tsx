@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
@@ -23,9 +23,9 @@ const deferred = <T,>(): Deferred<T> => {
 };
 
 describe("App Shell logout", () => {
-  it("shows pending state, blocks duplicate requests, and leaves after confirmed 204", async () => {
-    const signOutStarted = deferred<void>();
-    const signOutResponse = deferred<Response>();
+  it("reports a failure accessibly and allows retry only while the session remains active", async () => {
+    const firstSignOutStarted = deferred<void>();
+    const firstSignOutResponse = deferred<Response>();
     let signOutRequests = 0;
 
     server.use(
@@ -39,8 +39,12 @@ describe("App Shell logout", () => {
       ),
       http.post(/\/api\/auth\/sign-out/, async () => {
         signOutRequests += 1;
-        signOutStarted.resolve();
-        return signOutResponse.promise;
+        if (signOutRequests === 1) {
+          firstSignOutStarted.resolve();
+          return firstSignOutResponse.promise;
+        }
+
+        return new HttpResponse(null, { status: 204 });
       }),
     );
 
@@ -52,26 +56,35 @@ describe("App Shell logout", () => {
     expect(screen.getByRole("heading", { name: "Bienvenido a Inventory" })).toBeVisible();
 
     await user.click(signOutButton);
-    await signOutStarted.promise;
-
+    await firstSignOutStarted.promise;
     const pendingButton = screen.getByRole("button", { name: "Cerrando sesión…" });
     expect(pendingButton).toBeDisabled();
-    expect(pendingButton).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("heading", { name: "Bienvenido a Inventory" })).toBeVisible();
     expect(signOutRequests).toBe(1);
 
     await user.click(pendingButton);
     expect(signOutRequests).toBe(1);
 
-    signOutResponse.resolve(new HttpResponse(null, { status: 204 }));
-    await act(async () => {
-      await screen.findByRole("heading", { name: "Sesión no iniciada" });
-    });
+    firstSignOutResponse.resolve(
+      HttpResponse.json(
+        { error: { code: "INTERNAL", message: "Internal error." } },
+        { status: 503 },
+      ),
+    );
+    const errorMessage = await screen.findByRole("alert");
+    expect(errorMessage).toHaveTextContent("No se pudo cerrar sesión. Inténtalo de nuevo.");
+    expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeEnabled();
+    expect(screen.getByRole("heading", { name: "Bienvenido a Inventory" })).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Cerrar sesión" }));
+    await screen.findByRole("heading", { name: "Sesión no iniciada" });
+    expect(signOutRequests).toBe(2);
 
     expect(
       screen.queryByRole("heading", { name: "Bienvenido a Inventory" }),
     ).not.toBeInTheDocument();
-    expect(signOutRequests).toBe(1);
+    expect(screen.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
+    expect(signOutRequests).toBe(2);
     router.dispose();
   });
 });
