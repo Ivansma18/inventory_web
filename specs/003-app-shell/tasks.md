@@ -28,8 +28,8 @@ Cada tarea busca una unidad de aproximadamente 15–30 minutos de trabajo activo
 
 - [x] T7. Crear la preferencia de sidebar en Zustand con persistencia local versionada. (RF-18–RF-19, RF-30, RF-57; NFR-7)
       Hecho cuando: pruebas verifican valor expandido predeterminado, alternancia y restauración de un booleano válido con la clave acordada; solo se guarda la preferencia, sin datos Auth ni apertura del panel compacto. Evidencia: `tests/app-shell/shell-preferences.test.ts` comprueba el valor inicial, persistencia parcial versionada y restauración; suite completa 30/30 archivos y 249/249 pruebas.
-- [ ] T8. Gestionar contenido persistido inválido y almacenamiento no disponible. (RF-19–RF-20; NFR-7)
-      Hecho cuando: pruebas de lectura inválida y excepciones de lectura/escritura verifican funcionamiento en memoria y alternancia posterior sin bloquear la aplicación.
+- [x] T8. Gestionar contenido persistido inválido y almacenamiento no disponible. (RF-19–RF-20; NFR-7)
+      Hecho cuando: pruebas de lectura inválida y excepciones de lectura/escritura verifican funcionamiento en memoria y alternancia posterior sin bloquear la aplicación. Evidencia: `tests/app-shell/shell-preferences.test.ts` cubre JSON malformado, valor no booleano, lectura/escritura bloqueadas y recuperación de alternancia; suite completa 30/30 archivos y 252/252 pruebas.
 
 ### Primitiva Drawer
 
