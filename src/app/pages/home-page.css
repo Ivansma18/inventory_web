@@ -1,0 +1,37 @@
+.home-page {
+  box-sizing: border-box;
+  inline-size: min(100%, 64rem);
+  padding-block: clamp(var(--ui-space-6), 6vh, var(--ui-space-8));
+}
+
+.home-page__content {
+  max-inline-size: 42rem;
+}
+
+.home-page__content::before {
+  display: block;
+  inline-size: 2.5rem;
+  block-size: var(--ui-border-width);
+  margin-block-end: var(--ui-space-5);
+  background-color: var(--ui-color-primary);
+  content: "";
+}
+
+.home-page__heading {
+  max-inline-size: 22ch;
+  margin: 0;
+  color: var(--ui-color-text);
+  font-size: var(--ui-font-size-3xl);
+  font-weight: var(--ui-font-weight-semibold);
+  letter-spacing: -0.03em;
+  line-height: var(--ui-line-height-tight);
+  text-wrap: balance;
+}
+
+.home-page__message {
+  max-inline-size: 65ch;
+  margin: var(--ui-space-3) 0 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-font-size-lg);
+  line-height: var(--ui-line-height-relaxed);
+}

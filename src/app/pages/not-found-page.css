@@ -1,0 +1,39 @@
+.not-found-page {
+  box-sizing: border-box;
+  inline-size: min(100%, 36rem);
+  padding-block: clamp(var(--ui-space-6), 6vh, var(--ui-space-8));
+}
+
+.not-found-page__heading {
+  max-inline-size: 22ch;
+  margin: 0;
+  color: var(--ui-color-text);
+  font-size: var(--ui-font-size-3xl);
+  font-weight: var(--ui-font-weight-semibold);
+  letter-spacing: -0.03em;
+  line-height: var(--ui-line-height-tight);
+  text-wrap: balance;
+}
+
+.not-found-page__message {
+  max-inline-size: 65ch;
+  margin: var(--ui-space-3) 0 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-font-size-md);
+  line-height: var(--ui-line-height-relaxed);
+}
+
+.not-found-page__action {
+  display: inline-flex;
+  margin-block-start: var(--ui-space-5);
+  color: var(--ui-color-primary);
+  font-size: var(--ui-font-size-md);
+  font-weight: var(--ui-font-weight-semibold);
+  text-decoration: underline;
+  text-decoration-thickness: var(--ui-border-width);
+  text-underline-offset: var(--ui-space-1);
+}
+
+.not-found-page__action:hover {
+  color: var(--ui-color-primary-hover);
+}
