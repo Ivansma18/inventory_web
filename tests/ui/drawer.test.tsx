@@ -67,4 +67,48 @@ describe("Drawer", () => {
     expect(onCloseRequest).toHaveBeenCalledExactlyOnceWith();
     expect(screen.getByRole("dialog", { name: "Navegación principal" })).toBeInTheDocument();
   });
+
+  it("moves initial focus inside and contains Tab and Shift+Tab", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <main>
+          <button>Outside action</button>
+        </main>
+        <Drawer open title="Focus navigation" onCloseRequest={() => undefined}>
+          <button>First destination</button>
+          <button>Last destination</button>
+        </Drawer>
+      </>,
+    );
+
+    const drawer = await screen.findByRole("dialog", { name: "Focus navigation" });
+    const closeButton = screen.getByRole("button", { name: "Cerrar panel" });
+    const lastDestination = screen.getByRole("button", { name: "Last destination" });
+    await waitFor(() => expect(drawer.contains(document.activeElement)).toBe(true));
+
+    lastDestination.focus();
+    await user.tab();
+    expect(closeButton).toHaveFocus();
+
+    await user.tab({ shift: true });
+    expect(lastDestination).toHaveFocus();
+  });
+
+  it("makes outside page content inert and hidden from assistive technology", async () => {
+    const { container } = render(
+      <>
+        <main>
+          <button>Outside action</button>
+        </main>
+        {defaultDrawer()}
+      </>,
+    );
+
+    await screen.findByRole("dialog", { name: "Navegación principal" });
+
+    expect(container).toHaveAttribute("inert");
+    expect(container).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByRole("button", { name: "Outside action" })).not.toBeInTheDocument();
+  });
 });

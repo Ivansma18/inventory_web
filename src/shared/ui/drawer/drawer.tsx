@@ -1,10 +1,16 @@
 import "./drawer.css";
 
 import { Sidebar as PrimeSidebar } from "primereact/sidebar";
-import { useId } from "react";
-import type { ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 
 import { Icon } from "../icon/icon";
+import {
+  focusElement,
+  getFirstFocusableElement,
+  getFocusableElements,
+  makeOutsideContentInert,
+} from "../modal/modal-accessibility";
 
 export interface DrawerProps {
   open: boolean;
@@ -13,11 +19,81 @@ export interface DrawerProps {
   onCloseRequest: () => void;
 }
 
+const createPortalContainer = () => {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const container = document.createElement("div");
+  container.dataset.uiDrawerPortal = "";
+  return container;
+};
+
 export const Drawer = ({ open, title, children, onCloseRequest }: DrawerProps) => {
   const titleId = useId();
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const [portalContainer] = useState(createPortalContainer);
+
+  useLayoutEffect(() => {
+    if (!portalContainer) {
+      return;
+    }
+
+    document.body.appendChild(portalContainer);
+    return () => portalContainer.remove();
+  }, [portalContainer]);
+
+  useLayoutEffect(() => {
+    if (!open || !portalContainer) {
+      return;
+    }
+
+    return makeOutsideContentInert(portalContainer);
+  }, [open, portalContainer]);
+
+  const focusDrawerOnShow = () => {
+    if (!portalContainer) {
+      return;
+    }
+
+    const initialFocusTarget = getFirstFocusableElement(portalContainer) ?? titleRef.current;
+    initialFocusTarget?.focus({ preventScroll: true });
+  };
+
+  const containTabNavigation = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Tab" || !portalContainer) {
+      return;
+    }
+
+    const focusableElements = getFocusableElements(portalContainer);
+    const firstFocusable = focusableElements[0];
+    const lastFocusable = focusableElements[focusableElements.length - 1];
+    if (!firstFocusable || !lastFocusable) {
+      event.preventDefault();
+      titleRef.current?.focus({ preventScroll: true });
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    const focusIsInside =
+      activeElement instanceof HTMLElement && portalContainer.contains(activeElement);
+
+    if (event.shiftKey && (activeElement === firstFocusable || !focusIsInside)) {
+      event.preventDefault();
+      focusElement(lastFocusable);
+    } else if (!event.shiftKey && (activeElement === lastFocusable || !focusIsInside)) {
+      event.preventDefault();
+      focusElement(firstFocusable);
+    }
+  };
+
+  if (!portalContainer) {
+    return null;
+  }
 
   return (
     <PrimeSidebar
+      appendTo={portalContainer}
       aria-labelledby={titleId}
       aria-modal={true}
       ariaCloseLabel="Cerrar panel"
@@ -27,13 +103,15 @@ export const Drawer = ({ open, title, children, onCloseRequest }: DrawerProps) =
       closeOnEscape
       dismissable
       header={
-        <h2 className="ui-drawer__title" id={titleId}>
+        <h2 className="ui-drawer__title" id={titleId} ref={titleRef} tabIndex={-1}>
           {title}
         </h2>
       }
+      onKeyDown={containTabNavigation}
       maskClassName="ui-drawer__mask"
       modal
       onHide={onCloseRequest}
+      onShow={focusDrawerOnShow}
       position="left"
       role="dialog"
       showCloseIcon
