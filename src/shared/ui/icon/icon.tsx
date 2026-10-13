@@ -7,6 +7,9 @@ export type IconName =
   | "success"
   | "warning"
   | "error"
+  | "home"
+  | "menu"
+  | "logout"
   | "loading"
   | "previous"
   | "next"
@@ -39,6 +42,9 @@ const primeIconByName: Record<IconName, string> = {
   success: "pi-check-circle",
   warning: "pi-exclamation-triangle",
   error: "pi-times-circle",
+  home: "pi-home",
+  menu: "pi-bars",
+  logout: "pi-sign-out",
   loading: "pi-spinner pi-spin",
   previous: "pi-chevron-left",
   next: "pi-chevron-right",

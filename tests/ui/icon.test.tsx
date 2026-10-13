@@ -17,7 +17,12 @@ const iconNames = [
   "sort",
   "sortAscending",
   "sortDescending",
+  "home",
+  "menu",
+  "logout",
 ] satisfies IconName[];
+
+const shellIconNames = ["home", "menu", "logout"] satisfies IconName[];
 
 // @ts-expect-error Icon names are restricted to the public catalog.
 const invalidIconName: IconProps = { name: "edit" };
@@ -49,6 +54,13 @@ describe("Icon", () => {
     render(<Icon name="info" decorative={false} label="Más información" />);
 
     expect(screen.getByRole("img", { name: "Más información" })).toBeInTheDocument();
+  });
+
+  it.each(shellIconNames)("supports the %s catalog entry as informative", (name) => {
+    const label = `Icono ${name}`;
+    render(<Icon name={name} decorative={false} label={label} />);
+
+    expect(screen.getByRole("img", { name: label })).toBeInTheDocument();
   });
 
   it("rejects an empty informative label", () => {
