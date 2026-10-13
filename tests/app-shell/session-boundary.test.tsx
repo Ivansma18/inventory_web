@@ -44,13 +44,16 @@ const unauthenticatedResponse = () =>
   );
 
 describe("SessionBoundary", () => {
-  it("prioritizes the latest public verification and only mounts protected content after success", async () => {
-    const pendingResponses = Array.from({ length: 5 }, () => deferred<Response>());
-    const requestsStarted = Array.from({ length: 5 }, () => deferred<void>());
+  it("recovers from HTTP, network, and contract failures without losing the URL", async () => {
+    const pendingResponses = Array.from({ length: 6 }, () => deferred<Response>());
+    const requestsStarted = Array.from({ length: 6 }, () => deferred<void>());
     let requestCount = 0;
     let refetch: UseSessionResult["refetch"] | undefined;
     const onProtectedMount = vi.fn();
     const onProtectedUnmount = vi.fn();
+
+    window.history.replaceState(null, "", "/requested/report?filter=low-stock#row-7");
+    const requestedUrl = window.location.href;
 
     server.use(
       http.get(/\/api\/auth\/get-session/, async () => {
@@ -103,18 +106,22 @@ describe("SessionBoundary", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No se pudo"));
     expect(onProtectedMount).not.toHaveBeenCalled();
 
-    let recovery!: Promise<AuthSessionQueryResult>;
+    const initialAlert = screen.getByRole("alert");
+    const retryButton = screen.getByRole("button", { name: "Reintentar" });
+    expect(initialAlert).not.toContainElement(retryButton);
     act(() => {
-      recovery = refetch!();
+      retryButton.click();
+      retryButton.click();
     });
     await requestsStarted[1]?.promise;
+    expect(requestCount).toBe(2);
     expect(screen.getByRole("status")).toHaveTextContent("Comprobando tu sesión");
     expect(screen.queryByText(/Contenido privado/)).not.toBeInTheDocument();
 
     pendingResponses[1]?.resolve(HttpResponse.json(publicAuthResponse("confirmed-user")));
-    await act(async () => recovery);
     expect(await screen.findByText("Contenido privado de confirmed-user")).toBeInTheDocument();
     expect(onProtectedMount).toHaveBeenCalledTimes(1);
+    expect(window.location.href).toBe(requestedUrl);
 
     let failedRefetch!: Promise<AuthSessionQueryResult>;
     act(() => {
@@ -125,38 +132,51 @@ describe("SessionBoundary", () => {
     await waitFor(() => expect(onProtectedUnmount).toHaveBeenCalledTimes(1));
     expect(screen.queryByText(/Contenido privado/)).not.toBeInTheDocument();
 
-    pendingResponses[2]?.resolve(
-      HttpResponse.json({ error: { code: "INTERNAL" } }, { status: 503 }),
-    );
+    pendingResponses[2]?.resolve(HttpResponse.error());
     await act(async () => failedRefetch);
     expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo");
     expect(screen.queryByText(/Contenido privado/)).not.toBeInTheDocument();
     expect(onProtectedMount).toHaveBeenCalledTimes(1);
 
-    let successfulRefetch!: Promise<AuthSessionQueryResult>;
+    const retryUnauthenticatedButton = screen.getByRole("button", { name: "Reintentar" });
     act(() => {
-      successfulRefetch = refetch!();
+      retryUnauthenticatedButton.click();
     });
     await requestsStarted[3]?.promise;
-    pendingResponses[3]?.resolve(HttpResponse.json(publicAuthResponse("recovered-user")));
-    await act(async () => successfulRefetch);
-    expect(await screen.findByText("Contenido privado de recovered-user")).toBeInTheDocument();
-    expect(onProtectedMount).toHaveBeenCalledTimes(2);
-
-    let unauthenticatedRefetch!: Promise<AuthSessionQueryResult>;
-    act(() => {
-      unauthenticatedRefetch = refetch!();
-    });
-    await requestsStarted[4]?.promise;
     expect(screen.getByRole("status")).toHaveTextContent("Comprobando tu sesión");
-    await waitFor(() => expect(onProtectedUnmount).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(onProtectedUnmount).toHaveBeenCalledTimes(1));
 
-    pendingResponses[4]?.resolve(unauthenticatedResponse());
-    await act(async () => unauthenticatedRefetch);
+    pendingResponses[3]?.resolve(unauthenticatedResponse());
     expect(
       await screen.findByRole("heading", { level: 1, name: "Sesión no iniciada" }),
     ).toBeVisible();
     expect(screen.queryByText(/Contenido privado/)).not.toBeInTheDocument();
-    expect(requestCount).toBe(5);
+    expect(window.location.href).toBe(requestedUrl);
+
+    let contractFailure!: Promise<AuthSessionQueryResult>;
+    act(() => {
+      contractFailure = refetch!();
+    });
+    await requestsStarted[4]?.promise;
+    expect(screen.getByRole("status")).toHaveTextContent("Comprobando tu sesión");
+
+    pendingResponses[4]?.resolve(
+      HttpResponse.json({ data: { user: { id: "incomplete-user" }, session: {} } }),
+    );
+    await act(async () => contractFailure);
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo");
+
+    const retryContractButton = screen.getByRole("button", { name: "Reintentar" });
+    act(() => {
+      retryContractButton.click();
+    });
+    await requestsStarted[5]?.promise;
+    expect(screen.getByRole("status")).toHaveTextContent("Comprobando tu sesión");
+
+    pendingResponses[5]?.resolve(HttpResponse.json(publicAuthResponse("contract-recovered")));
+    expect(await screen.findByText("Contenido privado de contract-recovered")).toBeInTheDocument();
+    expect(onProtectedMount).toHaveBeenCalledTimes(2);
+    expect(window.location.href).toBe(requestedUrl);
+    expect(requestCount).toBe(6);
   });
 });

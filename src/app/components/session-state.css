@@ -37,3 +37,7 @@
   font-size: var(--ui-font-size-md);
   line-height: var(--ui-line-height-relaxed);
 }
+
+.session-state__actions {
+  margin-block-start: var(--ui-space-5);
+}

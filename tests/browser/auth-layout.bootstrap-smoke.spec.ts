@@ -40,7 +40,11 @@ for (const width of [360, 768, 1280]) {
       await expect(page.getByRole("navigation")).toHaveCount(0);
       await expect(page.getByRole("link")).toHaveCount(0);
       await expect(page.getByRole("form")).toHaveCount(0);
-      await expect(page.getByRole("button")).toHaveCount(0);
+      if (state.id === "error") {
+        await expect(page.getByRole("button", { name: "Reintentar" })).toBeVisible();
+      } else {
+        await expect(page.getByRole("button")).toHaveCount(0);
+      }
 
       const dimensions = await page.evaluate(() => ({
         documentHeight: document.documentElement.scrollHeight,

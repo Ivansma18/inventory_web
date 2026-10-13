@@ -23,6 +23,6 @@ const state: SessionStateProps["state"] = validStates.includes(
 
 createRoot(root).render(
   <AuthLayout>
-    <SessionState state={state} />
+    <SessionState state={state} onRetry={state === "error" ? () => undefined : undefined} />
   </AuthLayout>,
 );

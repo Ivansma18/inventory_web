@@ -22,7 +22,7 @@ export const SessionBoundary = ({ children }: SessionBoundaryProps) => {
   if (session.verification.status === "error" || session.status === "unconfirmed") {
     return (
       <AuthLayout>
-        <SessionState state="error" />
+        <SessionState state="error" onRetry={() => void session.refetch()} />
       </AuthLayout>
     );
   }
