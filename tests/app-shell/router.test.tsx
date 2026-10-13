@@ -86,6 +86,20 @@ describe("App Shell routes and navigation catalog", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
     ).toBeVisible();
+    const homeMain = screen.getByRole("main");
+    expect(homeMain).toContainElement(
+      screen.getByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+    );
+    expect(screen.getByRole("banner")).toHaveTextContent("operator@example.com");
+    expect(
+      screen.getByRole("complementary", { name: "Barra lateral de Inventory" }),
+    ).toHaveTextContent("Inventory");
+    expect(screen.getByRole("link", { name: "Saltar al contenido" })).toHaveAttribute(
+      "href",
+      "#main-content",
+    );
+    expect(homeMain).toHaveAttribute("id", "main-content");
+    expect(homeMain).toHaveAttribute("tabindex", "-1");
 
     await act(async () => router.navigate("/not-registered"));
     expect(

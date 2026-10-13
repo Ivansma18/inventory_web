@@ -61,8 +61,8 @@ Cada tarea busca una unidad de aproximadamente 15–30 minutos de trabajo activo
 
 - [x] T19. Derivar y presentar la identidad pública en el encabezado. (RF-2, RF-33–RF-34; NFR-1, NFR-5, NFR-8)
       Hecho cuando: pruebas del formateador cubren nombre → correo → Usuario; la integración usa el correo del contrato vigente, no acepta una respuesta Auth incompleta y permite consultar identidad larga sin ocultar acciones. Evidencia: `tests/app-shell/public-identity.test.tsx` verifica precedencia, fallback y rechazo de identidad incompleta mediante la API pública de Auth; `tests/app-shell/app-header.test.tsx` comprueba email confirmado, foco y acción visible con identidad larga; E2E Chromium valida 360/768/1280 px. E2E secuencial 27/27, `preview-smoke` 1/1 y unitarias 37/37 archivos, 274/274 pruebas.
-- [ ] T20. Componer AppLayout con header, sidebar, contenido y enlace de salto. (RF-1–RF-2, RF-5, RF-50, RF-52, RF-57; NFR-6)
-      Hecho cuando: pruebas por roles verifican regiones y salto al contenido; el layout presenta la página mediante Outlet, con estilos locales y foco visible.
+- [x] T20. Componer AppLayout con header, sidebar, contenido y enlace de salto. (RF-1–RF-2, RF-5, RF-50, RF-52, RF-57; NFR-6)
+      Hecho cuando: pruebas por roles verifican regiones y salto al contenido; el layout presenta la página mediante Outlet, con estilos locales y foco visible. Evidencia: `tests/app-shell/router.test.tsx` verifica banner, región lateral, main, Home dentro del contenido y enlace de salto; `tests/browser/app-layout.bootstrap-smoke.spec.ts` comprueba Tab → enlace de salto → foco en main a 360/768/1280 px. E2E secuencial 30/30, `preview-smoke` 1/1 y unitarias 37/37 archivos, 274/274 pruebas.
 - [ ] T21. Implementar enlaces semánticos y estado activo de navegación. (RF-6–RF-10, RF-51)
       Hecho cuando: pruebas verifican Inicio como único destino, activación por teclado y aria-current en coincidencia exacta; una URL desconocida no produce un enlace activo ficticio.
 - [ ] T22. Conectar sidebar expandida/contraída con su preferencia y nombres visibles. (RF-15–RF-20, RF-51–RF-53, RF-57)

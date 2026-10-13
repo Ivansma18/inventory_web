@@ -1,0 +1,94 @@
+.app-layout {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 16rem minmax(0, 1fr);
+  min-block-size: 100vh;
+  min-block-size: 100svh;
+  background-color: var(--ui-color-canvas);
+  color: var(--ui-color-text);
+  font-family: var(--ui-font-family-sans);
+}
+
+.app-layout__sidebar {
+  box-sizing: border-box;
+  min-inline-size: 0;
+  padding: var(--ui-space-5) var(--ui-space-4);
+  border-inline-end: var(--ui-border-width) solid var(--ui-color-border);
+  background-color: var(--ui-color-surface-muted);
+}
+
+.app-layout__brand {
+  margin: 0;
+  color: var(--ui-color-text);
+  font-size: var(--ui-font-size-xl);
+  font-weight: var(--ui-font-weight-semibold);
+  letter-spacing: -0.02em;
+  line-height: var(--ui-line-height-tight);
+}
+
+.app-layout__workspace {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+}
+
+.app-layout__header {
+  box-sizing: border-box;
+  display: flex;
+  min-block-size: 4.5rem;
+  align-items: center;
+  padding-inline: clamp(var(--ui-space-4), 3vw, var(--ui-space-6));
+  border-block-end: var(--ui-border-width) solid var(--ui-color-border);
+  background-color: var(--ui-color-surface);
+}
+
+.app-layout__main {
+  box-sizing: border-box;
+  min-inline-size: 0;
+  flex: 1 0 auto;
+  padding: clamp(var(--ui-space-4), 4vw, var(--ui-space-7));
+}
+
+.app-layout__skip-link {
+  position: fixed;
+  z-index: 1000;
+  inset-block-start: var(--ui-space-2);
+  inset-inline-start: var(--ui-space-2);
+  padding: var(--ui-space-2) var(--ui-space-4);
+  transform: translateY(calc(-100% - var(--ui-space-2)));
+  border-radius: var(--ui-radius-sm);
+  background-color: var(--ui-color-primary);
+  color: var(--ui-color-on-primary);
+  font-size: var(--ui-font-size-sm);
+  font-weight: var(--ui-font-weight-semibold);
+  line-height: var(--ui-line-height-normal);
+  text-decoration: none;
+  transition: transform var(--ui-motion-duration-fast) var(--ui-motion-ease-out);
+}
+
+.app-layout__skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+@media (max-width: 63.999rem) {
+  .app-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .app-layout__sidebar {
+    padding-block: var(--ui-space-3);
+    border-inline-end: 0;
+    border-block-end: var(--ui-border-width) solid var(--ui-color-border);
+  }
+
+  .app-layout__header {
+    min-block-size: 3.5rem;
+  }
+}
+
+@media (max-width: 30rem) {
+  .app-layout__main {
+    padding: var(--ui-space-4);
+  }
+}
