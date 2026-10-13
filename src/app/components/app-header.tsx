@@ -1,6 +1,5 @@
 import "./app-header.css";
 
-import { useState } from "react";
 import type { ReactNode } from "react";
 
 import { usePublicIdentity } from "@/app/hooks/use-public-identity";
@@ -35,18 +34,11 @@ export const AppHeader = ({ identity, actions }: AppHeaderProps) => {
 
 export const CurrentUserAppHeader = ({ actions }: CurrentUserAppHeaderProps) => {
   const identity = usePublicIdentity();
-  const { isSigningOut, signOut } = useAuth();
-  const [signOutFailed, setSignOutFailed] = useState(false);
+  const { isSigningOut, signOut, signOutError } = useAuth();
 
   if (!identity) {
     return null;
   }
-
-  const handleSignOut = async () => {
-    setSignOutFailed(false);
-    const result = await signOut();
-    setSignOutFailed(result.error !== null);
-  };
 
   return (
     <AppHeader
@@ -55,12 +47,12 @@ export const CurrentUserAppHeader = ({ actions }: CurrentUserAppHeaderProps) => 
         <>
           {actions}
           <div className="app-header__logout">
-            {signOutFailed ? (
+            {signOutError ? (
               <span className="app-header__logout-error" role="alert">
                 No se pudo cerrar sesión. Inténtalo de nuevo.
               </span>
             ) : null}
-            <Button loading={isSigningOut} onClick={() => void handleSignOut()} variant="secondary">
+            <Button loading={isSigningOut} onClick={() => void signOut()} variant="secondary">
               {isSigningOut ? "Cerrando sesión…" : "Cerrar sesión"}
             </Button>
           </div>

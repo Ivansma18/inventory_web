@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { SessionState } from "@/app/components/session-state";
 import { AuthLayout } from "@/app/layouts/auth-layout";
-import { useSession } from "@/features/auth";
+import { useAuth, useSession } from "@/features/auth";
 
 export interface SessionBoundaryProps {
   children: ReactNode;
@@ -10,6 +10,7 @@ export interface SessionBoundaryProps {
 
 export const SessionBoundary = ({ children }: SessionBoundaryProps) => {
   const session = useSession();
+  const { signOutError } = useAuth();
 
   if (session.verification.status === "pending") {
     return (
@@ -30,7 +31,7 @@ export const SessionBoundary = ({ children }: SessionBoundaryProps) => {
   if (session.verification.status === "success" && session.status === "unauthenticated") {
     return (
       <AuthLayout>
-        <SessionState state="signed-out" />
+        <SessionState signOutFailed={signOutError !== null} state="signed-out" />
       </AuthLayout>
     );
   }

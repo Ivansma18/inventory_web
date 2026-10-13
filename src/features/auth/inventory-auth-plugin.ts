@@ -8,7 +8,8 @@ import type {
   AuthHttpError as InventoryAuthHttpError,
   AuthNetworkError as InventoryAuthNetworkError,
   AuthOperationState as InventorySignInState,
-  AuthOperationState as InventorySignOutState,
+  AuthSignOutError as InventorySignOutError,
+  AuthSignOutOperationState as InventorySignOutState,
   AuthSessionError as InventorySessionError,
   AuthSessionQueryResult as InventorySessionQueryResult,
   AuthSessionState as InventorySessionState,
@@ -109,7 +110,7 @@ export const createInventoryAuthPlugin = () => {
     error: null,
   });
   const inventorySignIn = atom<InventorySignInState>({ isPending: false });
-  const inventorySignOut = atom<InventorySignOutState>({ isPending: false });
+  const inventorySignOut = atom<InventorySignOutState>({ isPending: false, error: null });
   let initialSessionQueryStarted = false;
   let sessionOperationVersion = 0;
   let activeAuthOperation: AuthMutationOperation | null = null;
@@ -323,14 +324,16 @@ export const createInventoryAuthPlugin = () => {
     }
 
     activeAuthOperation = "sign-out";
-    inventorySignOut.set({ isPending: true });
+    inventorySignOut.set({ isPending: true, error: null });
+    let operationError: InventorySignOutError | null = null;
 
     try {
       const result = await request();
       if (result.error) {
+        operationError = createHttpError("sign-out", result.error.status);
         return {
           data: null,
-          error: createHttpError("sign-out", result.error.status),
+          error: operationError,
         };
       }
 
@@ -340,16 +343,18 @@ export const createInventoryAuthPlugin = () => {
       return { data: null, error: null };
     } catch (error: unknown) {
       if (error instanceof AuthResponseContractError) {
+        operationError = createContractError(error.status, "sign-out");
         return {
           data: null,
-          error: createContractError(error.status, "sign-out"),
+          error: operationError,
         };
       }
 
-      return { data: null, error: createNetworkError("sign-out") };
+      operationError = createNetworkError("sign-out");
+      return { data: null, error: operationError };
     } finally {
       activeAuthOperation = null;
-      inventorySignOut.set({ isPending: false });
+      inventorySignOut.set({ isPending: false, error: operationError });
     }
   };
 

@@ -7,6 +7,7 @@ type SessionStateKind = "checking" | "error" | "signed-out";
 export interface SessionStateProps {
   state: SessionStateKind;
   onRetry?: () => void;
+  signOutFailed?: boolean;
 }
 
 const sessionStateCopy: Record<SessionStateKind, { heading: string; message: string }> = {
@@ -24,7 +25,7 @@ const sessionStateCopy: Record<SessionStateKind, { heading: string; message: str
   },
 };
 
-export const SessionState = ({ state, onRetry }: SessionStateProps) => {
+export const SessionState = ({ state, onRetry, signOutFailed = false }: SessionStateProps) => {
   const copy = sessionStateCopy[state];
   const isError = state === "error";
 
@@ -41,6 +42,11 @@ export const SessionState = ({ state, onRetry }: SessionStateProps) => {
         </h1>
         <p className="session-state__message">{copy.message}</p>
       </div>
+      {state === "signed-out" && signOutFailed ? (
+        <p aria-atomic="true" className="session-state__operation-error" role="alert">
+          No se pudo completar el cierre de sesión. La sesión ya no está activa.
+        </p>
+      ) : null}
       {isError && onRetry ? (
         <div className="session-state__actions">
           <Button onClick={onRetry}>Reintentar</Button>

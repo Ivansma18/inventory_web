@@ -8,6 +8,7 @@ export const useAuth = (): UseAuthResult => {
   return {
     isSigningIn: signInState.isPending,
     isSigningOut: signOutState.isPending,
+    signOutError: signOutState.error,
     signIn: (credentials) => authClient.signInWithEmail(credentials),
     signOut: () => authClient.signOutInventory(),
   };
