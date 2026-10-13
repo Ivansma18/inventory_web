@@ -79,6 +79,24 @@ describe("Button", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
+  it("exposes expanded state for controls that disclose a region", () => {
+    render(
+      <>
+        <Button ariaExpanded={true}>Contraer navegación</Button>
+        <Button ariaExpanded={false}>Expandir navegación</Button>
+      </>,
+    );
+
+    expect(screen.getByRole("button", { name: "Contraer navegación" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Expandir navegación" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
   it("does not submit a form unless submit is explicit", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn((event: FormEvent<HTMLFormElement>) => event.preventDefault());

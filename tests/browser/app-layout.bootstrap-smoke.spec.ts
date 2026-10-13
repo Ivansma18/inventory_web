@@ -3,6 +3,15 @@ import { expect, test } from "@playwright/test";
 for (const width of [360, 768, 1280]) {
   test(`composes App Shell regions and skip navigation at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
+    if (width === 1280) {
+      await page.addInitScript(() => {
+        localStorage.setItem(
+          "inventory.shell.preferences.v1",
+          JSON.stringify({ state: { sidebarCollapsed: true }, version: 1 }),
+        );
+      });
+    }
+
     await page.route("**/api/auth/get-session", async (route) => {
       await route.fulfill({
         status: 200,
@@ -29,6 +38,36 @@ for (const width of [360, 768, 1280]) {
     await expect(sidebar).toContainText("Inventory");
     await expect(navigation.getByRole("link")).toHaveCount(1);
     await expect(homeLink).toHaveAttribute("aria-current", "page");
+    if (width === 1280) {
+      const expandButton = page.getByRole("button", { name: "Expandir navegación" });
+      await expect(expandButton).toHaveAttribute("aria-expanded", "false");
+
+      await homeLink.hover();
+      await expect(page.getByRole("tooltip")).toHaveText("Inicio");
+      await page.mouse.move(0, 0);
+      await homeLink.focus();
+      await expect(page.getByRole("tooltip")).toHaveText("Inicio");
+
+      await expandButton.click();
+      const collapseButton = page.getByRole("button", { name: "Contraer navegación" });
+      await expect(collapseButton).toHaveAttribute("aria-expanded", "true");
+      await collapseButton.click();
+      await expect(page.getByRole("button", { name: "Expandir navegación" })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+      await expect
+        .poll(() => page.evaluate(() => localStorage.getItem("inventory.shell.preferences.v1")))
+        .toContain('"sidebarCollapsed":true');
+      await page.reload();
+      await expect(page.getByRole("button", { name: "Expandir navegación" })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+      await expect(page.getByRole("link", { name: "Inicio", exact: true })).toBeVisible();
+    } else {
+      await expect(page.getByRole("button", { name: /navegación/i })).toHaveCount(0);
+    }
     await expect(
       main.getByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
     ).toBeVisible();

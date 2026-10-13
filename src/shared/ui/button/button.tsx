@@ -6,6 +6,7 @@ import { Icon } from "../icon/icon";
 import type { IconName } from "../icon/icon";
 
 interface ButtonBaseProps {
+  ariaExpanded?: boolean;
   disabled?: boolean;
   loading?: boolean;
   onClick?: () => void;
@@ -29,6 +30,7 @@ export type ButtonVariant = "primary" | "secondary";
 export type ButtonProps = ButtonWithTextProps | IconOnlyButtonProps;
 
 export const Button = ({
+  ariaExpanded,
   disabled = false,
   loading = false,
   onClick,
@@ -63,6 +65,7 @@ export const Button = ({
   return (
     <PrimeButton
       aria-busy={loading || undefined}
+      aria-expanded={ariaExpanded}
       aria-label={iconOnly ? accessibleLabel : undefined}
       className={className}
       disabled={unavailable}

@@ -29,6 +29,26 @@
     color var(--ui-motion-duration-fast) var(--ui-motion-ease-out);
 }
 
+.app-navigation__label--visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.app-navigation[data-collapsed="true"] .app-navigation__list {
+  align-items: center;
+}
+
+.app-navigation[data-collapsed="true"] .app-navigation__link {
+  inline-size: var(--ui-control-height-lg);
+  justify-content: center;
+  padding-inline: 0;
+}
+
 .app-navigation__link:hover {
   background-color: var(--ui-color-surface);
   color: var(--ui-color-text);
