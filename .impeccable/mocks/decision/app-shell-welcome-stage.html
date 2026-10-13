@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Inventory — Escenario de bienvenida</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { width: 1440px; height: 900px; overflow: hidden; margin: 0; color: #202c39; background: #f4f6f5; font: 16px/1.5 system-ui, sans-serif; }
+      .shell { display: grid; grid-template-columns: 264px 1fr; height: 900px; }
+      aside { background: #fff; border-right: 1px solid #cbd5d1; padding: 36px 20px; }
+      .brand { font-size: 22px; line-height: 1.2; font-weight: 700; letter-spacing: -.035em; }
+      nav { margin-top: 68px; }
+      nav a { display: block; padding: 12px 14px; background: #e9efed; color: #20575c; text-decoration: none; font-weight: 600; }
+      main { min-width: 0; display: grid; grid-template-rows: 84px 1fr; }
+      header { padding: 0 48px; display: flex; align-items: center; justify-content: space-between; background: #fff; border-bottom: 1px solid #cbd5d1; }
+      header h1 { margin: 0; font-size: 19px; font-weight: 600; }
+      .account { display: flex; gap: 22px; align-items: center; color: #53616b; font-size: 14px; }
+      .account button { color: #20575c; border: 1px solid #7f8d88; border-radius: 5px; padding: 9px 13px; background: #fff; font: inherit; }
+      .stage { margin: 44px; background: #e9efed; display: grid; place-items: center; text-align: center; padding: 52px; }
+      .message { max-width: 600px; }
+      .message h2 { margin: 0; font-size: 44px; line-height: 1.14; letter-spacing: -.04em; font-weight: 650; }
+      .message p { margin: 20px 0 0; color: #53616b; font-size: 19px; }
+      .rule { width: 64px; height: 2px; margin: 0 auto 26px; background: #27676d; }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside aria-label="Navegación principal"><div class="brand">Inventory</div><nav><a href="/" aria-current="page">Inicio</a></nav></aside>
+      <main>
+        <header><h1>Inicio</h1><div class="account"><span>usuario@ejemplo.invalid</span><button type="button">Cerrar sesión</button></div></header>
+        <section class="stage" aria-labelledby="welcome-title">
+          <div class="message"><div class="rule" aria-hidden="true"></div><h2 id="welcome-title">Bienvenido a Inventory</h2><p>Este es tu espacio de trabajo.</p></div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

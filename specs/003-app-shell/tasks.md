@@ -8,8 +8,8 @@ Cada tarea busca una unidad de aproximadamente 15–30 minutos de trabajo activo
 
 ### Dirección de interfaz
 
-- [ ] T1. Definir y confirmar con Impeccable la composición del App Shell y los estados de sesión. (RF-1–RF-5, RF-15–RF-17, RF-31, RF-35–RF-39, RF-56–RF-57; NFR-1, NFR-5, NFR-6)
-      Hecho cuando: un brief dentro de esta spec identifica jerarquía, header, sidebar, bienvenida y estados; conserva tokens existentes, fija compacto por debajo de 1024 px e incluye tablet a 768 px; la composición está confirmada antes de implementar vistas.
+- [x] T1. Definir y confirmar con Impeccable la composición del App Shell y los estados de sesión. (RF-1–RF-5, RF-15–RF-17, RF-31, RF-35–RF-39, RF-56–RF-57; NFR-1, NFR-5, NFR-6)
+      Hecho cuando: un brief dentro de esta spec identifica jerarquía, header, sidebar, bienvenida y estados; conserva tokens existentes, fija compacto por debajo de 1024 px e incluye tablet a 768 px; la composición está confirmada antes de implementar vistas. Evidencia: `app-shell-direction.md`, brief Impeccable enlazado a `src/app/router/router.tsx`; el usuario seleccionó «Carril persistente + cabecera contextual» en la decisión de superficie (seed `fc219015`).
 
 ### Verificación de sesión dentro de Auth
 

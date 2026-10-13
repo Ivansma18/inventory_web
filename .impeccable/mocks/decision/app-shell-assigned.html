@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Inventory — Carril persistente</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { width: 1440px; height: 900px; overflow: hidden; margin: 0; color: #202c39; background: #f4f6f5; font: 16px/1.5 system-ui, sans-serif; }
+      .shell { display: grid; grid-template-columns: 264px 1fr; height: 900px; }
+      aside { background: #e9efed; border-right: 1px solid #cbd5d1; padding: 32px 20px; display: flex; flex-direction: column; }
+      .brand { font-size: 22px; line-height: 1.2; font-weight: 700; letter-spacing: -.035em; }
+      .nav { margin-top: 68px; }
+      .nav a { position: relative; display: block; padding: 12px 14px; color: #202c39; text-decoration: none; border-radius: 6px; font-weight: 600; }
+      .nav a[aria-current="page"] { background: #fff; color: #20575c; }
+      .nav a[aria-current="page"]::before { position: absolute; content: ""; left: 0; top: 9px; bottom: 9px; width: 3px; background: #27676d; }
+      .collapse { margin-top: auto; border: 0; background: transparent; color: #53616b; text-align: left; font: inherit; padding: 12px 8px; }
+      main { min-width: 0; }
+      header { height: 84px; padding: 0 52px; background: #fff; border-bottom: 1px solid #cbd5d1; display: flex; align-items: center; justify-content: space-between; }
+      header h1 { margin: 0; font-size: 19px; font-weight: 600; }
+      .account { display: flex; gap: 22px; align-items: center; color: #53616b; font-size: 14px; }
+      .account button { color: #20575c; border: 1px solid #7f8d88; border-radius: 5px; padding: 9px 13px; background: #fff; font: inherit; }
+      .content { padding: 72px 76px; }
+      .content h2 { margin: 0; max-width: 15ch; font-size: 46px; line-height: 1.12; letter-spacing: -.04em; font-weight: 650; }
+      .welcome { margin-top: 22px; padding-top: 17px; border-top: 2px solid #27676d; max-width: 620px; color: #53616b; font-size: 19px; }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside aria-label="Navegación principal">
+        <div class="brand">Inventory</div>
+        <nav class="nav"><a href="/" aria-current="page">Inicio</a></nav>
+        <button class="collapse" type="button">Contraer navegación</button>
+      </aside>
+      <main>
+        <header><h1>Inicio</h1><div class="account"><span>usuario@ejemplo.invalid</span><button type="button">Cerrar sesión</button></div></header>
+        <section class="content" aria-labelledby="welcome-title">
+          <h2 id="welcome-title">Bienvenido a Inventory</h2>
+          <p class="welcome">Este es tu espacio de trabajo.</p>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

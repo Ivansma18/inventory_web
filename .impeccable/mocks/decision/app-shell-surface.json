@@ -1,0 +1,89 @@
+{
+  "title": "Composición del App Shell",
+  "question": "¿Qué composición mantiene mejor orientado al personal que usa Inventory a diario? Las tres conservan los tokens existentes, muestran solo destinos disponibles, usan navegación compacta a 360–768 px, sidebar persistente a 1280 px, identidad y cierre de sesión en el encabezado, y una bienvenida sin métricas.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Carril persistente + cabecera contextual",
+      "kicker": "THE ROLL",
+      "lineage": "Shell de operación con ruta de navegación como eje",
+      "thesis": "La página actual y su destino activo comparten una señal de ruta clara.",
+      "palette": ["#f4f6f5", "#ffffff", "#e9efed", "#202c39", "#27676d"],
+      "materials": ["canvas gris verdoso", "superficies blancas", "tinta grafito", "teal funcional"],
+      "viewport": "Sidebar expandida a la izquierda; cabecera de página con identidad y cierre a la derecha; bienvenida alineada al área de trabajo con una única regla teal que repite la posición del destino activo.",
+      "risk": "Con un solo destino, el carril puede sentirse más pesado que el contenido.",
+      "raised": [
+        {
+          "from": "Teletext Service",
+          "raise": "Cada destino conserva una etiqueta textual explícita; ni color ni icono son su único significado."
+        },
+        {
+          "from": "Microfiche Reader",
+          "raise": "El shell mantiene un canvas de trabajo coherente y delimitado, sin superficies decorativas dispersas."
+        }
+      ],
+      "html": ".impeccable/mocks/decision/app-shell-assigned.html"
+    },
+    {
+      "id": "masthead-workspace",
+      "label": "Masthead global + navegación independiente",
+      "lineage": "Cabecera de aplicación continua sobre un espacio de trabajo",
+      "thesis": "La identidad de Inventory y la cuenta ocupan una franja global antes de entrar al espacio de trabajo.",
+      "palette": ["#f4f6f5", "#ffffff", "#e9efed", "#202c39", "#27676d"],
+      "materials": ["canvas gris verdoso", "superficies blancas", "tinta grafito", "teal funcional"],
+      "viewport": "Masthead teal de ancho completo con marca e identidad; debajo, sidebar persistente blanca y área de contenido amplia con Inicio y la bienvenida en el primer plano.",
+      "risk": "El masthead puede consumir altura útil en pantallas compactas.",
+      "html": ".impeccable/mocks/decision/app-shell-masthead-workspace.html"
+    },
+    {
+      "id": "welcome-stage",
+      "label": "Sidebar + escenario de bienvenida",
+      "lineage": "Navegación persistente con una única superficie principal de contenido",
+      "thesis": "La bienvenida ocupa una sola superficie amplia y deja el resto del espacio libre de paneles de relleno.",
+      "palette": ["#f4f6f5", "#ffffff", "#e9efed", "#202c39", "#27676d"],
+      "materials": ["canvas gris verdoso", "superficie blanca amplia", "tinta grafito", "teal funcional"],
+      "viewport": "Sidebar persistente con marca y destinos; cabecera de página con identidad y logout; una superficie amplia de bienvenida ocupa el centro del área de trabajo, sin tarjetas de métricas ni contenido simulado.",
+      "risk": "Una superficie central amplia puede parecer vacía mientras Inicio sea el único destino.",
+      "html": ".impeccable/mocks/decision/app-shell-welcome-stage.html"
+    }
+  ],
+  "challengers": [
+    {
+      "id": "broadcast-programming-teletext-service",
+      "label": "Teletext Service",
+      "verdict": "declined",
+      "lineage": "Índices de teletexto de emisiones",
+      "thesis": "La navegación se presenta como un índice numerado de páginas de emisión.",
+      "palette": ["#0000c0", "#ffff00", "#00c000", "#ffffff"],
+      "materials": ["mosaico de bloques", "brillo fosfórico"],
+      "viewport": "P100 como índice y los destinos como filas numeradas.",
+      "case": "Declinada: la gramática de emisión y su paleta compiten con la identificación de una aplicación de operación diaria.",
+      "kept": "Conservar nombres de destino explícitos y nunca codificar estado únicamente con color.",
+      "risk": "Puede leerse como interfaz retro antes que como Inventory.",
+      "hero": "https://impeccable.style/worlds/cards/broadcast-programming-teletext-service-hero.webp"
+    },
+    {
+      "id": "archives-microfiche-reader",
+      "label": "Microfiche Reader",
+      "verdict": "declined",
+      "lineage": "Estaciones de consulta de microfichas en bibliotecas",
+      "thesis": "La navegación simula avanzar entre fichas de un archivo consultable.",
+      "palette": ["#101418", "#9fb4c0"],
+      "materials": ["grano de película", "vidrio retroiluminado"],
+      "viewport": "Un índice de archivo enmarcado como visor, con la bienvenida como ficha seleccionada.",
+      "case": "Declinada: el archivo histórico no representa la orientación que necesita el personal operativo.",
+      "kept": "Mantener un canvas coherente y regiones funcionales claramente delimitadas.",
+      "risk": "La metáfora de archivo puede ocultar navegación y acciones familiares.",
+      "hero": "https://impeccable.style/worlds/cards/archives-microfiche-reader-hero.webp"
+    }
+  ],
+  "reroll": {
+    "registers": ["safer", "bolder"]
+  },
+  "steer": true,
+  "buildPath": {
+    "value": "code",
+    "toggle": false
+  },
+  "canon": false
+}
