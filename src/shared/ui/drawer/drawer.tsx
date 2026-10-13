@@ -137,7 +137,7 @@ export const Drawer = ({
       transitionOptions={{ onExited: focusTargetAfterClose, timeout: 300 }}
       visible={open}
     >
-      {children}
+      <div className="ui-drawer__content">{children}</div>
     </PrimeSidebar>
   );
 };

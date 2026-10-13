@@ -39,8 +39,8 @@ Cada tarea busca una unidad de aproximadamente 15–30 minutos de trabajo activo
       Hecho cuando: pruebas focalizadas verifican foco interior, Tab/Mayús+Tab y exterior no interactivo; la modalidad se resuelve dentro de shared/ui, con regresión de Dialog si se extraen utilidades compartidas. Evidencia: `tests/ui/drawer.test.tsx` cubre foco, ciclo de teclado e inert/aria-hidden; Drawer y Dialog pasan 16/16 pruebas.
 - [x] T11. Resolver el foco de salida de Drawer y limpiar la modalidad al cerrar o desmontar. (RF-27, RF-29, RF-58, RF-61–RF-65; NFR-2)
       Hecho cuando: pruebas verifican un único resolvedor de foco consultado tras desbloquear el exterior; destinos actualizados y desmontajes no dejan inert, bloqueo de scroll ni retornos automáticos que compitan. Evidencia: `tests/ui/drawer.test.tsx` verifica destino actualizado tras cerrar, estado exterior restaurado y desmontaje sin retorno; regresión de Drawer/Dialog 18/18 y suite completa 31/31 archivos, 259/259 pruebas.
-- [ ] T12. Estilizar Drawer como panel lateral acotado al viewport con CSS local. (RF-22, RF-25, RF-52; NFR-1, NFR-4, NFR-6)
-      Hecho cuando: el panel permite alcanzar todo su contenido a altura reducida, respeta movimiento reducido y usa tokens; no añade selectores específicos a styles.css global.
+- [x] T12. Estilizar Drawer como panel lateral acotado al viewport con CSS local. (RF-22, RF-25, RF-52; NFR-1, NFR-4, NFR-6)
+      Hecho cuando: el panel permite alcanzar todo su contenido a altura reducida, respeta movimiento reducido y usa tokens; no añade selectores específicos a styles.css global. Evidencia: `tests/browser/drawer.layout.bootstrap-smoke.spec.ts` verifica 360×320, scroll interno, ausencia de overflow de página, uso de token y reduced-motion; E2E predeterminado 15/15, suite unitaria 31/31 archivos y 259/259 pruebas.
 - [ ] T13. Verificar en Chromium el contrato completo de Drawer. (RF-23–RF-27, RF-51–RF-53, RF-61–RF-64; NFR-2)
       Hecho cuando: pruebas de navegador verifican ciclo de foco, cierres, bloqueo exterior y limpieza; el resolvedor puede escoger activador, enlace o encabezado sin depender de selectores internos del vendor.
 
