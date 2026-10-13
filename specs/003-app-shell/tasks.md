@@ -19,8 +19,8 @@ Cada tarea busca una unidad de aproximadamente 15–30 minutos de trabajo activo
       Hecho cuando: pruebas MSW verifican pending, success ante sesión válida o 401 y error ante red/HTTP/contrato; useSession publica verification sin duplicar usuario/sesión ni romper sus campos existentes. Evidencia: `tests/auth-session-plugin.test.tsx` y `tests/auth-public-api.test.tsx`; suite completa 29/29 archivos y 241/241 pruebas, typecheck y lint.
 - [x] T4. Publicar el resultado reactivo de recomprobaciones posteriores. (RF-31–RF-32, RF-38–RF-40, RF-55; NFR-9)
       Hecho cuando: pruebas verifican pending → error → success después de sesión válida; el error posterior no queda solo en el retorno de refetch y se conservan las garantías previas del estado confirmado del plugin. Evidencia: `tests/auth-session-plugin.test.tsx` cubre errores HTTP/red, recuperación 200, contrato inválido y 401; regresión Auth 27/27 pruebas.
-- [ ] T5. Deduplicar comprobaciones concurrentes de la misma generación. (RF-31, RF-39, RF-55; NFR-9, NFR-10)
-      Hecho cuando: pruebas de StrictMode, consumidores múltiples y refetch simultáneos verifican una consulta inicial y una operación compartida por generación; todos observan el mismo resultado vigente.
+- [x] T5. Deduplicar comprobaciones concurrentes de la misma generación. (RF-31, RF-39, RF-55; NFR-9, NFR-10)
+      Hecho cuando: pruebas de StrictMode, consumidores múltiples y refetch simultáneos verifican una consulta inicial y una operación compartida por generación; todos observan el mismo resultado vigente. Evidencia: `tests/auth-session-concurrency.test.tsx` verifica una sola petición inicial, identidad de la promesa compartida y aislamiento de flags ante una respuesta obsoleta; suite completa 29/29 archivos y 245/245 pruebas.
 - [ ] T6. Invalidar verificaciones anteriores al confirmar logout sin restaurar estados obsoletos. (RF-40, RF-45–RF-46, RF-49; NFR-9)
       Hecho cuando: pruebas con respuestas diferidas verifican que 204 establece ausencia confirmada y deja verificación coherente; respuestas anteriores no alteran sesión, errores o banderas vigentes y un logout fallido no sobrescribe un 401 concurrente.
 

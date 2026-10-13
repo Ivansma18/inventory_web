@@ -113,21 +113,17 @@ export const createInventoryAuthPlugin = () => {
   let initialSessionQueryStarted = false;
   let sessionOperationVersion = 0;
   let activeAuthOperation: AuthMutationOperation | null = null;
+  let activeSessionVerification: {
+    version: number;
+    promise: Promise<InventorySessionQueryResult>;
+  } | null = null;
 
-  const refreshSession = async (
+  const runSessionVerification = async (
     request: () => Promise<BetterFetchResponse<unknown>>,
+    requestOperationVersion: number,
+    hasConfirmedSession: boolean,
   ): Promise<InventorySessionQueryResult> => {
-    const requestOperationVersion = sessionOperationVersion;
     const responseIsStale = () => requestOperationVersion !== sessionOperationVersion;
-    const current = inventorySession.get();
-    const hasConfirmedSession =
-      current.status === "authenticated" || current.status === "unauthenticated";
-
-    inventorySessionVerification.set({ status: "pending", error: null });
-
-    if (current.status !== "pending") {
-      inventorySession.set({ ...current, isRefetching: true });
-    }
 
     try {
       const result = await request();
@@ -189,10 +185,50 @@ export const createInventoryAuthPlugin = () => {
       return { data: null, error: networkError };
     } finally {
       const latest = inventorySession.get();
-      if (latest.isRefetching) {
+      if (requestOperationVersion === sessionOperationVersion && latest.isRefetching) {
         inventorySession.set({ ...latest, isRefetching: false });
       }
     }
+  };
+
+  const refreshSession = (
+    request: () => Promise<BetterFetchResponse<unknown>>,
+  ): Promise<InventorySessionQueryResult> => {
+    const requestOperationVersion = sessionOperationVersion;
+    if (activeSessionVerification?.version === requestOperationVersion) {
+      return activeSessionVerification.promise;
+    }
+
+    const current = inventorySession.get();
+    const hasConfirmedSession =
+      current.status === "authenticated" || current.status === "unauthenticated";
+    let resolveOperation!: (result: InventorySessionQueryResult) => void;
+    let rejectOperation!: (error: unknown) => void;
+    const promise = new Promise<InventorySessionQueryResult>((resolve, reject) => {
+      resolveOperation = resolve;
+      rejectOperation = reject;
+    });
+    activeSessionVerification = { version: requestOperationVersion, promise };
+
+    void promise
+      .finally(() => {
+        if (activeSessionVerification?.promise === promise) {
+          activeSessionVerification = null;
+        }
+      })
+      .catch(() => undefined);
+
+    inventorySessionVerification.set({ status: "pending", error: null });
+    if (current.status !== "pending") {
+      inventorySession.set({ ...current, isRefetching: true });
+    }
+
+    void runSessionVerification(request, requestOperationVersion, hasConfirmedSession).then(
+      resolveOperation,
+      rejectOperation,
+    );
+
+    return promise;
   };
 
   const performSignInWithEmail = async (
