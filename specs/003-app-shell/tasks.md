@@ -46,8 +46,8 @@ Cada tarea busca una unidad de aproximadamente 15–30 minutos de trabajo activo
 
 ### Estados, páginas y rutas
 
-- [ ] T14. Implementar AuthLayout y las presentaciones de comprobación, error y ausencia de sesión. (RF-5, RF-31, RF-35–RF-38, RF-54; NFR-5, NFR-6)
-      Hecho cuando: pruebas por roles verifican encabezado principal, estados distinguibles en español y región de anuncio; la pantalla informativa no contiene navegación de trabajo ni formulario/enlace de login.
+- [x] T14. Implementar AuthLayout y las presentaciones de comprobación, error y ausencia de sesión. (RF-5, RF-31, RF-35–RF-38, RF-54; NFR-5, NFR-6)
+      Hecho cuando: pruebas por roles verifican encabezado principal, estados distinguibles en español y región de anuncio; la pantalla informativa no contiene navegación de trabajo ni formulario/enlace de login. Evidencia: `tests/app-shell/session-state.test.tsx` cubre los tres estados, títulos nivel 1, anuncios polite/assertive y ausencia de navegación/acceso; `tests/browser/auth-layout.bootstrap-smoke.spec.ts` verifica 360/768/1280 px sin overflow. E2E 21/21, `preview-smoke` 1/1 y unitarias 32/32 archivos, 263/263 pruebas.
 - [ ] T15. Implementar el boundary de sesión con prioridad de verificación y ausencia confirmada. (RF-1, RF-31–RF-32, RF-35–RF-36, RF-38, RF-40, RF-55; NFR-9)
       Hecho cuando: pruebas con la API pública verifican todas las transiciones iniciales/posteriores; no se monta contenido autenticado durante pending/error y se recupera tras éxito sin copiar sesión a UI.
 - [ ] T16. Conectar Reintentar con la comprobación pública y conservar el destino solicitado. (RF-11, RF-38–RF-39, RF-55; NFR-5)
