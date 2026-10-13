@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
@@ -94,6 +94,10 @@ describe("App Shell routes and navigation catalog", () => {
     expect(
       screen.getByRole("complementary", { name: "Barra lateral de Inventory" }),
     ).toHaveTextContent("Inventory");
+    const navigation = screen.getByRole("navigation", { name: "Navegación principal" });
+    expect(within(navigation).getAllByRole("link")).toHaveLength(1);
+    const homeNavigationLink = within(navigation).getByRole("link", { name: "Inicio" });
+    expect(homeNavigationLink).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Saltar al contenido" })).toHaveAttribute(
       "href",
       "#main-content",
@@ -105,15 +109,20 @@ describe("App Shell routes and navigation catalog", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Página no encontrada" }),
     ).toBeVisible();
-    await user.click(screen.getByRole("link", { name: "Volver a Inicio" }));
+    expect(homeNavigationLink).not.toHaveAttribute("aria-current");
+    homeNavigationLink.focus();
+    await user.keyboard("{Enter}");
     expect(
       await screen.findByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
     ).toBeVisible();
+    expect(homeNavigationLink).toHaveAttribute("aria-current", "page");
 
     await act(async () => router.navigate("/not-registered"));
     expect(
       await screen.findByRole("heading", { level: 1, name: "Página no encontrada" }),
     ).toBeVisible();
+    expect(homeNavigationLink).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Volver a Inicio" })).toBeVisible();
 
     let refetchResult!: Promise<AuthSessionQueryResult>;
     act(() => {

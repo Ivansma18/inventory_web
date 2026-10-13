@@ -3,6 +3,7 @@ import "./app-layout.css";
 import { Outlet } from "react-router";
 
 import { CurrentUserAppHeader } from "@/app/components/app-header";
+import { AppNavigation } from "@/app/components/app-navigation";
 
 export const AppLayout = () => (
   <div className="app-layout">
@@ -11,6 +12,7 @@ export const AppLayout = () => (
     </a>
     <aside aria-label="Barra lateral de Inventory" className="app-layout__sidebar">
       <p className="app-layout__brand">Inventory</p>
+      <AppNavigation />
     </aside>
     <div className="app-layout__workspace">
       <div className="app-layout__header">

@@ -20,11 +20,15 @@ for (const width of [360, 768, 1280]) {
 
     const banner = page.getByRole("banner");
     const sidebar = page.getByRole("complementary", { name: "Barra lateral de Inventory" });
+    const navigation = page.getByRole("navigation", { name: "Navegación principal" });
     const main = page.getByRole("main");
     const skipLink = page.getByRole("link", { name: "Saltar al contenido" });
+    const homeLink = page.getByRole("link", { name: "Inicio", exact: true });
 
     await expect(banner).toContainText("operator@example.com");
     await expect(sidebar).toContainText("Inventory");
+    await expect(navigation.getByRole("link")).toHaveCount(1);
+    await expect(homeLink).toHaveAttribute("aria-current", "page");
     await expect(
       main.getByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
     ).toBeVisible();
@@ -34,6 +38,18 @@ for (const width of [360, 768, 1280]) {
     await expect(skipLink).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(main).toBeFocused();
+
+    await page.goto("/not-registered");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Página no encontrada" }),
+    ).toBeVisible();
+    await expect(homeLink).not.toHaveAttribute("aria-current");
+    await homeLink.focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+    ).toBeVisible();
+    await expect(homeLink).toHaveAttribute("aria-current", "page");
 
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       width,
