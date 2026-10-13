@@ -16,11 +16,15 @@ export const AppLayout = () => {
   const navigationMode = useNavigationMode();
   const isCompactNavigation = navigationMode === "compact";
   const handleCompactNavigationUnmount = useCallback(() => {
-    if (!isPersistentNavigationViewport()) {
-      return;
-    }
+    const focusAfterUnmount = () => {
+      const sessionHeading = document.querySelector<HTMLElement>(
+        '.session-state__heading[tabindex="-1"]',
+      );
+      if (sessionHeading) {
+        sessionHeading.focus({ preventScroll: true });
+        return;
+      }
 
-    window.requestAnimationFrame(() => {
       if (!isPersistentNavigationViewport()) {
         return;
       }
@@ -30,7 +34,9 @@ export const AppLayout = () => {
       );
       const pageHeading = document.querySelector<HTMLElement>('#main-content h1[tabindex="-1"]');
       (activeNavigationLink ?? pageHeading)?.focus({ preventScroll: true });
-    });
+    };
+
+    window.setTimeout(focusAfterUnmount, 0);
   }, []);
 
   return (

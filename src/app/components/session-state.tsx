@@ -36,7 +36,9 @@ export const SessionState = ({ state, onRetry }: SessionStateProps) => {
         className="session-state__announcement"
         role={isError ? "alert" : "status"}
       >
-        <h1 className="session-state__heading">{copy.heading}</h1>
+        <h1 className="session-state__heading" tabIndex={-1}>
+          {copy.heading}
+        </h1>
         <p className="session-state__message">{copy.message}</p>
       </div>
       {isError && onRetry ? (

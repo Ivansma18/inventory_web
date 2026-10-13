@@ -1,11 +1,15 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
+import { createMemoryRouter } from "react-router";
+import { RouterProvider } from "react-router/dom";
 import { useEffect } from "react";
 import type { AuthSessionQueryResult, UseSessionResult } from "@/features/auth";
 import { useSession } from "@/features/auth";
 import type { components } from "@/shared/api/generated/auth-contracts";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { appRoutes } from "@/app/router/router";
 import { SessionBoundary } from "@/app/layouts/session-boundary";
 import { server } from "../mocks/server";
 
@@ -42,6 +46,68 @@ const unauthenticatedResponse = () =>
     { error: { code: "UNAUTHORIZED", message: "No active session." } },
     { status: 401 },
   );
+
+const beginCompactSessionRefresh = async () => {
+  const refreshResponse = deferred<Response>();
+  const refreshRequestStarted = deferred<void>();
+  let holdRefresh = false;
+  let refetch: UseSessionResult["refetch"] | undefined;
+
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }),
+  );
+
+  server.use(
+    http.get(/\/api\/auth\/get-session/, () => {
+      if (holdRefresh) {
+        refreshRequestStarted.resolve();
+        return refreshResponse.promise;
+      }
+
+      return HttpResponse.json(publicAuthResponse("drawer-user"));
+    }),
+  );
+
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/"] });
+  const SessionRefreshDriver = () => {
+    refetch = useSession().refetch;
+    return null;
+  };
+  const { container } = render(
+    <>
+      <RouterProvider router={router} />
+      <SessionRefreshDriver />
+    </>,
+  );
+
+  let initialRefresh!: Promise<AuthSessionQueryResult>;
+  act(() => {
+    initialRefresh = refetch!();
+  });
+  await act(async () => initialRefresh);
+  await screen.findByRole("heading", { level: 1, name: "Bienvenido a Inventory" });
+  await userEvent.setup().click(screen.getByRole("button", { name: "Abrir navegación" }));
+  expect(screen.getByRole("dialog", { name: "Navegación principal" })).toBeVisible();
+  expect(container).toHaveAttribute("inert", "");
+
+  holdRefresh = true;
+  let refreshResult!: Promise<AuthSessionQueryResult>;
+  act(() => {
+    refreshResult = refetch!();
+  });
+  await refreshRequestStarted.promise;
+
+  return { container, refreshResponse, refreshResult, router };
+};
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("SessionBoundary", () => {
   it("recovers from HTTP, network, and contract failures without losing the URL", async () => {
@@ -178,5 +244,61 @@ describe("SessionBoundary", () => {
     expect(onProtectedMount).toHaveBeenCalledTimes(2);
     expect(window.location.href).toBe(requestedUrl);
     expect(requestCount).toBe(6);
+  });
+
+  it("closes compact navigation, unlocks the page, and focuses the pending session heading", async () => {
+    const { container, refreshResponse, refreshResult, router } =
+      await beginCompactSessionRefresh();
+
+    const heading = await screen.findByRole("heading", {
+      level: 1,
+      name: "Comprobando tu sesión",
+    });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(screen.queryByRole("dialog", { name: "Navegación principal" })).not.toBeInTheDocument();
+    expect(container).not.toHaveAttribute("inert");
+    expect(container).not.toHaveAttribute("aria-hidden");
+
+    refreshResponse.resolve(unauthenticatedResponse());
+    await act(async () => refreshResult);
+    router.dispose();
+  });
+
+  it("keeps focus on the session heading when a refresh settles with an error", async () => {
+    const { container, refreshResponse, refreshResult, router } =
+      await beginCompactSessionRefresh();
+
+    refreshResponse.resolve(
+      HttpResponse.json(
+        { error: { code: "INTERNAL", message: "Internal error." } },
+        { status: 503 },
+      ),
+    );
+    await act(async () => refreshResult);
+
+    const heading = await screen.findByRole("heading", {
+      level: 1,
+      name: "No se pudo comprobar la sesión",
+    });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(screen.queryByRole("dialog", { name: "Navegación principal" })).not.toBeInTheDocument();
+    expect(container).not.toHaveAttribute("inert");
+    expect(container).not.toHaveAttribute("aria-hidden");
+    router.dispose();
+  });
+
+  it("keeps focus on the session heading when a refresh confirms no session", async () => {
+    const { container, refreshResponse, refreshResult, router } =
+      await beginCompactSessionRefresh();
+
+    refreshResponse.resolve(unauthenticatedResponse());
+    await act(async () => refreshResult);
+
+    const heading = await screen.findByRole("heading", { level: 1, name: "Sesión no iniciada" });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(screen.queryByRole("dialog", { name: "Navegación principal" })).not.toBeInTheDocument();
+    expect(container).not.toHaveAttribute("inert");
+    expect(container).not.toHaveAttribute("aria-hidden");
+    router.dispose();
   });
 });
