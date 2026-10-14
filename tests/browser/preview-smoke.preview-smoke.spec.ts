@@ -131,3 +131,52 @@ test("serves the built app without development harnesses, demo, or backend acces
     expect(designSystemFallbackHtml).not.toContain(marker);
   }
 });
+
+test("renders Home from a mocked Auth session without business API requests", async ({ page }) => {
+  const apiRequests: string[] = [];
+  let sessionRequests = 0;
+  let businessRequests = 0;
+
+  page.on("request", (request) => {
+    const requestUrl = new URL(request.url());
+    if (requestUrl.pathname.startsWith("/api/")) {
+      apiRequests.push(requestUrl.pathname);
+    }
+  });
+
+  await page.route("**/api/auth/get-session", async (route) => {
+    sessionRequests += 1;
+    expect(route.request().method()).toBe("GET");
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          user: { id: "preview-user", email: "operator@example.com", role: "OPERATOR" },
+          session: { id: "preview-session", createdAt: "2026-01-01T00:00:00.000Z" },
+        },
+      }),
+    });
+  });
+  await page.route(/\/api\/backend(?:\/|$)/, async (route) => {
+    businessRequests += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: [] }),
+    });
+  });
+
+  await page.goto("/");
+
+  await expect(page.getByRole("main")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+  ).toBeVisible();
+  await expect(page.getByText("operator@example.com")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cerrar sesión" })).toBeVisible();
+  await expect(page.getByRole("table")).toHaveCount(0);
+  expect(sessionRequests).toBe(1);
+  expect(businessRequests).toBe(0);
+  expect(apiRequests).toEqual(["/api/auth/get-session"]);
+});
