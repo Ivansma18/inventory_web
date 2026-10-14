@@ -1,0 +1,6 @@
+.product-list__summary {
+  margin-block: var(--ui-space-6) var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-font-size-sm);
+  font-weight: var(--ui-font-weight-medium);
+}

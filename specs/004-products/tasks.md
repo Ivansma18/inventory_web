@@ -6,7 +6,7 @@
   Hecho cuando: `/products/new` y `/products/:uuid/edit` abren la pantalla solicitada tras la confirmación de sesión, también al cargar la URL directamente; las pruebas de router cubren ambas rutas.
 - [x] T3. Conservar los estados de acceso existentes y aislar los resultados ante cambios de sesión. (RF-6; NFR-10)
   Hecho cuando: pruebas de integración sobre rutas de Productos verifican los estados pending/error/unauthenticated de Auth y que, al cambiar o perderse la sesión, no se presenta como vigente contenido de la sesión anterior. La visibilidad por rol de cada acción se verifica al implementarla en T13, T20 y T22 (RF-7).
-- [ ] T4. Integrar contratos OpenAPI de Productos y construir consulta remota y filas del listado. (RF-8–RF-12)
+- [x] T4. Integrar contratos OpenAPI de Productos y construir consulta remota y filas del listado. (RF-8–RF-12)
   Hecho cuando: los tipos generados proceden de una fuente OpenAPI reproducible; una prueba MSW valida columnas, defaults (activos, nombre ascendente, 15 por página), total y cambio de página usando respuestas remotas.
 - [ ] T5. Implementar estados de consulta, limpieza de búsqueda sin resultados y corrección de páginas fuera de rango. (RF-13–RF-18)
   Hecho cuando: pruebas de UI cubren carga, error con retry, vacío, acción de limpiar búsqueda, última página válida y página 1 sin resultados.

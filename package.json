@@ -22,7 +22,9 @@
     "verify:hooks": "node scripts/verify-hooks-config.mjs",
     "verify:startup": "node scripts/verify-startup-processes.mjs",
     "snapshot:auth-openapi": "node scripts/snapshot-auth-openapi.mjs",
-    "generate:auth-contracts": "openapi-typescript tests/contracts/auth-health.openapi.json -o src/shared/api/generated/auth-contracts.ts"
+    "generate:auth-contracts": "openapi-typescript tests/contracts/auth-health.openapi.json -o src/shared/api/generated/auth-contracts.ts",
+    "snapshot:products-openapi": "node scripts/snapshot-products-openapi.mjs",
+    "generate:product-contracts": "openapi-typescript tests/contracts/products.openapi.json -o src/shared/api/generated/product-contracts.ts"
   },
   "lint-staged": {
     "{src,tests,scripts}/**/*.{js,jsx,mjs,cjs,ts,tsx}": [

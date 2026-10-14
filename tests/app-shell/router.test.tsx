@@ -9,6 +9,7 @@ import type { components } from "@/shared/api/generated/auth-contracts";
 import { describe, expect, it } from "vitest";
 
 import { appNavigationItems } from "@/app/router/navigation";
+import { QueryProvider } from "@/app/providers/query.provider";
 import { appRoutes } from "@/app/router/router";
 import { server } from "../mocks/server";
 
@@ -70,6 +71,9 @@ describe("App Shell routes and navigation catalog", () => {
         absenceRequestStarted.resolve();
         return pendingAbsence.promise;
       }),
+      http.get("https://inventory.test/api/products", () =>
+        HttpResponse.json({ data: [], pagination: { total: 0, page: 1, limit: 15 } }),
+      ),
     );
 
     const router = createMemoryRouter(appRoutes, { initialEntries: ["/"] });
@@ -80,10 +84,12 @@ describe("App Shell routes and navigation catalog", () => {
     };
 
     render(
-      <>
-        <RouterProvider router={router} />
-        <SessionRefreshDriver />
-      </>,
+      <QueryProvider>
+        <>
+          <RouterProvider router={router} />
+          <SessionRefreshDriver />
+        </>
+      </QueryProvider>,
     );
 
     expect(

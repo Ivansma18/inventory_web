@@ -8,6 +8,10 @@
   max-inline-size: 42rem;
 }
 
+.product-page__content--wide {
+  max-inline-size: none;
+}
+
 .product-page__content::before {
   display: block;
   inline-size: 2.5rem;

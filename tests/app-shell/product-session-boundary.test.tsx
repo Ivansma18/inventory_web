@@ -9,6 +9,7 @@ import type { components } from "@/shared/api/generated/auth-contracts";
 import { describe, expect, it } from "vitest";
 
 import { appRoutes } from "@/app/router/router";
+import { QueryProvider } from "@/app/providers/query.provider";
 import { server } from "../mocks/server";
 
 interface Deferred<T> {
@@ -69,6 +70,9 @@ describe("Product routes and session boundary", () => {
 
         return response.promise;
       }),
+      http.get("https://inventory.test/api/products", () =>
+        HttpResponse.json({ data: [], pagination: { total: 0, page: 1, limit: 15 } }),
+      ),
     );
 
     const router = createMemoryRouter(appRoutes, { initialEntries: ["/products"] });
@@ -78,10 +82,12 @@ describe("Product routes and session boundary", () => {
     };
 
     render(
-      <>
-        <RouterProvider router={router} />
-        <SessionRefreshDriver />
-      </>,
+      <QueryProvider>
+        <>
+          <RouterProvider router={router} />
+          <SessionRefreshDriver />
+        </>
+      </QueryProvider>,
     );
 
     await requestsStarted[0]?.promise;
