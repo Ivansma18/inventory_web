@@ -87,8 +87,8 @@ Cada tarea busca una unidad de aproximadamente 15–30 minutos de trabajo activo
 
 ### Workflows de navegador y migración de pruebas
 
-- [ ] T30. Migrar las pruebas existentes de bootstrap a la entrada dependiente de sesión. (RF-1–RF-8, RF-31–RF-38; NFR-10)
-      Hecho cuando: app-bootstrap e inventory.bootstrap-smoke simulan explícitamente Auth y verifican los estados nuevos; conservan controles de exclusión de herramientas de desarrollo y no dependen del backend real.
+- [x] T30. Migrar las pruebas existentes de bootstrap a la entrada dependiente de sesión. (RF-1–RF-8, RF-31–RF-38; NFR-10)
+      Hecho cuando: app-bootstrap e inventory.bootstrap-smoke simulan explícitamente Auth y verifican los estados nuevos; conservan controles de exclusión de herramientas de desarrollo y no dependen del backend real. Evidencia: `tests/app-bootstrap.test.tsx` difiere la sesión Auth y verifica comprobación pendiente → 401 → «Sesión no iniciada», sin navegación ni consultas de negocio; `tests/browser/inventory.bootstrap-smoke.spec.ts` simula sesión válida, verifica Inicio/identidad/logout y observa únicamente `/api/auth/get-session`, sin solicitudes `/api/backend`; conserva la comprobación de que `/__auth-test` no expone el harness. `bootstrap-smoke` 39/39; unitarias 40/40 archivos, 281/281 pruebas; lint, typecheck y build pasan.
 - [ ] T31. Cubrir recarga directa e historial entre Inicio y página no encontrada. (RF-9–RF-14, RF-35, RF-49)
       Hecho cuando: E2E verifica acceso directo, retorno, recarga, Atrás y Adelante; después de logout no recupera presentación autenticada por historial.
 - [ ] T32. Cubrir persistencia de sidebar entre recargas y aperturas del mismo navegador. (RF-18–RF-20, RF-30, RF-57; NFR-7)
