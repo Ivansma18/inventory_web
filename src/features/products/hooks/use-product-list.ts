@@ -12,11 +12,18 @@ const productListDefaults = {
   order: "asc",
 } as const satisfies Omit<ProductListQuery, "page">;
 
+export const productListQueryKey = (sessionId: string | null, page: number) => [
+  "products",
+  "list",
+  sessionId,
+  { ...productListDefaults, page },
+];
+
 export const useProductList = (sessionId: string | null, page: number) => {
   const params = { ...productListDefaults, page } satisfies ProductListQuery;
 
   return useQuery({
-    queryKey: ["products", "list", sessionId, params],
+    queryKey: productListQueryKey(sessionId, page),
     queryFn: ({ signal }) => listProducts(params, signal),
     enabled: sessionId !== null,
   });

@@ -5,7 +5,7 @@ import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import type { components } from "@/shared/api/generated/auth-contracts";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { appRoutes } from "@/app/router/router";
 import { UiProvider } from "@/app/providers/ui.provider";
@@ -41,11 +41,37 @@ const product = (index: number) => ({
   updatedAt: "2026-01-01T00:00:00.000Z",
 });
 
+const routeResources: Array<{
+  queryClient: ReturnType<typeof createQueryClient>;
+  router: ReturnType<typeof createMemoryRouter>;
+}> = [];
+
+const renderProductRoute = (initialEntry = "/products", queryClient = createQueryClient()) => {
+  const router = createMemoryRouter(appRoutes, { initialEntries: [initialEntry] });
+  routeResources.push({ queryClient, router });
+
+  render(
+    <QueryClientProvider client={queryClient}>
+      <UiProvider>
+        <RouterProvider router={router} />
+      </UiProvider>
+    </QueryClientProvider>,
+  );
+
+  return { queryClient, router };
+};
+
+afterEach(() => {
+  for (const { queryClient, router } of routeResources.splice(0)) {
+    router.dispose();
+    queryClient.clear();
+  }
+});
+
 describe("Product list remote query", () => {
   it("loads the default active page and requests the next page from the backend", async () => {
     const user = userEvent.setup();
     const productRequests: URL[] = [];
-    const queryClient = createQueryClient();
 
     server.use(
       http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
@@ -63,14 +89,7 @@ describe("Product list remote query", () => {
       }),
     );
 
-    const router = createMemoryRouter(appRoutes, { initialEntries: ["/products"] });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <UiProvider>
-          <RouterProvider router={router} />
-        </UiProvider>
-      </QueryClientProvider>,
-    );
+    renderProductRoute();
 
     expect(await screen.findByRole("heading", { level: 1, name: "Productos" })).toBeVisible();
     await waitFor(() => expect(productRequests).toHaveLength(1));
@@ -110,8 +129,184 @@ describe("Product list remote query", () => {
     expect(screen.getByRole("cell", { name: "Producto 016" })).toBeVisible();
     expect(screen.getByText("Página 2 de 2")).toBeVisible();
     expect(productRequests).toHaveLength(2);
+  });
 
-    router.dispose();
-    queryClient.clear();
+  it("identifies the pending product query until its response arrives", async () => {
+    let resolveProducts!: (response: Response) => void;
+    const pendingProducts = new Promise<Response>((resolve) => {
+      resolveProducts = resolve;
+    });
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => pendingProducts),
+    );
+
+    renderProductRoute();
+
+    expect(await screen.findByText("Cargando datos...")).toBeVisible();
+    resolveProducts(
+      HttpResponse.json({ data: [product(1)], pagination: { total: 1, page: 1, limit: 15 } }),
+    );
+    expect(await screen.findByRole("cell", { name: "SKU-001" })).toBeVisible();
+    expect(screen.queryByText("Cargando datos...")).not.toBeInTheDocument();
+  });
+
+  it("shows a recoverable error and retries the list query on request", async () => {
+    const user = userEvent.setup();
+    let requestCount = 0;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => {
+        requestCount += 1;
+
+        if (requestCount === 1) {
+          return HttpResponse.json({ error: { code: "INTERNAL_ERROR" } }, { status: 500 });
+        }
+
+        return HttpResponse.json({
+          data: [product(1)],
+          pagination: { total: 1, page: 1, limit: 15 },
+        });
+      }),
+    );
+
+    renderProductRoute();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No se pudieron cargar los productos.",
+    );
+    expect(requestCount).toBe(1);
+    await user.click(screen.getByRole("button", { name: "Reintentar" }));
+
+    expect(await screen.findByRole("cell", { name: "SKU-001" })).toBeVisible();
+    expect(requestCount).toBe(2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("presents an empty catalogue with pagination anchored to page one", async () => {
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () =>
+        HttpResponse.json({ data: [], pagination: { total: 0, page: 1, limit: 15 } }),
+      ),
+    );
+
+    renderProductRoute();
+
+    expect(await screen.findByText("No hay productos activos para mostrar.")).toBeVisible();
+    expect(screen.getByText("Página 1 de 1")).toBeVisible();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Página anterior" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Página siguiente" })).toBeDisabled();
+  });
+
+  it("offers to clear an applied search when the successful result is empty", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () =>
+        HttpResponse.json({ data: [], pagination: { total: 0, page: 1, limit: 15 } }),
+      ),
+    );
+
+    const { router } = renderProductRoute("/products?search=missing");
+
+    expect(await screen.findByText("No se encontraron productos con esta búsqueda.")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Limpiar búsqueda" }));
+
+    expect(router.state.location.search).toBe("");
+    expect(screen.queryByRole("button", { name: "Limpiar búsqueda" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("No hay productos activos para mostrar.");
+  });
+
+  it("corrects a page made invalid by a smaller result set to the last valid page", async () => {
+    const user = userEvent.setup();
+    const queryClient = createQueryClient();
+    queryClient.setDefaultOptions({
+      ...queryClient.getDefaultOptions(),
+      queries: { ...queryClient.getDefaultOptions().queries, staleTime: 0 },
+    });
+    const requestedPages: number[] = [];
+    let pageTwoRequestCount = 0;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get("page"));
+        requestedPages.push(page);
+
+        if (page === 1) {
+          return HttpResponse.json({
+            data: Array.from({ length: 15 }, (_, index) => product(index + 1)),
+            pagination: { total: 45, page, limit: 15 },
+          });
+        }
+
+        if (page === 2) {
+          pageTwoRequestCount += 1;
+          return pageTwoRequestCount === 1
+            ? HttpResponse.json({
+                data: Array.from({ length: 15 }, (_, index) => product(index + 16)),
+                pagination: { total: 45, page, limit: 15 },
+              })
+            : HttpResponse.json({
+                data: [product(16)],
+                pagination: { total: 16, page, limit: 15 },
+              });
+        }
+
+        if (page === 3) {
+          return HttpResponse.json({ data: [], pagination: { total: 16, page, limit: 15 } });
+        }
+
+        return HttpResponse.json({ data: [], pagination: { total: 0, page, limit: 15 } });
+      }),
+    );
+
+    renderProductRoute("/products", queryClient);
+
+    await screen.findByRole("cell", { name: "SKU-001" });
+    await user.click(screen.getByRole("button", { name: "Página siguiente" }));
+    await screen.findByRole("cell", { name: "SKU-016" });
+    await user.click(screen.getByRole("button", { name: "Página siguiente" }));
+
+    expect(await screen.findByRole("cell", { name: "SKU-016" })).toBeVisible();
+    expect(await screen.findByText("Página 2 de 2")).toBeVisible();
+    expect(requestedPages).toEqual([1, 2, 3, 2]);
+    expect(screen.queryByText("No hay productos activos para mostrar.")).not.toBeInTheDocument();
+  });
+
+  it("returns an empty result received on a later page to the first-page representation", async () => {
+    const user = userEvent.setup();
+    const requestedPages: number[] = [];
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get("page"));
+        requestedPages.push(page);
+
+        if (page === 1 && requestedPages.length === 1) {
+          return HttpResponse.json({
+            data: Array.from({ length: 15 }, (_, index) => product(index + 1)),
+            pagination: { total: 16, page, limit: 15 },
+          });
+        }
+
+        return HttpResponse.json({ data: [], pagination: { total: 0, page, limit: 15 } });
+      }),
+    );
+
+    renderProductRoute();
+
+    await screen.findByRole("cell", { name: "SKU-001" });
+    await user.click(screen.getByRole("button", { name: "Página siguiente" }));
+
+    expect(await screen.findByText("No hay productos activos para mostrar.")).toBeVisible();
+    expect(screen.getByText("Página 1 de 1")).toBeVisible();
+    expect(requestedPages).toEqual([1, 2, 1]);
+    expect(screen.queryByRole("cell", { name: "SKU-001" })).not.toBeInTheDocument();
   });
 });

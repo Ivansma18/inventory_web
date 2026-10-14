@@ -4,3 +4,9 @@
   font-size: var(--ui-font-size-sm);
   font-weight: var(--ui-font-weight-medium);
 }
+
+.product-list__retry {
+  display: flex;
+  justify-content: center;
+  margin-block-start: var(--ui-space-3);
+}

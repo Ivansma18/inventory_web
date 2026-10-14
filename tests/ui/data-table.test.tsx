@@ -167,13 +167,36 @@ describe("DataTable", () => {
   });
 
   it("shows the empty state only after an empty successful result", () => {
-    renderInventoryTable({ status: "ready", rows: [], page: 0, total: 0 });
+    renderInventoryTable({ status: "ready", rows: [], page: 1, total: 0 });
 
     expect(screen.getByRole("status")).toHaveTextContent("No hay datos para mostrar.");
-    expect(screen.getByText("0 de 0 páginas")).toBeInTheDocument();
+    expect(screen.getByText("Página 1 de 1")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Página anterior" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Página siguiente" })).toBeDisabled();
+  });
+
+  it("supports a consumer-provided empty message and recovery action", async () => {
+    const user = userEvent.setup();
+    const onClear = vi.fn();
+
+    render(
+      <DataTable
+        columns={inventoryColumns}
+        emptyAction={<button onClick={onClear}>Limpiar búsqueda</button>}
+        emptyMessage="No hay coincidencias."
+        onPageChange={() => undefined}
+        onSortChange={() => undefined}
+        pageSize={2}
+        result={{ status: "ready", rows: [], page: 1, total: 0 }}
+        rowKey="id"
+        sort={null}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("No hay coincidencias.");
+    await user.click(screen.getByRole("button", { name: "Limpiar búsqueda" }));
+    expect(onClear).toHaveBeenCalledOnce();
   });
 
   it("discards the previous snapshot when an empty result succeeds", () => {
@@ -191,14 +214,14 @@ describe("DataTable", () => {
         onPageChange={onPageChange}
         onSortChange={() => undefined}
         pageSize={2}
-        result={{ status: "ready", rows: [], page: 0, total: 0 }}
+        result={{ status: "ready", rows: [], page: 1, total: 0 }}
         rowKey="id"
         sort={null}
       />,
     );
 
     expect(screen.getByRole("status")).toHaveTextContent("No hay datos para mostrar.");
-    expect(screen.getByText("0 de 0 páginas")).toBeInTheDocument();
+    expect(screen.getByText("Página 1 de 1")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.queryByRole("cell", { name: "SKU-01" })).not.toBeInTheDocument();
     expect(onPageChange).not.toHaveBeenCalled();
@@ -391,7 +414,7 @@ describe("DataTable", () => {
     expect(getSortedHeaderNames()).toEqual(["SKU"]);
   });
 
-  it("requests the last valid page once and keeps rows visible during correction", () => {
+  it("requests the last valid page once and hides rows from an out-of-range response", () => {
     const onPageChange = vi.fn();
     const updatedOnPageChange = vi.fn();
     const { rerender } = render(
@@ -411,8 +434,8 @@ describe("DataTable", () => {
     expect(onPageChange).toHaveBeenCalledTimes(1);
     expect(onPageChange).toHaveBeenCalledWith(3);
     expect(screen.getByRole("status")).toHaveTextContent("Ajustando página...");
-    expect(screen.getByRole("cell", { name: "SKU-01" })).toBeInTheDocument();
-    expect(screen.getByRole("cell", { name: "Keyboard" })).toBeInTheDocument();
+    expect(screen.queryByRole("cell", { name: "SKU-01" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("cell", { name: "Keyboard" })).not.toBeInTheDocument();
 
     rerender(
       <StrictMode>
@@ -453,5 +476,48 @@ describe("DataTable", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(screen.getByText("Página 3 de 3")).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "Mouse" })).toBeInTheDocument();
+  });
+
+  it("corrects an empty later page to page one and presents one-page pagination", () => {
+    const onPageChange = vi.fn();
+    const onPageCorrection = vi.fn();
+    const { rerender } = render(
+      <DataTable
+        columns={inventoryColumns}
+        onPageChange={onPageChange}
+        onPageCorrection={onPageCorrection}
+        onSortChange={() => undefined}
+        pageSize={2}
+        result={{ status: "ready", rows: [], page: 3, total: 0 }}
+        rowKey="id"
+        sort={null}
+      />,
+    );
+
+    expect(onPageChange).toHaveBeenCalledOnce();
+    expect(onPageChange).toHaveBeenCalledWith(1);
+    expect(onPageCorrection).toHaveBeenCalledOnce();
+    expect(onPageCorrection).toHaveBeenCalledWith(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Ajustando página...");
+    expect(screen.queryByText("No hay datos para mostrar.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+
+    rerender(
+      <DataTable
+        columns={inventoryColumns}
+        onPageChange={onPageChange}
+        onPageCorrection={onPageCorrection}
+        onSortChange={() => undefined}
+        pageSize={2}
+        result={{ status: "ready", rows: [], page: 1, total: 0 }}
+        rowKey="id"
+        sort={null}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("No hay datos para mostrar.");
+    expect(screen.getByText("Página 1 de 1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Página anterior" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Página siguiente" })).toBeDisabled();
   });
 });
