@@ -114,8 +114,8 @@ Cada tarea busca una unidad de aproximadamente 15–30 minutos de trabajo activo
       Hecho cuando: evidencia identifica lector/navegador y confirma nombres, estado activo/expandido, salto, contención y retornos del foco, incluido destino activo inexistente; no se declara confirmación auditiva sin pasada humana. Evidencia: `review-t40.md`; automatización Chromium 13/13, foco visible comprobado y pasada auditiva confirmada por el usuario con Narrator + Chromium.
 - [x] T41. Revisar anuncios y transiciones de sesión con lector de pantalla. (RF-31–RF-40, RF-43, RF-47–RF-48, RF-54–RF-55, RF-63–RF-65; NFR-2, NFR-5)
       Hecho cuando: evidencia humana confirma comprobación, errores, reintentos, ausencia y cierre sin anuncios duplicados o pérdida de foco; se cubre retirada del panel y fallo concurrente sin sesión. Evidencia: `review-t41.md`; automatización aprobada y pasada auditiva confirmada por el usuario con Narrator + Chromium.
-- [ ] T42. Verificar fronteras, separación de estados y formato de los cambios. (RF-18–RF-20, RF-31–RF-49; NFR-6–NFR-9)
-      Hecho cuando: pnpm lint y pnpm format:check pasan; revisión confirma APIs públicas Auth, PrimeReact/PrimeIcons solo en shared/ui, CSS co-localizado y store sin sesión/identidad; Markdown se verifica con Prettier focalizado.
+- [x] T42. Verificar fronteras, separación de estados y formato de los cambios. (RF-18–RF-20, RF-31–RF-49; NFR-6–NFR-9)
+      Hecho cuando: pnpm lint y pnpm format:check pasan; revisión confirma APIs públicas Auth, PrimeReact/PrimeIcons solo en shared/ui, CSS co-localizado y store sin sesión/identidad; Markdown se verifica con Prettier focalizado. Evidencia: `review-t42.md`; fronteras verificadas y formato global aprobado.
 - [ ] T43. Ejecutar la suite unitaria/integración, typecheck y build. (RF-1–RF-65; NFR-6, NFR-9, NFR-10)
       Hecho cuando: pnpm typecheck, pnpm test:run y pnpm build pasan; se registran resultados y advertencias reales, incluidas regresiones Auth y contratos Drawer/Icon.
 - [ ] T44. Ejecutar el E2E predeterminado y la verificación de producción. (RF-1–RF-65; NFR-1, NFR-8–NFR-10)
