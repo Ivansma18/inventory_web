@@ -15,7 +15,8 @@ export type IconName =
   | "next"
   | "sort"
   | "sortAscending"
-  | "sortDescending";
+  | "sortDescending"
+  | "box";
 
 export type IconSize = "sm" | "md" | "lg";
 
@@ -51,6 +52,7 @@ const primeIconByName: Record<IconName, string> = {
   sort: "pi-sort-alt",
   sortAscending: "pi-sort-amount-up-alt",
   sortDescending: "pi-sort-amount-down",
+  box: "pi-box",
 };
 
 export const Icon = (props: IconProps) => {
