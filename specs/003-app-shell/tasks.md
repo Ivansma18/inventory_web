@@ -116,8 +116,8 @@ Cada tarea busca una unidad de aproximadamente 15–30 minutos de trabajo activo
       Hecho cuando: evidencia humana confirma comprobación, errores, reintentos, ausencia y cierre sin anuncios duplicados o pérdida de foco; se cubre retirada del panel y fallo concurrente sin sesión. Evidencia: `review-t41.md`; automatización aprobada y pasada auditiva confirmada por el usuario con Narrator + Chromium.
 - [x] T42. Verificar fronteras, separación de estados y formato de los cambios. (RF-18–RF-20, RF-31–RF-49; NFR-6–NFR-9)
       Hecho cuando: pnpm lint y pnpm format:check pasan; revisión confirma APIs públicas Auth, PrimeReact/PrimeIcons solo en shared/ui, CSS co-localizado y store sin sesión/identidad; Markdown se verifica con Prettier focalizado. Evidencia: `review-t42.md`; fronteras verificadas y formato global aprobado.
-- [ ] T43. Ejecutar la suite unitaria/integración, typecheck y build. (RF-1–RF-65; NFR-6, NFR-9, NFR-10)
-      Hecho cuando: pnpm typecheck, pnpm test:run y pnpm build pasan; se registran resultados y advertencias reales, incluidas regresiones Auth y contratos Drawer/Icon.
+- [x] T43. Ejecutar la suite unitaria/integración, typecheck y build. (RF-1–RF-65; NFR-6, NFR-9, NFR-10)
+      Hecho cuando: pnpm typecheck, pnpm test:run y pnpm build pasan; se registran resultados y advertencias reales, incluidas regresiones Auth y contratos Drawer/Icon. Evidencia: `review-t43.md`; typecheck aprobado, 40 archivos/282 pruebas y build aprobado con aviso de chunk JS de 626.57 kB.
 - [ ] T44. Ejecutar el E2E predeterminado y la verificación de producción. (RF-1–RF-65; NFR-1, NFR-8–NFR-10)
       Hecho cuando: pnpm test:e2e y pnpm test:e2e --project=preview-smoke pasan secuencialmente; nuevas pruebas del shell se ejecutan en bootstrap-smoke sin backend ni credenciales privadas.
 - [ ] T45. Consolidar evidencia y validar cumplimiento completo de Spec 003. (RF-1–RF-65; NFR-1–NFR-10)
