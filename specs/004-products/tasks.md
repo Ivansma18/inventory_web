@@ -4,8 +4,8 @@
   Hecho cuando: con una sesión confirmada, Productos aparece en la navegación y `/products` muestra el listado dentro del layout existente; una prueba de router verifica ambas cosas.
 - [x] T2. Registrar las rutas de creación y edición por identificador público y soportar acceso directo. (RF-3–RF-5)
   Hecho cuando: `/products/new` y `/products/:uuid/edit` abren la pantalla solicitada tras la confirmación de sesión, también al cargar la URL directamente; las pruebas de router cubren ambas rutas.
-- [ ] T3. Conservar los estados de acceso existentes y mantener visibles las acciones sin inferir permisos desde el rol. (RF-6–RF-7; NFR-10)
-  Hecho cuando: pruebas de integración verifican estados pending/error/unauthenticated de Auth, y que crear, editar y cambiar estado siguen visibles para distintos roles; ningún resultado de una sesión anterior se presenta como vigente.
+- [x] T3. Conservar los estados de acceso existentes y aislar los resultados ante cambios de sesión. (RF-6; NFR-10)
+  Hecho cuando: pruebas de integración sobre rutas de Productos verifican los estados pending/error/unauthenticated de Auth y que, al cambiar o perderse la sesión, no se presenta como vigente contenido de la sesión anterior. La visibilidad por rol de cada acción se verifica al implementarla en T13, T20 y T22 (RF-7).
 - [ ] T4. Integrar contratos OpenAPI de Productos y construir consulta remota y filas del listado. (RF-8–RF-12)
   Hecho cuando: los tipos generados proceden de una fuente OpenAPI reproducible; una prueba MSW valida columnas, defaults (activos, nombre ascendente, 15 por página), total y cambio de página usando respuestas remotas.
 - [ ] T5. Implementar estados de consulta, limpieza de búsqueda sin resultados y corrección de páginas fuera de rango. (RF-13–RF-18)
@@ -24,8 +24,8 @@
   Hecho cuando: pruebas unitarias cubren vacío, no numérico, negativo, cero, coma/punto, dos y tres decimales, separadores de miles y mezcla de separadores; el valor no se redondea, se presenta con dos decimales y sin moneda, y se acepta venta menor que compra.
 - [ ] T12. Completar los estados de categoría requeridos para creación sin incluir gestión de categorías. (RF-50–RF-52)
   Hecho cuando: pruebas verifican el aviso de que hace falta una categoría activa, bloqueo de creación sin selección válida y ausencia de acciones de crear/editar/activar/desactivar categorías.
-- [ ] T13. Implementar el envío de creación, sus estados y el destino posterior al éxito. (RF-40–RF-45)
-  Hecho cuando: pruebas de operación diferida verifican una sola solicitud, indicador pendiente, confirmación solo tras respuesta válida, conservación de valores ante error y retorno a activos/página 1/sin búsqueda/nombre ascendente tras éxito.
+- [ ] T13. Implementar el envío de creación, sus estados y el destino posterior al éxito. (RF-7, RF-40–RF-45)
+  Hecho cuando: pruebas de operación diferida verifican una sola solicitud, indicador pendiente, confirmación solo tras respuesta válida, conservación de valores ante error y retorno a activos/página 1/sin búsqueda/nombre ascendente tras éxito; la acción de creación permanece visible para distintos roles presentados por el frontend.
 - [ ] T14. Mostrar y recuperar errores de categoría durante creación sin perder los demás valores. (RF-53–RF-54)
   Hecho cuando: pruebas de conflicto 404/409 identifican el campo categoría y permiten refrescar opciones manteniendo intactos los otros campos del formulario.
 - [ ] T15. Consultar y presentar los datos iniciales de edición para productos activos e inactivos. (RF-55–RF-58)
@@ -38,12 +38,12 @@
   Hecho cuando: pruebas comparan el payload con el snapshot original; campos no modificados y `isActive` no se envían, y un formulario limpio no dispara PATCH.
 - [ ] T19. Implementar los estados pendiente y confirmado de la actualización de producto. (RF-68–RF-70)
   Hecho cuando: pruebas con respuesta diferida verifican indicador de operación, bloqueo de envíos duplicados y confirmación de éxito únicamente tras respuesta válida.
-- [ ] T20. Completar retorno al origen y conservación de cambios ante fallos de edición. (RF-71–RF-73)
-  Hecho cuando: pruebas verifican retorno a los criterios de origen después del éxito, uso de criterios predeterminados cuando edición se abrió directamente sin origen y conservación editable de los valores locales después de un error ordinario.
+- [ ] T20. Completar retorno al origen y conservación de cambios ante fallos de edición. (RF-7, RF-71–RF-73)
+  Hecho cuando: pruebas verifican retorno a los criterios de origen después del éxito, uso de criterios predeterminados cuando edición se abrió directamente sin origen y conservación editable de los valores locales después de un error ordinario; la acción de edición permanece visible para distintos roles presentados por el frontend.
 - [ ] T21. Implementar estados de UUID inválido, producto inexistente y error recuperable al cargar edición. (RF-74–RF-76)
   Hecho cuando: pruebas verifican estados distintos para dirección inválida y producto 404, que un UUID inválido no genera petición, retorno al listado y retry de un error de red/servidor.
-- [ ] T22. Añadir acciones de activación/desactivación y su confirmación accesible. (RF-77–RF-81)
-  Hecho cuando: pruebas verifican acciones según estado, confirmación con identidad del producto, explicación de desactivación lógica y que cancelar no modifica ni envía una operación.
+- [ ] T22. Añadir acciones de activación/desactivación y su confirmación accesible. (RF-7, RF-77–RF-81)
+  Hecho cuando: pruebas verifican acciones según estado, confirmación con identidad del producto, explicación de desactivación lógica y que cancelar no modifica ni envía una operación; las acciones de estado permanecen visibles para distintos roles presentados por el frontend.
 - [ ] T23. Implementar mutaciones de estado con confirmación remota y actualización de la consulta vigente. (RF-82–RF-86, RF-89)
   Hecho cuando: pruebas diferidas verifican indicador y protección contra duplicados por producto, ausencia de optimistic update, uso de PATCH para activar y DELETE lógico para desactivar, confirmación y refresco con los criterios aplicados.
 - [ ] T24. Manejar páginas fuera de rango y errores recuperables del cambio de estado. (RF-87–RF-88)
@@ -91,7 +91,7 @@
 | --- | --- | --- |
 | T1 | Ninguna | Establece el primer punto de entrada de Productos en el App Shell. |
 | T2 | T1 | Añade rutas hermanas bajo el shell y la misma protección de navegación. |
-| T3 | T1, T2 | Verifica estados de acceso y visibilidad una vez registradas las rutas y acciones. |
+| T3 | T1, T2 | Verifica estados de acceso en las rutas registradas; RF-7 se prueba al implementar cada acción en T13, T20 y T22. |
 | T4 | T1, T3 | La consulta remota necesita la ruta protegida y los contratos de sesión existentes. |
 | T5 | T4 | Los estados de consulta dependen de la respuesta y paginación remotas. |
 | T6 | T4 | Los controles traducen sus criterios al contrato de listado. |
@@ -138,7 +138,8 @@
 | --- | --- | --- |
 | RF-1–RF-2 | T1 | Pruebas de navegación autenticada y render del listado dentro del App Shell. |
 | RF-3–RF-5 | T2 | Pruebas de rutas de creación/edición y acceso directo tras confirmar sesión. |
-| RF-6–RF-7 | T3 | Pruebas de estados Auth y acciones visibles independientemente del rol. |
+| RF-6 | T3 | Pruebas de estados Auth en rutas de Productos y aislamiento de contenido al cambiar o perderse la sesión. |
+| RF-7 | T13, T20, T22 | Pruebas de visibilidad de las acciones de creación, edición y estado para distintos roles presentados por el frontend. |
 | RF-8–RF-12 | T4 | Pruebas MSW de columnas, defaults, total, límite y paginación remota. |
 | RF-13–RF-18 | T5 | Pruebas de carga/error/vacío, limpiar búsqueda y rango de páginas. |
 | RF-19–RF-26 | T6 | Pruebas de normalización, filtro conjunto, orden y reinicio de página. |
