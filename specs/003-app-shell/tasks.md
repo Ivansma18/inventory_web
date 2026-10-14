@@ -110,8 +110,8 @@ Cada tarea busca una unidad de aproximadamente 15–30 minutos de trabajo activo
 
 - [x] T39. Revisar responsive, zoom y movimiento reducido con Impeccable. (RF-1–RF-5, RF-15–RF-17, RF-33, RF-52, RF-56–RF-57; NFR-1, NFR-3–NFR-6)
       Hecho cuando: evidencia documentada incluye 360/768/1280, zoom real al 200 %, texto largo, contraste y movimiento reducido; se realiza una revisión agrupada y una confirmación acotada tras corregir los defectos encontrados, sin ampliar alcance. Evidencia: `review-t39.md`; regresiones responsive, contraste y movimiento reducido aprobadas, con confirmación manual del usuario para zoom nativo al 200 %.
-- [ ] T40. Revisar navegación y destinos del foco con teclado y lector de pantalla. (RF-10, RF-16–RF-17, RF-23–RF-29, RF-50–RF-53, RF-58, RF-62; NFR-2)
-      Hecho cuando: evidencia identifica lector/navegador y confirma nombres, estado activo/expandido, salto, contención y retornos del foco, incluido destino activo inexistente; no se declara confirmación auditiva sin pasada humana.
+- [x] T40. Revisar navegación y destinos del foco con teclado y lector de pantalla. (RF-10, RF-16–RF-17, RF-23–RF-29, RF-50–RF-53, RF-58, RF-62; NFR-2)
+      Hecho cuando: evidencia identifica lector/navegador y confirma nombres, estado activo/expandido, salto, contención y retornos del foco, incluido destino activo inexistente; no se declara confirmación auditiva sin pasada humana. Evidencia: `review-t40.md`; automatización Chromium 13/13, foco visible comprobado y pasada auditiva confirmada por el usuario con Narrator + Chromium.
 - [ ] T41. Revisar anuncios y transiciones de sesión con lector de pantalla. (RF-31–RF-40, RF-43, RF-47–RF-48, RF-54–RF-55, RF-63–RF-65; NFR-2, NFR-5)
       Hecho cuando: evidencia humana confirma comprobación, errores, reintentos, ausencia y cierre sin anuncios duplicados o pérdida de foco; se cubre retirada del panel y fallo concurrente sin sesión.
 - [ ] T42. Verificar fronteras, separación de estados y formato de los cambios. (RF-18–RF-20, RF-31–RF-49; NFR-6–NFR-9)

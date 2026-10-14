@@ -1,4 +1,17 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+const expectVisibleFocusIndicator = async (locator: Locator) => {
+  const focusStyle = await locator.evaluate((element) => {
+    const { outlineColor, outlineStyle, outlineWidth } = getComputedStyle(element);
+    return { outlineColor, outlineStyle, outlineWidth };
+  });
+
+  expect(focusStyle).toEqual({
+    outlineColor: "rgb(39, 103, 109)",
+    outlineStyle: "solid",
+    outlineWidth: "2px",
+  });
+};
 
 const authenticatePage = async (page: Page) => {
   await page.route("**/api/auth/get-session", async (route) => {
@@ -21,19 +34,27 @@ for (const width of [360, 768]) {
     await authenticatePage(page);
     await page.goto("/not-registered");
 
+    const skipLink = page.getByRole("link", { name: "Saltar al contenido" });
     const opener = page.getByRole("button", { name: "Abrir navegación" });
     const root = page.locator("#root");
     await expect(opener).toHaveAttribute("aria-expanded", "false");
-    await opener.focus();
+    await skipLink.focus();
+    await expect(skipLink).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(opener).toBeFocused();
+    await expectVisibleFocusIndicator(opener);
     await page.keyboard.press("Enter");
 
     const drawer = page.getByRole("dialog", { name: "Navegación principal" });
     const closeButton = page.getByRole("button", { name: "Cerrar panel" });
+    const openerElement = page.locator('button[aria-label="Abrir navegación"]');
     const homeLink = page
       .getByRole("navigation", { name: "Navegación principal" })
       .getByRole("link", { name: "Inicio", exact: true });
     await expect(drawer).toBeVisible();
     await expect(drawer).toHaveAttribute("aria-modal", "true");
+    await expect(openerElement).toHaveAttribute("aria-expanded", "true");
+    await expect(homeLink).not.toHaveAttribute("aria-current");
     await expect(closeButton).toBeFocused();
     await expect(root).toHaveAttribute("inert", "");
 
@@ -88,9 +109,22 @@ test("tabs through collapsed persistent navigation and exposes its tooltip", asy
   await expect(skipLink).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(expandButton).toBeFocused();
+  await expectVisibleFocusIndicator(expandButton);
   await page.keyboard.press("Tab");
   await expect(homeLink).toBeFocused();
+  await expectVisibleFocusIndicator(homeLink);
   await expect(homeLink).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("tooltip")).toHaveText("Inicio");
+  await page.keyboard.press("Shift+Tab");
+  await expect(expandButton).toBeFocused();
+  await page.keyboard.press("Enter");
+  const collapseButton = page.getByRole("button", { name: "Contraer navegación" });
+  await expect(collapseButton).toHaveAttribute("aria-expanded", "true");
+  await expect(collapseButton).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Expandir navegación" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1280);
 });
