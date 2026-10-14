@@ -5,6 +5,13 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { Icon } from "../icon/icon";
+import {
+  focusElement,
+  getFirstFocusableElement,
+  isAvailableFocusTarget,
+  makeOutsideContentInert,
+  nativeFocusableSelector,
+} from "../modal/modal-accessibility";
 
 export interface DialogProps {
   open: boolean;
@@ -18,98 +25,6 @@ export interface DialogProps {
   closeOnBackdrop?: boolean;
   closeBlocked?: boolean;
 }
-
-interface OutsideAccessibilityState {
-  element: HTMLElement;
-  hadInert: boolean;
-  ariaHidden: string | null;
-}
-
-const focusableSelector = [
-  "a[href]",
-  "area[href]",
-  "button:not(:disabled)",
-  'input:not(:disabled):not([type="hidden"])',
-  "select:not(:disabled)",
-  "textarea:not(:disabled)",
-  '[contenteditable="true"]',
-  '[tabindex]:not([tabindex="-1"])',
-].join(",");
-
-const nativeFocusableSelector = [
-  "a[href]",
-  "area[href]",
-  "button",
-  "input",
-  "select",
-  "textarea",
-  "iframe",
-  "object",
-  "embed",
-  "summary",
-  '[contenteditable="true"]',
-].join(",");
-
-const isAvailableFocusTarget = (element: HTMLElement): boolean => {
-  if (
-    !element.isConnected ||
-    element.hidden ||
-    element.matches(":disabled") ||
-    element.getAttribute("aria-disabled") === "true" ||
-    element.closest('[hidden], [inert], [aria-hidden="true"]')
-  ) {
-    return false;
-  }
-
-  const style = window.getComputedStyle(element);
-  return style.display !== "none" && style.visibility !== "hidden";
-};
-
-const focusElement = (element: HTMLElement, allowTemporaryTabIndex = false): boolean => {
-  if (!isAvailableFocusTarget(element)) {
-    return false;
-  }
-
-  const addTemporaryTabIndex =
-    allowTemporaryTabIndex &&
-    !element.hasAttribute("tabindex") &&
-    !element.matches(nativeFocusableSelector);
-
-  if (addTemporaryTabIndex) {
-    element.setAttribute("tabindex", "-1");
-  }
-
-  element.focus({ preventScroll: true });
-  if (document.activeElement !== element) {
-    if (addTemporaryTabIndex) {
-      element.removeAttribute("tabindex");
-    }
-    return false;
-  }
-
-  if (addTemporaryTabIndex) {
-    element.addEventListener(
-      "blur",
-      () => {
-        if (element.getAttribute("tabindex") === "-1") {
-          element.removeAttribute("tabindex");
-        }
-      },
-      { once: true },
-    );
-  }
-
-  return true;
-};
-
-const getFirstFocusableElement = (container: HTMLElement): HTMLElement | undefined =>
-  Array.from(container.querySelectorAll<HTMLElement>(focusableSelector)).find(
-    (element) =>
-      !element.matches(":disabled") &&
-      !element.hidden &&
-      element.getAttribute("role") !== "presentation" &&
-      !element.closest('[hidden], [inert], [aria-hidden="true"]'),
-  );
 
 const createPortalContainer = () => {
   if (typeof document === "undefined") {
@@ -166,36 +81,7 @@ export const Dialog = ({
       return;
     }
 
-    const outsideElements = Array.from(document.body.children).filter(
-      (element): element is HTMLElement =>
-        element instanceof HTMLElement && element !== portalContainer,
-    );
-    const previousStates: OutsideAccessibilityState[] = outsideElements.map((element) => ({
-      element,
-      hadInert: element.hasAttribute("inert"),
-      ariaHidden: element.getAttribute("aria-hidden"),
-    }));
-
-    for (const { element } of previousStates) {
-      element.setAttribute("inert", "");
-      element.setAttribute("aria-hidden", "true");
-    }
-
-    return () => {
-      for (const { element, hadInert, ariaHidden } of previousStates) {
-        if (hadInert) {
-          element.setAttribute("inert", "");
-        } else {
-          element.removeAttribute("inert");
-        }
-
-        if (ariaHidden === null) {
-          element.removeAttribute("aria-hidden");
-        } else {
-          element.setAttribute("aria-hidden", ariaHidden);
-        }
-      }
-    };
+    return makeOutsideContentInert(portalContainer);
   }, [open, portalContainer]);
 
   const focusDialogOnShow = () => {

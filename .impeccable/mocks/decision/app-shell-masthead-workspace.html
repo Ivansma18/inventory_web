@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Inventory — Masthead global</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { width: 1440px; height: 900px; overflow: hidden; margin: 0; color: #202c39; background: #f4f6f5; font: 16px/1.5 system-ui, sans-serif; }
+      .masthead { height: 76px; padding: 0 44px; background: #27676d; color: #fff; display: flex; align-items: center; justify-content: space-between; }
+      .brand { font-size: 22px; line-height: 1; font-weight: 700; letter-spacing: -.035em; }
+      .account { display: flex; gap: 22px; align-items: center; font-size: 14px; }
+      .account button { color: #fff; border: 1px solid rgb(255 255 255 / 65%); border-radius: 5px; padding: 9px 13px; background: transparent; font: inherit; }
+      .workspace { height: 824px; display: grid; grid-template-columns: 264px 1fr; }
+      aside { background: #fff; border-right: 1px solid #cbd5d1; padding: 36px 20px; }
+      .nav a { display: block; padding: 12px 14px; color: #20575c; text-decoration: none; border-bottom: 2px solid #27676d; font-weight: 600; }
+      main { min-width: 0; padding: 44px 64px; }
+      .page-title { margin: 0 0 88px; color: #53616b; font-size: 16px; font-weight: 600; }
+      .welcome { max-width: 660px; }
+      .welcome h1 { margin: 0; font-size: 48px; line-height: 1.12; letter-spacing: -.04em; font-weight: 650; }
+      .welcome p { max-width: 48ch; margin: 22px 0 0; color: #53616b; font-size: 19px; }
+      .marker { width: 56px; height: 4px; margin-bottom: 24px; background: #27676d; }
+    </style>
+  </head>
+  <body>
+    <header class="masthead"><div class="brand">Inventory</div><div class="account"><span>usuario@ejemplo.invalid</span><button type="button">Cerrar sesión</button></div></header>
+    <div class="workspace">
+      <aside aria-label="Navegación principal"><nav class="nav"><a href="/" aria-current="page">Inicio</a></nav></aside>
+      <main>
+        <p class="page-title">Inicio</p>
+        <section class="welcome" aria-labelledby="welcome-title">
+          <div class="marker" aria-hidden="true"></div>
+          <h1 id="welcome-title">Bienvenido a Inventory</h1>
+          <p>Este es tu espacio de trabajo.</p>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

@@ -6,6 +6,12 @@
 @import "primeicons/primeicons.css" layer(primereact);
 @import "tailwindcss/utilities.css" layer(utilities);
 
+@layer base {
+  body {
+    margin: 0;
+  }
+}
+
 @layer components {
   ::selection {
     color: var(--ui-color-selection-text);

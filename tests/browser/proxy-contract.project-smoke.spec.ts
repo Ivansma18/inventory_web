@@ -6,9 +6,17 @@ test("preserves Auth and business requests through the browser proxy", async ({ 
   const resetResponse = await page.request.post(`${mockControlUrl}/reset`);
   expect(resetResponse.status()).toBe(204);
 
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "UNAUTHORIZED", message: "No active session." } }),
+    });
+  });
+
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { level: 1, name: "Inventory" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Sesión no iniciada" })).toBeVisible();
 
   const authRequestBody = { email: "proxy-contract@example.invalid", intent: "test-only" };
   const authResult = await page.evaluate(async (body) => {

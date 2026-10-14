@@ -103,6 +103,7 @@ describe("public Auth hooks", () => {
     const { result } = renderHook(() => ({ session: useSession(), auth: useAuth() }));
 
     expect(result.current.session.status).toBe("pending");
+    expect(result.current.session.verification).toEqual({ status: "pending", error: null });
     await waitFor(() => expect(result.current.session.status).toBe("unconfirmed"));
     expect(result.current.session).toMatchObject({
       user: null,
@@ -111,6 +112,10 @@ describe("public Auth hooks", () => {
       isUnauthenticated: false,
       isPending: false,
       error: { kind: "contract", operation: "session" },
+      verification: {
+        status: "error",
+        error: { kind: "contract", operation: "session", status: 200 },
+      },
     });
 
     let preconditionResult!: AuthSignInResult;

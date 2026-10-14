@@ -1,0 +1,79 @@
+@layer components {
+  .ui-drawer {
+    block-size: 100vh;
+    block-size: 100dvh;
+    border-inline-end: var(--ui-border-width) solid var(--ui-color-border);
+    background-color: var(--ui-color-surface);
+    box-sizing: border-box;
+    color: var(--ui-color-text);
+    display: flex;
+    flex-direction: column;
+    inline-size: min(24rem, 100vw);
+    max-block-size: 100vh;
+    max-block-size: 100dvh;
+    max-inline-size: 100vw;
+    min-block-size: 0;
+  }
+
+  .ui-drawer__mask {
+    background-color: var(--ui-color-scrim);
+    overflow: hidden;
+  }
+
+  .ui-drawer .p-sidebar-header {
+    background-color: var(--ui-color-surface);
+    border-bottom: var(--ui-border-width) solid var(--ui-color-border);
+    color: var(--ui-color-text);
+    flex: 0 0 auto;
+    padding: var(--ui-space-4);
+  }
+
+  .ui-drawer .p-sidebar-content {
+    display: flex;
+    flex: 1 1 auto;
+    min-block-size: 0;
+    overflow: hidden;
+    padding: 0;
+  }
+
+  .ui-drawer__content {
+    box-sizing: border-box;
+    flex: 1 1 auto;
+    min-block-size: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--ui-space-4);
+    scrollbar-color: var(--ui-color-control-border) var(--ui-color-surface-muted);
+    scrollbar-gutter: stable;
+  }
+
+  .ui-drawer__title {
+    color: inherit;
+    font-size: var(--ui-font-size-lg);
+    font-weight: var(--ui-font-weight-semibold);
+    line-height: var(--ui-line-height-tight);
+    margin: 0;
+  }
+
+  .ui-drawer .p-sidebar-close {
+    border-radius: var(--ui-radius-sm);
+    color: var(--ui-color-text-muted);
+    flex: 0 0 auto;
+    height: var(--ui-control-height);
+    width: var(--ui-control-height);
+  }
+
+  .ui-drawer .p-sidebar-close:hover {
+    background-color: var(--ui-color-surface-muted);
+    color: var(--ui-color-text);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-drawer,
+  .ui-drawer__mask {
+    animation-duration: var(--ui-motion-duration-reduced) !important;
+    transition-duration: var(--ui-motion-duration-reduced) !important;
+  }
+}

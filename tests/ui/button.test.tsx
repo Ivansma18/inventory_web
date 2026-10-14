@@ -79,6 +79,48 @@ describe("Button", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
+  it("keeps an aria-disabled busy action focusable while blocking activation", async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+
+    render(
+      <Button ariaDisabled loading onClick={onClick}>
+        Cerrando sesión…
+      </Button>,
+    );
+
+    const button = screen.getByRole("button", { name: "Cerrando sesión…" });
+    await user.tab();
+
+    expect(button).toHaveFocus();
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).not.toHaveAttribute("disabled");
+
+    await user.keyboard("{Enter}");
+    await user.keyboard("[Space]");
+    await user.click(button);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("exposes expanded state for controls that disclose a region", () => {
+    render(
+      <>
+        <Button ariaExpanded={true}>Contraer navegación</Button>
+        <Button ariaExpanded={false}>Expandir navegación</Button>
+      </>,
+    );
+
+    expect(screen.getByRole("button", { name: "Contraer navegación" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Expandir navegación" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
   it("does not submit a form unless submit is explicit", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn((event: FormEvent<HTMLFormElement>) => event.preventDefault());

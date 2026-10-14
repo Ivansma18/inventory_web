@@ -12,6 +12,8 @@ export type {
   AuthSessionError,
   AuthSessionQueryResult,
   AuthSessionState,
+  AuthSessionVerificationState,
+  AuthSignOutError,
   AuthSignInResult,
   AuthSignOutResult,
   AuthUser,

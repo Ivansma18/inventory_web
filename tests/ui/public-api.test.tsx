@@ -3,6 +3,7 @@ import {
   Button,
   DataTable,
   Dialog,
+  Drawer,
   Icon,
   Input,
   Select,
@@ -18,6 +19,7 @@ const publicPrimitives = [
   Button,
   DataTable,
   Dialog,
+  Drawer,
   Icon,
   Input,
   Select,
@@ -28,8 +30,8 @@ const publicPrimitives = [
 ];
 
 describe("shared UI public API", () => {
-  it("exports all eleven primitives through the shared barrel", () => {
-    expect(publicPrimitives).toHaveLength(11);
+  it("exports all twelve primitives through the shared barrel", () => {
+    expect(publicPrimitives).toHaveLength(12);
     publicPrimitives.forEach((primitive) => {
       expect(primitive).toBeTypeOf("function");
     });

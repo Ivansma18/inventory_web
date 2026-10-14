@@ -26,6 +26,9 @@ const forbiddenBundleMarkers = [
   "/__health-test",
   "Inventory Local Health Check",
   "health-real-client-harness.ts",
+  "Inventory Session Focus Harness",
+  "session-focus-harness.tsx",
+  "inventory:test:refetch-session",
   ...forbiddenDesignSystemMarkers,
   "INVENTORY_HEALTH_E2E_HARNESS",
   "AUTH_TEST_EMAIL",
@@ -72,6 +75,14 @@ test("serves the built app without development harnesses, demo, or backend acces
     }
   });
 
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "UNAUTHORIZED", message: "No active session." } }),
+    });
+  });
+
   const previewResponse = await page.goto("/");
   expect(previewResponse).not.toBeNull();
   if (!previewResponse) {
@@ -80,10 +91,13 @@ test("serves the built app without development harnesses, demo, or backend acces
 
   expect(previewResponse.status()).toBe(200);
   expect(await previewResponse.text()).toMatch(/src="\/assets\/index-[^"]+\.js"/);
-  await expect(page.getByRole("main")).toBeVisible();
-  await expect(page.getByRole("heading", { level: 1, name: "Inventory" })).toBeVisible();
-  await expect(page.getByText("Frontend base para la gestión de inventario.")).toBeVisible();
-  expect(apiRequests).toEqual([]);
+  await expect(page.getByRole("heading", { level: 1, name: "Sesión no iniciada" })).toBeVisible();
+  expect(apiRequests).toEqual(["/api/auth/get-session"]);
+  const viewport = await page.evaluate(() => ({
+    documentHeight: document.documentElement.scrollHeight,
+    viewportHeight: window.innerHeight,
+  }));
+  expect(viewport.documentHeight).toBeLessThanOrEqual(viewport.viewportHeight);
 
   const harnessResponse = await page.request.get("/__auth-test");
   expect(harnessResponse.status()).toBe(200);
@@ -101,10 +115,68 @@ test("serves the built app without development harnesses, demo, or backend acces
   expect(healthFallback).not.toContain("health-real-client-harness.ts");
   expect(healthFallback).not.toContain("/src/main.tsx");
 
+  const sessionFocusHarnessResponse = await page.request.get(
+    "/tests/browser/fixtures/session-focus-harness.html",
+  );
+  expect(sessionFocusHarnessResponse.status()).toBe(200);
+  const sessionFocusHarnessFallback = await sessionFocusHarnessResponse.text();
+  expect(sessionFocusHarnessFallback).not.toContain("Inventory Session Focus Harness");
+  expect(sessionFocusHarnessFallback).not.toContain("session-focus-harness.tsx");
+  expect(sessionFocusHarnessFallback).not.toContain("/src/main.tsx");
+
   const designSystemFallback = await page.request.get("/__design-system");
   expect([200, 404]).toContain(designSystemFallback.status());
   const designSystemFallbackHtml = await designSystemFallback.text();
   for (const marker of forbiddenDesignSystemMarkers) {
     expect(designSystemFallbackHtml).not.toContain(marker);
   }
+});
+
+test("renders Home from a mocked Auth session without business API requests", async ({ page }) => {
+  const apiRequests: string[] = [];
+  let sessionRequests = 0;
+  let businessRequests = 0;
+
+  page.on("request", (request) => {
+    const requestUrl = new URL(request.url());
+    if (requestUrl.pathname.startsWith("/api/")) {
+      apiRequests.push(requestUrl.pathname);
+    }
+  });
+
+  await page.route("**/api/auth/get-session", async (route) => {
+    sessionRequests += 1;
+    expect(route.request().method()).toBe("GET");
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          user: { id: "preview-user", email: "operator@example.com", role: "OPERATOR" },
+          session: { id: "preview-session", createdAt: "2026-01-01T00:00:00.000Z" },
+        },
+      }),
+    });
+  });
+  await page.route(/\/api\/backend(?:\/|$)/, async (route) => {
+    businessRequests += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: [] }),
+    });
+  });
+
+  await page.goto("/");
+
+  await expect(page.getByRole("main")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+  ).toBeVisible();
+  await expect(page.getByText("operator@example.com")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cerrar sesión" })).toBeVisible();
+  await expect(page.getByRole("table")).toHaveCount(0);
+  expect(sessionRequests).toBe(1);
+  expect(businessRequests).toBe(0);
+  expect(apiRequests).toEqual(["/api/auth/get-session"]);
 });

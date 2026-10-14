@@ -28,6 +28,11 @@ export interface AuthNetworkError {
 
 export type AuthSessionError = AuthContractError | AuthHttpError | AuthNetworkError;
 
+export type AuthSessionVerificationState =
+  | { status: "pending"; error: null }
+  | { status: "success"; error: null }
+  | { status: "error"; error: AuthSessionError };
+
 export type AuthSessionState =
   | {
       status: "pending";
@@ -77,6 +82,9 @@ export interface AuthPreconditionError {
   message: string;
 }
 
+export type AuthSignOutError =
+  AuthHttpError | AuthNetworkError | AuthContractError | AuthPreconditionError;
+
 export type AuthActionError =
   | AuthPreconditionError
   | {
@@ -92,11 +100,12 @@ export type AuthSignInResult =
   | { data: null; error: AuthActionError };
 
 export type AuthSignOutResult =
-  | { data: null; error: null }
-  | {
-      data: null;
-      error: AuthHttpError | AuthNetworkError | AuthContractError | AuthPreconditionError;
-    };
+  { data: null; error: null } | { data: null; error: AuthSignOutError };
+
+export interface AuthSignOutOperationState {
+  isPending: boolean;
+  error: AuthSignOutError | null;
+}
 
 export type AuthSessionQueryResult =
   | { data: components["schemas"]["PublicAuthResponse"]; error: null }
@@ -105,6 +114,7 @@ export type AuthSessionQueryResult =
   | { data: null; error: null; stale: true };
 
 export type UseSessionResult = AuthSessionState & {
+  verification: AuthSessionVerificationState;
   isPending: boolean;
   refetch: () => Promise<AuthSessionQueryResult>;
 };
@@ -112,6 +122,7 @@ export type UseSessionResult = AuthSessionState & {
 export interface UseAuthResult {
   isSigningIn: boolean;
   isSigningOut: boolean;
+  signOutError: AuthSignOutError | null;
   signIn: (credentials: SignInCredentials) => Promise<AuthSignInResult>;
   signOut: () => Promise<AuthSignOutResult>;
 }

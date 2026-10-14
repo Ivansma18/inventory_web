@@ -56,26 +56,181 @@ describe("Inventory Auth concurrency", () => {
     );
 
     const client = createTestAuthClient();
-    const firstConsumer = renderHook(() => client.useInventorySession(), {
-      wrapper: strictWrapper,
+    const useSessionAndVerification = () => ({
+      session: client.useInventorySession(),
+      verification: client.useInventorySessionVerification(),
     });
-    const secondConsumer = renderHook(() => client.useInventorySession(), {
-      wrapper: strictWrapper,
-    });
+    const firstConsumer = renderHook(useSessionAndVerification, { wrapper: strictWrapper });
+    const secondConsumer = renderHook(useSessionAndVerification, { wrapper: strictWrapper });
 
-    await waitFor(() => expect(firstConsumer.result.current.status).toBe("authenticated"));
-    await waitFor(() => expect(secondConsumer.result.current.status).toBe("authenticated"));
+    await waitFor(() => expect(firstConsumer.result.current.session.status).toBe("authenticated"));
+    await waitFor(() => expect(secondConsumer.result.current.session.status).toBe("authenticated"));
     expect(firstConsumer.result.current).toEqual(secondConsumer.result.current);
+    expect(firstConsumer.result.current.verification).toEqual({ status: "success", error: null });
     expect(sessionRequests).toBe(1);
 
     firstConsumer.unmount();
     secondConsumer.unmount();
 
-    const remountedConsumer = renderHook(() => client.useInventorySession(), {
-      wrapper: strictWrapper,
+    const remountedConsumer = renderHook(useSessionAndVerification, { wrapper: strictWrapper });
+    await waitFor(() =>
+      expect(remountedConsumer.result.current.session.status).toBe("authenticated"),
+    );
+    expect(remountedConsumer.result.current.verification).toEqual({
+      status: "success",
+      error: null,
     });
-    await waitFor(() => expect(remountedConsumer.result.current.status).toBe("authenticated"));
     expect(sessionRequests).toBe(1);
+  });
+
+  it("shares a concurrent session refetch across consumers in the same generation", async () => {
+    let sessionRequests = 0;
+    let resolveRefetchStarted!: () => void;
+    let resolveRefetchResponse!: () => void;
+    const refetchStarted = new Promise<void>((resolve) => {
+      resolveRefetchStarted = resolve;
+    });
+    const refetchResponse = new Promise<void>((resolve) => {
+      resolveRefetchResponse = resolve;
+    });
+
+    server.use(
+      http.get(sessionEndpoint, async () => {
+        sessionRequests += 1;
+        if (sessionRequests === 1) {
+          return HttpResponse.json(authResponse("initial-user"));
+        }
+
+        const responseUser = sessionRequests === 2 ? "shared-user" : "duplicate-user";
+        resolveRefetchStarted();
+        await refetchResponse;
+        return HttpResponse.json(authResponse(responseUser));
+      }),
+    );
+
+    const client = createTestAuthClient();
+    const useSessionAndVerification = () => ({
+      session: client.useInventorySession(),
+      verification: client.useInventorySessionVerification(),
+    });
+    const firstConsumer = renderHook(useSessionAndVerification);
+    const secondConsumer = renderHook(useSessionAndVerification);
+    await waitFor(() => expect(firstConsumer.result.current.session.status).toBe("authenticated"));
+    await waitFor(() => expect(secondConsumer.result.current.session.status).toBe("authenticated"));
+
+    let firstRefetch!: ReturnType<typeof client.refreshSession>;
+    let secondRefetch!: ReturnType<typeof client.refreshSession>;
+    act(() => {
+      firstRefetch = client.refreshSession();
+      secondRefetch = client.refreshSession();
+    });
+    await refetchStarted;
+
+    expect(firstConsumer.result.current.verification).toEqual({ status: "pending", error: null });
+    expect(secondConsumer.result.current.verification).toEqual({ status: "pending", error: null });
+    expect(firstConsumer.result.current.session.isRefetching).toBe(true);
+    expect(secondConsumer.result.current.session.isRefetching).toBe(true);
+
+    resolveRefetchResponse();
+    let refetchResults!: Awaited<ReturnType<typeof client.refreshSession>>[];
+    await act(async () => {
+      refetchResults = await Promise.all([firstRefetch, secondRefetch]);
+    });
+
+    expect(firstRefetch).toBe(secondRefetch);
+    expect(sessionRequests).toBe(2);
+    expect(refetchResults[0]).toEqual(refetchResults[1]);
+    expect(firstConsumer.result.current.session.user?.id).toBe("shared-user");
+    expect(secondConsumer.result.current.session.user?.id).toBe("shared-user");
+    expect(firstConsumer.result.current.verification).toEqual({ status: "success", error: null });
+    expect(secondConsumer.result.current.verification).toEqual({ status: "success", error: null });
+  });
+
+  it("does not let a stale previous-generation refetch clear current refetch state", async () => {
+    let sessionRequests = 0;
+    let resolveStaleQueryStarted!: () => void;
+    let resolveCurrentQueryStarted!: () => void;
+    let resolveStaleQuery!: () => void;
+    let resolveCurrentQuery!: () => void;
+    const staleQueryStarted = new Promise<void>((resolve) => {
+      resolveStaleQueryStarted = resolve;
+    });
+    const currentQueryStarted = new Promise<void>((resolve) => {
+      resolveCurrentQueryStarted = resolve;
+    });
+    const staleQueryResponse = new Promise<void>((resolve) => {
+      resolveStaleQuery = resolve;
+    });
+    const currentQueryResponse = new Promise<void>((resolve) => {
+      resolveCurrentQuery = resolve;
+    });
+
+    server.use(
+      http.get(sessionEndpoint, async () => {
+        sessionRequests += 1;
+        if (sessionRequests === 1) {
+          return HttpResponse.json(authResponse("current-user"));
+        }
+
+        if (sessionRequests === 2) {
+          resolveStaleQueryStarted();
+          await staleQueryResponse;
+          return HttpResponse.json(authResponse("stale-user"));
+        }
+
+        resolveCurrentQueryStarted();
+        await currentQueryResponse;
+        return unauthenticatedResponse();
+      }),
+      http.post(signOutEndpoint, () => new HttpResponse(null, { status: 204 })),
+    );
+
+    const client = createTestAuthClient();
+    const { result } = renderHook(() => ({
+      session: client.useInventorySession(),
+      verification: client.useInventorySessionVerification(),
+    }));
+    await waitFor(() => expect(result.current.session.status).toBe("authenticated"));
+
+    let staleRefetch!: ReturnType<typeof client.refreshSession>;
+    act(() => {
+      staleRefetch = client.refreshSession();
+    });
+    await staleQueryStarted;
+
+    await act(async () => client.signOutInventory());
+    expect(result.current.session.status).toBe("unauthenticated");
+
+    let currentRefetch!: ReturnType<typeof client.refreshSession>;
+    act(() => {
+      currentRefetch = client.refreshSession();
+    });
+    await currentQueryStarted;
+    expect(result.current.session.isRefetching).toBe(true);
+    expect(result.current.verification).toEqual({ status: "pending", error: null });
+
+    resolveStaleQuery();
+    let staleResult: unknown;
+    await act(async () => {
+      staleResult = await staleRefetch;
+    });
+
+    expect(staleResult).toEqual({ data: null, error: null, stale: true });
+    expect(result.current.session).toMatchObject({
+      status: "unauthenticated",
+      isRefetching: true,
+    });
+    expect(result.current.verification).toEqual({ status: "pending", error: null });
+
+    resolveCurrentQuery();
+    await act(async () => currentRefetch);
+
+    expect(sessionRequests).toBe(3);
+    expect(result.current.session).toMatchObject({
+      status: "unauthenticated",
+      isRefetching: false,
+    });
+    expect(result.current.verification).toEqual({ status: "success", error: null });
   });
 
   it("discards a session response started before a confirmed logout", async () => {
@@ -104,24 +259,28 @@ describe("Inventory Auth concurrency", () => {
     );
 
     const client = createTestAuthClient();
-    const { result } = renderHook(() => client.useInventorySession());
-    await waitFor(() => expect(result.current.status).toBe("authenticated"));
+    const { result } = renderHook(() => ({
+      session: client.useInventorySession(),
+      verification: client.useInventorySessionVerification(),
+    }));
+    await waitFor(() => expect(result.current.session.status).toBe("authenticated"));
 
     let staleRefetch!: ReturnType<typeof client.refreshSession>;
     act(() => {
       staleRefetch = client.refreshSession();
     });
     await staleQueryStarted;
-    expect(result.current.isRefetching).toBe(true);
+    expect(result.current.session.isRefetching).toBe(true);
 
     await act(async () => client.signOutInventory());
-    expect(result.current).toMatchObject({
+    expect(result.current.session).toMatchObject({
       status: "unauthenticated",
       user: null,
       session: null,
       isAuthenticated: false,
       isUnauthenticated: true,
     });
+    expect(result.current.verification).toEqual({ status: "success", error: null });
 
     resolveStaleQuery();
     let staleResult: unknown;
@@ -130,7 +289,7 @@ describe("Inventory Auth concurrency", () => {
     });
 
     expect(staleResult).toEqual({ data: null, error: null, stale: true });
-    expect(result.current).toMatchObject({
+    expect(result.current.session).toMatchObject({
       status: "unauthenticated",
       user: null,
       session: null,
@@ -138,6 +297,92 @@ describe("Inventory Auth concurrency", () => {
       isUnauthenticated: true,
       isRefetching: false,
     });
+    expect(result.current.verification).toEqual({ status: "success", error: null });
+  });
+
+  it("does not let a failed logout overwrite a concurrent confirmed 401", async () => {
+    let sessionRequests = 0;
+    let resolveSignOutStarted!: () => void;
+    let resolveSignOutResponse!: () => void;
+    const signOutStarted = new Promise<void>((resolve) => {
+      resolveSignOutStarted = resolve;
+    });
+    const signOutResponse = new Promise<void>((resolve) => {
+      resolveSignOutResponse = resolve;
+    });
+
+    server.use(
+      http.get(sessionEndpoint, () => {
+        sessionRequests += 1;
+        return sessionRequests === 1
+          ? HttpResponse.json(authResponse("logout-race-user"))
+          : unauthenticatedResponse();
+      }),
+      http.post(signOutEndpoint, async () => {
+        resolveSignOutStarted();
+        await signOutResponse;
+        return HttpResponse.json(
+          { error: { code: "INTERNAL", message: "Sensitive logout failure." } },
+          { status: 503 },
+        );
+      }),
+    );
+
+    const client = createTestAuthClient();
+    const { result } = renderHook(() => ({
+      session: client.useInventorySession(),
+      verification: client.useInventorySessionVerification(),
+      signOut: client.useInventorySignOut(),
+    }));
+    await waitFor(() => expect(result.current.session.status).toBe("authenticated"));
+
+    let signOutPromise!: ReturnType<typeof client.signOutInventory>;
+    act(() => {
+      signOutPromise = client.signOutInventory();
+    });
+    await signOutStarted;
+    expect(result.current.signOut.isPending).toBe(true);
+
+    let refetchPromise!: ReturnType<typeof client.refreshSession>;
+    act(() => {
+      refetchPromise = client.refreshSession();
+    });
+    await act(async () => refetchPromise);
+
+    expect(result.current.session).toMatchObject({
+      status: "unauthenticated",
+      user: null,
+      session: null,
+      isAuthenticated: false,
+      isUnauthenticated: true,
+    });
+    expect(result.current.verification).toEqual({ status: "success", error: null });
+
+    resolveSignOutResponse();
+    let signOutResult: unknown;
+    await act(async () => {
+      signOutResult = await signOutPromise;
+    });
+
+    expect(signOutResult).toMatchObject({
+      data: null,
+      error: {
+        kind: "http",
+        operation: "sign-out",
+        status: 503,
+        message: expect.any(String),
+      },
+    });
+    expect(JSON.stringify(signOutResult)).not.toContain("Sensitive");
+    expect(result.current.signOut.isPending).toBe(false);
+    expect(result.current.session).toMatchObject({
+      status: "unauthenticated",
+      user: null,
+      session: null,
+      isAuthenticated: false,
+      isUnauthenticated: true,
+    });
+    expect(result.current.verification).toEqual({ status: "success", error: null });
   });
 
   it("serializes sign-in and sign-out requests and returns precondition errors for overlap", async () => {

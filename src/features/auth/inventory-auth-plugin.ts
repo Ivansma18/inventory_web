@@ -8,10 +8,12 @@ import type {
   AuthHttpError as InventoryAuthHttpError,
   AuthNetworkError as InventoryAuthNetworkError,
   AuthOperationState as InventorySignInState,
-  AuthOperationState as InventorySignOutState,
+  AuthSignOutError as InventorySignOutError,
+  AuthSignOutOperationState as InventorySignOutState,
   AuthSessionError as InventorySessionError,
   AuthSessionQueryResult as InventorySessionQueryResult,
   AuthSessionState as InventorySessionState,
+  AuthSessionVerificationState as InventorySessionVerificationState,
   AuthSignInResult as InventorySignInResult,
   AuthSignOutResult as InventorySignOutResult,
   SignInCredentials as AuthCredentials,
@@ -103,24 +105,26 @@ const hasUnauthorizedCode = (error: unknown): boolean => {
 
 export const createInventoryAuthPlugin = () => {
   const inventorySession = atom<InventorySessionState>(createPendingState());
+  const inventorySessionVerification = atom<InventorySessionVerificationState>({
+    status: "pending",
+    error: null,
+  });
   const inventorySignIn = atom<InventorySignInState>({ isPending: false });
-  const inventorySignOut = atom<InventorySignOutState>({ isPending: false });
+  const inventorySignOut = atom<InventorySignOutState>({ isPending: false, error: null });
   let initialSessionQueryStarted = false;
   let sessionOperationVersion = 0;
   let activeAuthOperation: AuthMutationOperation | null = null;
+  let activeSessionVerification: {
+    version: number;
+    promise: Promise<InventorySessionQueryResult>;
+  } | null = null;
 
-  const refreshSession = async (
+  const runSessionVerification = async (
     request: () => Promise<BetterFetchResponse<unknown>>,
+    requestOperationVersion: number,
+    hasConfirmedSession: boolean,
   ): Promise<InventorySessionQueryResult> => {
-    const requestOperationVersion = sessionOperationVersion;
     const responseIsStale = () => requestOperationVersion !== sessionOperationVersion;
-    const current = inventorySession.get();
-    const hasConfirmedSession =
-      current.status === "authenticated" || current.status === "unauthenticated";
-
-    if (current.status !== "pending") {
-      inventorySession.set({ ...current, isRefetching: true });
-    }
 
     try {
       const result = await request();
@@ -131,10 +135,12 @@ export const createInventoryAuthPlugin = () => {
       if (result.error) {
         if (result.error.status === 401) {
           inventorySession.set(createUnauthenticatedState());
+          inventorySessionVerification.set({ status: "success", error: null });
           return { data: null, error: null };
         }
 
         const error = createHttpError("session", result.error.status);
+        inventorySessionVerification.set({ status: "error", error });
         if (!hasConfirmedSession) {
           inventorySession.set(createUnconfirmedState(error));
         }
@@ -145,6 +151,7 @@ export const createInventoryAuthPlugin = () => {
       if (!parsed.success) {
         const error = createContractError(200, "session");
         inventorySession.set(createUnconfirmedState(error));
+        inventorySessionVerification.set({ status: "error", error });
         return { data: null, error };
       }
 
@@ -157,6 +164,7 @@ export const createInventoryAuthPlugin = () => {
         isUnauthenticated: false,
         error: null,
       });
+      inventorySessionVerification.set({ status: "success", error: null });
       return { data: parsed.data, error: null };
     } catch (error: unknown) {
       if (responseIsStale()) {
@@ -166,20 +174,62 @@ export const createInventoryAuthPlugin = () => {
       if (error instanceof AuthResponseContractError) {
         const contractError = createContractError(error.status, "session");
         inventorySession.set(createUnconfirmedState(contractError));
+        inventorySessionVerification.set({ status: "error", error: contractError });
         return { data: null, error: contractError };
       }
 
       const networkError = createNetworkError("session");
+      inventorySessionVerification.set({ status: "error", error: networkError });
       if (!hasConfirmedSession) {
         inventorySession.set(createUnconfirmedState(networkError));
       }
       return { data: null, error: networkError };
     } finally {
       const latest = inventorySession.get();
-      if (latest.isRefetching) {
+      if (requestOperationVersion === sessionOperationVersion && latest.isRefetching) {
         inventorySession.set({ ...latest, isRefetching: false });
       }
     }
+  };
+
+  const refreshSession = (
+    request: () => Promise<BetterFetchResponse<unknown>>,
+  ): Promise<InventorySessionQueryResult> => {
+    const requestOperationVersion = sessionOperationVersion;
+    if (activeSessionVerification?.version === requestOperationVersion) {
+      return activeSessionVerification.promise;
+    }
+
+    const current = inventorySession.get();
+    const hasConfirmedSession =
+      current.status === "authenticated" || current.status === "unauthenticated";
+    let resolveOperation!: (result: InventorySessionQueryResult) => void;
+    let rejectOperation!: (error: unknown) => void;
+    const promise = new Promise<InventorySessionQueryResult>((resolve, reject) => {
+      resolveOperation = resolve;
+      rejectOperation = reject;
+    });
+    activeSessionVerification = { version: requestOperationVersion, promise };
+
+    void promise
+      .finally(() => {
+        if (activeSessionVerification?.promise === promise) {
+          activeSessionVerification = null;
+        }
+      })
+      .catch(() => undefined);
+
+    inventorySessionVerification.set({ status: "pending", error: null });
+    if (current.status !== "pending") {
+      inventorySession.set({ ...current, isRefetching: true });
+    }
+
+    void runSessionVerification(request, requestOperationVersion, hasConfirmedSession).then(
+      resolveOperation,
+      rejectOperation,
+    );
+
+    return promise;
   };
 
   const performSignInWithEmail = async (
@@ -274,32 +324,37 @@ export const createInventoryAuthPlugin = () => {
     }
 
     activeAuthOperation = "sign-out";
-    inventorySignOut.set({ isPending: true });
+    inventorySignOut.set({ isPending: true, error: null });
+    let operationError: InventorySignOutError | null = null;
 
     try {
       const result = await request();
       if (result.error) {
+        operationError = createHttpError("sign-out", result.error.status);
         return {
           data: null,
-          error: createHttpError("sign-out", result.error.status),
+          error: operationError,
         };
       }
 
       sessionOperationVersion += 1;
       inventorySession.set(createUnauthenticatedState());
+      inventorySessionVerification.set({ status: "success", error: null });
       return { data: null, error: null };
     } catch (error: unknown) {
       if (error instanceof AuthResponseContractError) {
+        operationError = createContractError(error.status, "sign-out");
         return {
           data: null,
-          error: createContractError(error.status, "sign-out"),
+          error: operationError,
         };
       }
 
-      return { data: null, error: createNetworkError("sign-out") };
+      operationError = createNetworkError("sign-out");
+      return { data: null, error: operationError };
     } finally {
       activeAuthOperation = null;
-      inventorySignOut.set({ isPending: false });
+      inventorySignOut.set({ isPending: false, error: operationError });
     }
   };
 
@@ -321,7 +376,12 @@ export const createInventoryAuthPlugin = () => {
         ).catch(() => undefined);
       });
 
-      return { inventorySession, inventorySignIn, inventorySignOut };
+      return {
+        inventorySession,
+        inventorySessionVerification,
+        inventorySignIn,
+        inventorySignOut,
+      };
     },
     getActions: ($fetch) => ({
       signInWithEmail: (credentials: AuthCredentials) =>
