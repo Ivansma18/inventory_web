@@ -8,7 +8,6 @@
 
 @layer base {
   body {
-    min-inline-size: 20rem;
     margin: 0;
   }
 }

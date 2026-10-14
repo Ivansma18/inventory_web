@@ -120,3 +120,9 @@
     padding: var(--ui-space-4);
   }
 }
+
+@media (max-width: 20rem) {
+  .app-layout__header {
+    padding-inline: var(--ui-space-2);
+  }
+}

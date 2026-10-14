@@ -382,3 +382,158 @@ for (const path of ["/", "/not-registered"] as const) {
     }
   });
 }
+
+test("reflows the shell at a 180px CSS viewport equivalent to 200% zoom from 360px", async ({
+  page,
+}) => {
+  const width = 180;
+  const identity = "operador-inventario-con-identificador-deliberadamente-largo@example.com";
+  await page.setViewportSize({ width, height: 800 });
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          user: { id: "zoom-review-user", email: identity, role: "OPERATOR" },
+          session: { id: "zoom-review-session", createdAt: "2026-01-01T00:00:00.000Z" },
+        },
+      }),
+    });
+  });
+
+  await page.goto("/");
+
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+  ).toBeVisible();
+  const identityElement = page.locator(".app-header__identity");
+  await expect(identityElement).toBeVisible();
+
+  const overflowReport = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    overflowing: Array.from(document.querySelectorAll("body *"))
+      .map((element) => {
+        const bounds = element.getBoundingClientRect();
+        return {
+          element: `${element.tagName.toLowerCase()}${element.className ? `.${String(element.className).replaceAll(" ", ".")}` : ""}`,
+          left: Math.round(bounds.left),
+          right: Math.round(bounds.right),
+          width: Math.round(bounds.width),
+        };
+      })
+      .filter(({ left, right }) => left < 0 || right > innerWidth),
+  }));
+  expect(
+    overflowReport.scrollWidth,
+    JSON.stringify(overflowReport.overflowing),
+  ).toBeLessThanOrEqual(width);
+
+  await expect(identityElement).toHaveAttribute("title", identity);
+  await expect(identityElement).toContainText(identity);
+
+  const openNavigation = page.getByRole("button", { name: "Abrir navegación" });
+  const logout = page.getByRole("button", { name: "Cerrar sesión" });
+  await expect(openNavigation).toBeVisible();
+  await expect(logout).toBeVisible();
+
+  for (const control of [openNavigation, logout]) {
+    const bounds = await control.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+  }
+});
+
+test("preserves shell contrast and navigation feedback with reduced motion", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          user: { id: "review-user", email: "operator@example.com", role: "OPERATOR" },
+          session: { id: "review-session", createdAt: "2026-01-01T00:00:00.000Z" },
+        },
+      }),
+    });
+  });
+
+  await page.goto("/");
+
+  await expect(page.locator(".app-header__identity")).toBeVisible();
+  await page.getByRole("button", { name: "Abrir navegación" }).click();
+  const navigationLink = page
+    .getByRole("navigation", { name: "Navegación principal" })
+    .getByRole("link", { name: "Inicio" });
+  await expect(navigationLink).toBeVisible();
+
+  const contrastRatios = await page.evaluate(() => {
+    const luminance = (color: string) => {
+      const channels =
+        color
+          .match(/[\d.]+/g)
+          ?.slice(0, 3)
+          .map(Number) ?? [];
+      const linear = channels.map((channel) => {
+        const normalized = channel / 255;
+        return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!;
+    };
+    const backgroundColor = (element: Element) => {
+      let current: Element | null = element;
+      while (current) {
+        const background = getComputedStyle(current).backgroundColor;
+        if (!background.includes("rgba(0, 0, 0, 0)")) {
+          return background;
+        }
+        current = current.parentElement;
+      }
+      return "rgb(255, 255, 255)";
+    };
+
+    return [
+      ".app-header__identity",
+      ".home-page__heading",
+      ".home-page__message",
+      '.app-navigation__link[aria-current="page"]',
+    ].map((selector) => {
+      const element = document.querySelector(selector);
+      if (!element) {
+        throw new Error(`Missing contrast review target: ${selector}`);
+      }
+      const foregroundLuminance = luminance(getComputedStyle(element).color);
+      const backgroundLuminance = luminance(backgroundColor(element));
+      const lighter = Math.max(foregroundLuminance, backgroundLuminance);
+      const darker = Math.min(foregroundLuminance, backgroundLuminance);
+      return { selector, ratio: (lighter + 0.05) / (darker + 0.05) };
+    });
+  });
+
+  expect(contrastRatios).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ selector: ".app-header__identity", ratio: expect.any(Number) }),
+      expect.objectContaining({ selector: ".home-page__heading", ratio: expect.any(Number) }),
+      expect.objectContaining({ selector: ".home-page__message", ratio: expect.any(Number) }),
+    ]),
+  );
+  for (const { selector, ratio } of contrastRatios) {
+    expect(ratio, `${selector} contrast`).toBeGreaterThanOrEqual(
+      selector === ".home-page__heading" ? 3 : 4.5,
+    );
+  }
+
+  const transitionDurations = await navigationLink.evaluate((element) =>
+    getComputedStyle(element)
+      .transitionDuration.split(",")
+      .map((value) =>
+        value.trim().endsWith("ms") ? Number.parseFloat(value) : Number.parseFloat(value) * 1000,
+      ),
+  );
+  expect(Math.max(...transitionDurations)).toBeLessThanOrEqual(0.1);
+  await page.getByRole("button", { name: "Cerrar panel" }).click();
+  await expect(page.getByRole("dialog", { name: "Navegación principal" })).toHaveCount(0);
+});

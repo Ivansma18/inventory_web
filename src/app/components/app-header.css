@@ -58,3 +58,22 @@
     max-inline-size: 46vw;
   }
 }
+
+@media (max-width: 20rem) {
+  .app-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--ui-space-1);
+  }
+
+  .app-header__identity {
+    max-inline-size: 100%;
+    text-align: start;
+  }
+
+  .app-header__actions {
+    min-inline-size: 0;
+    justify-content: space-between;
+    gap: var(--ui-space-1);
+  }
+}
