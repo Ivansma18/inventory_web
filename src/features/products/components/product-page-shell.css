@@ -1,14 +1,14 @@
-.product-list-page {
+.product-page {
   box-sizing: border-box;
   inline-size: min(100%, 64rem);
   padding-block: clamp(var(--ui-space-6), 6vh, var(--ui-space-8));
 }
 
-.product-list-page__content {
+.product-page__content {
   max-inline-size: 42rem;
 }
 
-.product-list-page__content::before {
+.product-page__content::before {
   display: block;
   inline-size: 2.5rem;
   block-size: var(--ui-border-width);
@@ -17,7 +17,7 @@
   content: "";
 }
 
-.product-list-page__heading {
+.product-page__heading {
   max-inline-size: 22ch;
   margin: 0;
   color: var(--ui-color-text);
@@ -28,7 +28,7 @@
   text-wrap: balance;
 }
 
-.product-list-page__description {
+.product-page__description {
   max-inline-size: 65ch;
   margin: var(--ui-space-3) 0 0;
   color: var(--ui-color-text-muted);

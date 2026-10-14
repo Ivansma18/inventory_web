@@ -2,7 +2,7 @@
 
 - [x] T1. Añadir Productos a la navegación autenticada y conectar la ruta del listado con el App Shell existente. (RF-1–RF-2)
   Hecho cuando: con una sesión confirmada, Productos aparece en la navegación y `/products` muestra el listado dentro del layout existente; una prueba de router verifica ambas cosas.
-- [ ] T2. Registrar las rutas de creación y edición por identificador público y soportar acceso directo. (RF-3–RF-5)
+- [x] T2. Registrar las rutas de creación y edición por identificador público y soportar acceso directo. (RF-3–RF-5)
   Hecho cuando: `/products/new` y `/products/:uuid/edit` abren la pantalla solicitada tras la confirmación de sesión, también al cargar la URL directamente; las pruebas de router cubren ambas rutas.
 - [ ] T3. Conservar los estados de acceso existentes y mantener visibles las acciones sin inferir permisos desde el rol. (RF-6–RF-7; NFR-10)
   Hecho cuando: pruebas de integración verifican estados pending/error/unauthenticated de Auth, y que crear, editar y cambiar estado siguen visibles para distintos roles; ningún resultado de una sesión anterior se presenta como vigente.
