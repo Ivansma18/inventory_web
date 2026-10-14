@@ -70,7 +70,10 @@ test("waits for logout, retries a failure, and keeps the session closed in brows
   await firstSignOutStarted.promise;
 
   const pendingButton = page.getByRole("button", { name: "Cerrando sesión…" });
-  await expect(pendingButton).toBeDisabled();
+  await expect(pendingButton).toHaveAttribute("aria-disabled", "true");
+  await expect(pendingButton).not.toHaveAttribute("disabled");
+  await expect(pendingButton).toHaveAttribute("aria-busy", "true");
+  await expect(pendingButton).toBeFocused();
   await expect(
     page.getByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
   ).toBeVisible();
@@ -84,7 +87,11 @@ test("waits for logout, retries a failure, and keeps the session closed in brows
 
   firstSignOutResponse.resolve();
   await expect(page.getByRole("alert")).toHaveText("No se pudo cerrar sesión. Inténtalo de nuevo.");
-  await expect(page.getByRole("button", { name: "Cerrar sesión", exact: true })).toBeEnabled();
+  await expect(page.getByRole("alert")).toHaveCount(1);
+  await expect(page.getByRole("status")).toHaveCount(0);
+  const retryLogoutButton = page.getByRole("button", { name: "Cerrar sesión", exact: true });
+  await expect(retryLogoutButton).toBeEnabled();
+  await expect(retryLogoutButton).toBeFocused();
   await expect(
     page.getByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
   ).toBeVisible();
@@ -92,14 +99,23 @@ test("waits for logout, retries a failure, and keeps the session closed in brows
 
   await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
   await secondSignOutStarted.promise;
-  await expect(page.getByRole("button", { name: "Cerrando sesión…" })).toBeDisabled();
+  const retryPendingButton = page.getByRole("button", { name: "Cerrando sesión…" });
+  await expect(retryPendingButton).toHaveAttribute("aria-disabled", "true");
+  await expect(retryPendingButton).not.toHaveAttribute("disabled");
+  await expect(retryPendingButton).toHaveAttribute("aria-busy", "true");
+  await expect(retryPendingButton).toBeFocused();
   await expect(
     page.getByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
   ).toBeVisible();
   expect(signOutRequests).toBe(2);
 
   secondSignOutResponse.resolve();
-  await expect(page.getByRole("heading", { level: 1, name: "Sesión no iniciada" })).toBeVisible();
+  const signedOutHeading = page.getByRole("heading", { level: 1, name: "Sesión no iniciada" });
+  await expect(signedOutHeading).toBeVisible();
+  await expect(signedOutHeading).toBeFocused();
+  await expect(page.getByRole("status")).toHaveCount(1);
+  await expect(page.getByRole("status")).toHaveAttribute("aria-live", "polite");
+  await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Cerrar sesión", exact: true })).toHaveCount(0);
   await expect(page.getByRole("navigation")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Bienvenido a Inventory" })).toHaveCount(0);

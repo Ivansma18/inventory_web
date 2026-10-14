@@ -71,7 +71,10 @@ describe("App Shell logout race", () => {
 
     await user.click(await screen.findByRole("button", { name: "Cerrar sesión" }));
     await signOutStarted.promise;
-    expect(screen.getByRole("button", { name: "Cerrando sesión…" })).toBeDisabled();
+    const pendingButton = screen.getByRole("button", { name: "Cerrando sesión…" });
+    expect(pendingButton).toHaveAttribute("aria-disabled", "true");
+    expect(pendingButton).not.toHaveAttribute("disabled");
+    expect(pendingButton).toHaveFocus();
 
     let refreshPromise!: ReturnType<UseSessionResult["refetch"]>;
     act(() => {
@@ -86,7 +89,11 @@ describe("App Shell logout race", () => {
     );
     await act(async () => refreshPromise);
 
-    expect(await screen.findByRole("heading", { name: "Sesión no iniciada" })).toBeVisible();
+    const signedOutHeading = await screen.findByRole("heading", { name: "Sesión no iniciada" });
+    expect(signedOutHeading).toBeVisible();
+    expect(signedOutHeading).toHaveFocus();
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Contenido autenticado" }),
     ).not.toBeInTheDocument();
@@ -101,9 +108,12 @@ describe("App Shell logout race", () => {
     );
 
     const logoutError = await screen.findByRole("alert");
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getAllByRole("status")).toHaveLength(1);
     expect(logoutError).toHaveTextContent("No se pudo completar el cierre de sesión.");
     expect(logoutError).toHaveTextContent("La sesión ya no está activa.");
     expect(screen.getByRole("heading", { name: "Sesión no iniciada" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Sesión no iniciada" })).toHaveFocus();
     expect(
       screen.queryByRole("heading", { name: "Contenido autenticado" }),
     ).not.toBeInTheDocument();

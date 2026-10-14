@@ -182,6 +182,7 @@ describe("SessionBoundary", () => {
     await requestsStarted[1]?.promise;
     expect(requestCount).toBe(2);
     expect(screen.getByRole("status")).toHaveTextContent("Comprobando tu sesión");
+    expect(screen.getByRole("heading", { name: "Comprobando tu sesión" })).toHaveFocus();
     expect(screen.queryByText(/Contenido privado/)).not.toBeInTheDocument();
 
     pendingResponses[1]?.resolve(HttpResponse.json(publicAuthResponse("confirmed-user")));
@@ -210,6 +211,7 @@ describe("SessionBoundary", () => {
     });
     await requestsStarted[3]?.promise;
     expect(screen.getByRole("status")).toHaveTextContent("Comprobando tu sesión");
+    expect(screen.getByRole("heading", { name: "Comprobando tu sesión" })).toHaveFocus();
     await waitFor(() => expect(onProtectedUnmount).toHaveBeenCalledTimes(1));
 
     pendingResponses[3]?.resolve(unauthenticatedResponse());
@@ -238,6 +240,7 @@ describe("SessionBoundary", () => {
     });
     await requestsStarted[5]?.promise;
     expect(screen.getByRole("status")).toHaveTextContent("Comprobando tu sesión");
+    expect(screen.getByRole("heading", { name: "Comprobando tu sesión" })).toHaveFocus();
 
     pendingResponses[5]?.resolve(HttpResponse.json(publicAuthResponse("contract-recovered")));
     expect(await screen.findByText("Contenido privado de contract-recovered")).toBeInTheDocument();

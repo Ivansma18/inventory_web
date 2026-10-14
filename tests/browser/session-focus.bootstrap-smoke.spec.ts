@@ -74,6 +74,11 @@ const openDrawerAndBeginRefresh = async (page: Page) => {
   });
   await expect(checkingHeading).toBeVisible();
   await expect(checkingHeading).toBeFocused();
+  const checkingAnnouncement = page.getByRole("status");
+  await expect(checkingAnnouncement).toHaveCount(1);
+  await expect(checkingAnnouncement).toHaveAttribute("aria-live", "polite");
+  await expect(checkingAnnouncement).toHaveAttribute("aria-atomic", "true");
+  await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(drawer).toHaveCount(0);
   await expect(root).not.toHaveAttribute("inert");
   await expect(root).not.toHaveAttribute("aria-hidden");
@@ -106,6 +111,11 @@ test("moves focus to the error heading when an open panel is replaced by an erro
   });
   await expect(errorHeading).toBeVisible();
   await expect(errorHeading).toBeFocused();
+  const errorAnnouncement = page.getByRole("alert");
+  await expect(errorAnnouncement).toHaveCount(1);
+  await expect(errorAnnouncement).toHaveAttribute("aria-live", "assertive");
+  await expect(errorAnnouncement).toHaveAttribute("aria-atomic", "true");
+  await expect(page.getByRole("status")).toHaveCount(0);
   await expect(drawer).toHaveCount(0);
   await expect(root).not.toHaveAttribute("inert");
   await expect(root).not.toHaveAttribute("aria-hidden");
@@ -125,6 +135,11 @@ test("moves focus to the signed-out heading when an open panel is replaced by 40
   });
   await expect(signedOutHeading).toBeVisible();
   await expect(signedOutHeading).toBeFocused();
+  const signedOutAnnouncement = page.getByRole("status");
+  await expect(signedOutAnnouncement).toHaveCount(1);
+  await expect(signedOutAnnouncement).toHaveAttribute("aria-live", "polite");
+  await expect(signedOutAnnouncement).toHaveAttribute("aria-atomic", "true");
+  await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(drawer).toHaveCount(0);
   await expect(root).not.toHaveAttribute("inert");
   await expect(root).not.toHaveAttribute("aria-hidden");

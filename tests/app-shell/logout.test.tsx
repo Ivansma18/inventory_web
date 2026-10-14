@@ -58,7 +58,9 @@ describe("App Shell logout", () => {
     await user.click(signOutButton);
     await firstSignOutStarted.promise;
     const pendingButton = screen.getByRole("button", { name: "Cerrando sesión…" });
-    expect(pendingButton).toBeDisabled();
+    expect(pendingButton).toHaveAttribute("aria-disabled", "true");
+    expect(pendingButton).not.toHaveAttribute("disabled");
+    expect(pendingButton).toHaveFocus();
     expect(screen.getByRole("heading", { name: "Bienvenido a Inventory" })).toBeVisible();
     expect(signOutRequests).toBe(1);
 
@@ -77,7 +79,8 @@ describe("App Shell logout", () => {
     expect(screen.getByRole("heading", { name: "Bienvenido a Inventory" })).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Cerrar sesión" }));
-    await screen.findByRole("heading", { name: "Sesión no iniciada" });
+    const signedOutHeading = await screen.findByRole("heading", { name: "Sesión no iniciada" });
+    expect(signedOutHeading).toHaveFocus();
     expect(signOutRequests).toBe(2);
 
     expect(

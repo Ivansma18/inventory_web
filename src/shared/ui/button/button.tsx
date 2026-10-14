@@ -6,6 +6,7 @@ import { Icon } from "../icon/icon";
 import type { IconName } from "../icon/icon";
 
 interface ButtonBaseProps {
+  ariaDisabled?: boolean;
   ariaExpanded?: boolean;
   disabled?: boolean;
   loading?: boolean;
@@ -30,6 +31,7 @@ export type ButtonVariant = "primary" | "secondary";
 export type ButtonProps = ButtonWithTextProps | IconOnlyButtonProps;
 
 export const Button = ({
+  ariaDisabled,
   ariaExpanded,
   disabled = false,
   loading = false,
@@ -38,7 +40,9 @@ export const Button = ({
   variant = "primary",
   ...content
 }: ButtonProps) => {
-  const unavailable = disabled || loading;
+  const unavailable = disabled || loading || ariaDisabled;
+  const nativeDisabled = disabled || (loading && !ariaDisabled);
+  const usePrimeLoadingPresentation = loading && !ariaDisabled;
   const iconOnly = content.children === undefined;
   const iconName = content.icon;
   const label = content.children;
@@ -65,16 +69,18 @@ export const Button = ({
   return (
     <PrimeButton
       aria-busy={loading || undefined}
+      aria-disabled={ariaDisabled || undefined}
       aria-expanded={ariaExpanded}
       aria-label={iconOnly ? accessibleLabel : undefined}
       className={className}
-      disabled={unavailable}
-      loading={loading}
+      disabled={nativeDisabled}
+      loading={usePrimeLoadingPresentation}
       loadingIcon={<Icon name="loading" size="sm" />}
       onClick={handleClick}
       type={type}
       unstyled
     >
+      {loading && ariaDisabled ? <Icon name="loading" size="sm" /> : null}
       {!loading && iconName ? <Icon name={iconName} size="sm" /> : null}
       {label}
     </PrimeButton>

@@ -22,7 +22,7 @@
       color var(--ui-motion-duration-fast) var(--ui-motion-ease-out);
   }
 
-  .ui-button--primary:not(:disabled):hover {
+  .ui-button--primary:not(:disabled):not([aria-disabled="true"]):hover {
     background-color: var(--ui-color-primary-hover);
     border-color: var(--ui-color-primary-hover);
   }
@@ -33,11 +33,12 @@
     color: var(--ui-color-text);
   }
 
-  .ui-button--secondary:not(:disabled):hover {
+  .ui-button--secondary:not(:disabled):not([aria-disabled="true"]):hover {
     background-color: var(--ui-color-surface-muted);
   }
 
-  .ui-button:disabled {
+  .ui-button:disabled,
+  .ui-button[aria-disabled="true"] {
     background-color: var(--ui-color-surface-muted);
     border-color: var(--ui-color-border);
     color: var(--ui-color-text-muted);

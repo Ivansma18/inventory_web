@@ -40,6 +40,10 @@ test("keeps the initial shell pending until Auth confirms a 401", async ({ page 
   await requestStarted.promise;
 
   await expect(page.getByRole("status")).toContainText("Comprobando tu sesión");
+  await expect(page.getByRole("status")).toHaveCount(1);
+  await expect(page.getByRole("status")).toHaveAttribute("aria-live", "polite");
+  await expect(page.getByRole("status")).toHaveAttribute("aria-atomic", "true");
+  await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Página no encontrada" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Bienvenido a Inventory" })).toHaveCount(0);
   await expect(page.getByRole("navigation")).toHaveCount(0);
@@ -48,6 +52,9 @@ test("keeps the initial shell pending until Auth confirms a 401", async ({ page 
   responseGate.resolve();
 
   await expect(page.getByRole("heading", { level: 1, name: "Sesión no iniciada" })).toBeVisible();
+  await expect(page.getByRole("status")).toHaveCount(1);
+  await expect(page.getByRole("status")).toHaveAttribute("aria-live", "polite");
+  await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Página no encontrada" })).toHaveCount(0);
   await expect(page.getByRole("navigation")).toHaveCount(0);
   await expect(page.getByRole("link")).toHaveCount(0);
@@ -97,6 +104,9 @@ test("recovers from network, HTTP, and contract failures through the public retr
     page.getByRole("heading", { level: 1, name: "No se pudo comprobar la sesión" }),
   ).toBeVisible();
   await expect(page.getByRole("alert")).toHaveAttribute("aria-live", "assertive");
+  await expect(page.getByRole("alert")).toHaveCount(1);
+  await expect(page.getByRole("alert")).toHaveAttribute("aria-atomic", "true");
+  await expect(page.getByRole("status")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Reintentar" })).toBeVisible();
   await expect(page.getByRole("navigation")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Página no encontrada" })).toHaveCount(0);
@@ -112,6 +122,8 @@ test("recovers from network, HTTP, and contract failures through the public retr
     await expect(
       page.getByRole("heading", { level: 1, name: "No se pudo comprobar la sesión" }),
     ).toBeVisible();
+    await expect(page.getByRole("alert")).toHaveCount(1);
+    await expect(page.getByRole("status")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Reintentar" })).toBeVisible();
     await expect(page.getByRole("navigation")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Página no encontrada" })).toHaveCount(0);
@@ -126,9 +138,15 @@ test("recovers from network, HTTP, and contract failures through the public retr
 
   await expect(page).toHaveURL(/\/requested\/report\?filter=low-stock#row-7$/);
   await expect(page.getByRole("banner")).toContainText("operator@example.com");
-  await expect(page.getByRole("heading", { level: 1, name: "Página no encontrada" })).toBeVisible();
+  const recoveredPageHeading = page.getByRole("heading", {
+    level: 1,
+    name: "Página no encontrada",
+  });
+  await expect(recoveredPageHeading).toBeVisible();
+  await expect(recoveredPageHeading).toBeFocused();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByRole("status")).toHaveCount(0);
   await expect(page.getByRole("navigation")).toBeVisible();
   await expect(page.getByRole("link", { name: "Volver a Inicio" })).toBeVisible();
-  await expect(page.getByRole("alert")).toHaveCount(0);
   expect(sessionRequests).toBe(4);
 });

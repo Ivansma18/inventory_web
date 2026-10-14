@@ -52,7 +52,12 @@ export const CurrentUserAppHeader = ({ actions }: CurrentUserAppHeaderProps) => 
                 No se pudo cerrar sesión. Inténtalo de nuevo.
               </span>
             ) : null}
-            <Button loading={isSigningOut} onClick={() => void signOut()} variant="secondary">
+            <Button
+              ariaDisabled={isSigningOut}
+              loading={isSigningOut}
+              onClick={() => void signOut()}
+              variant="secondary"
+            >
               {isSigningOut ? "Cerrando sesión…" : "Cerrar sesión"}
             </Button>
           </div>
