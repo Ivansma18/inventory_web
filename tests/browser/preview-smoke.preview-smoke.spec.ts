@@ -26,6 +26,9 @@ const forbiddenBundleMarkers = [
   "/__health-test",
   "Inventory Local Health Check",
   "health-real-client-harness.ts",
+  "Inventory Session Focus Harness",
+  "session-focus-harness.tsx",
+  "inventory:test:refetch-session",
   ...forbiddenDesignSystemMarkers,
   "INVENTORY_HEALTH_E2E_HARNESS",
   "AUTH_TEST_EMAIL",
@@ -111,6 +114,15 @@ test("serves the built app without development harnesses, demo, or backend acces
   expect(healthFallback).not.toContain("Local backend health check");
   expect(healthFallback).not.toContain("health-real-client-harness.ts");
   expect(healthFallback).not.toContain("/src/main.tsx");
+
+  const sessionFocusHarnessResponse = await page.request.get(
+    "/tests/browser/fixtures/session-focus-harness.html",
+  );
+  expect(sessionFocusHarnessResponse.status()).toBe(200);
+  const sessionFocusHarnessFallback = await sessionFocusHarnessResponse.text();
+  expect(sessionFocusHarnessFallback).not.toContain("Inventory Session Focus Harness");
+  expect(sessionFocusHarnessFallback).not.toContain("session-focus-harness.tsx");
+  expect(sessionFocusHarnessFallback).not.toContain("/src/main.tsx");
 
   const designSystemFallback = await page.request.get("/__design-system");
   expect([200, 404]).toContain(designSystemFallback.status());
