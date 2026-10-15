@@ -1,0 +1,58 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import type { components, paths } from "@/shared/api/generated/category-contracts";
+import { describe, expect, it } from "vitest";
+
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const snapshotPath = resolve(projectRoot, "tests/contracts/categories.openapi.json");
+const snapshot = JSON.parse(readFileSync(snapshotPath, "utf8")) as {
+  openapi: string;
+  info: { title: string; version: string };
+  paths: Record<string, Record<string, unknown>>;
+  components: Record<string, Record<string, unknown>>;
+};
+
+const categoryQuery: NonNullable<paths["/categories"]["get"]["parameters"]["query"]> = {
+  page: 2,
+  limit: 15,
+  search: "tools",
+  isActive: "true",
+  sort: "name",
+  order: "asc",
+};
+
+const categoryResponse: paths["/categories"]["get"]["responses"][200]["content"]["application/json"] =
+  {
+    data: [
+      {
+        uuid: "550e8400-e29b-41d4-a716-446655440000",
+        name: "Herramientas",
+        description: null,
+        isActive: true,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ],
+    pagination: { total: 16, page: 2, limit: 15 },
+  };
+
+const generatedCategory: components["schemas"]["Category"] = categoryResponse.data[0]!;
+
+describe("Categories OpenAPI contract snapshot", () => {
+  it("captures the category read paths and list query contract", () => {
+    expect(snapshot.openapi).toBe("3.0.3");
+    expect(snapshot.info).toEqual({ title: "Inventory API", version: "0.1.0" });
+    expect(Object.keys(snapshot.paths).sort()).toEqual(["/categories", "/categories/{uuid}"]);
+    expect(snapshot.paths["/categories"]).toHaveProperty("get.responses.200");
+    expect(snapshot.paths["/categories/{uuid}"]).toHaveProperty("get.responses.200");
+    expect(categoryQuery).toMatchObject({
+      page: 2,
+      limit: 15,
+      search: "tools",
+      isActive: "true",
+    });
+    expect(categoryResponse.data[0]).toEqual(generatedCategory);
+    expect(categoryResponse.pagination).toEqual({ total: 16, page: 2, limit: 15 });
+  });
+});

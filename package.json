@@ -24,7 +24,9 @@
     "snapshot:auth-openapi": "node scripts/snapshot-auth-openapi.mjs",
     "generate:auth-contracts": "openapi-typescript tests/contracts/auth-health.openapi.json -o src/shared/api/generated/auth-contracts.ts",
     "snapshot:products-openapi": "node scripts/snapshot-products-openapi.mjs",
-    "generate:product-contracts": "openapi-typescript tests/contracts/products.openapi.json -o src/shared/api/generated/product-contracts.ts"
+    "generate:product-contracts": "openapi-typescript tests/contracts/products.openapi.json -o src/shared/api/generated/product-contracts.ts",
+    "snapshot:categories-openapi": "node scripts/snapshot-categories-openapi.mjs",
+    "generate:category-contracts": "openapi-typescript tests/contracts/categories.openapi.json -o src/shared/api/generated/category-contracts.ts"
   },
   "lint-staged": {
     "{src,tests,scripts}/**/*.{js,jsx,mjs,cjs,ts,tsx}": [

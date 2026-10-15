@@ -16,7 +16,7 @@
   Hecho cuando: pruebas verifican recarga, URL compartida, Atrás/Adelante y normalización por reemplazo de parámetros inválidos sin introducir una entrada adicional de historial.
 - [x] T8. Evitar que una consulta obsoleta reemplace los resultados de criterios más recientes. (RF-31)
   Hecho cuando: una prueba con dos respuestas MSW diferidas y fuera de orden deja visibles únicamente las filas de la consulta vigente.
-- [ ] T9. Integrar el contrato OpenAPI y la consulta pública de categorías activas con búsqueda, paginación y estados de carga/error. (RF-46–RF-49)
+- [x] T9. Integrar el contrato OpenAPI y la consulta pública de categorías activas con búsqueda, paginación y estados de carga/error. (RF-46–RF-49)
   Hecho cuando: las pruebas MSW verifican categorías de páginas posteriores, búsqueda, carga, error y retry mediante la API pública de Categories, sin importar sus internos desde Products.
 - [ ] T10. Crear los campos y la validación básica del formulario de producto. (RF-32–RF-35)
   Hecho cuando: pruebas de UI verifican SKU, nombre, descripción, precios y categoría; campos requeridos, descripción opcional y errores accesibles para SKU/nombre vacíos tras trim.
