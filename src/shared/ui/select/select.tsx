@@ -18,6 +18,8 @@ export interface SelectProps {
   placeholder?: string;
   disabled?: boolean;
   error?: string;
+  required?: boolean;
+  onBlur?: () => void;
   emptyMessage?: string;
 }
 
@@ -36,6 +38,8 @@ export const Select = ({
   placeholder = "Selecciona una opción",
   disabled = false,
   error,
+  required = false,
+  onBlur,
   emptyMessage = "No hay opciones disponibles.",
 }: SelectProps) => {
   const generatedId = useId();
@@ -86,13 +90,26 @@ export const Select = ({
   };
 
   return (
-    <div className="ui-select-field">
+    <div
+      className="ui-select-field"
+      onBlurCapture={(event) => {
+        const nextFocusedElement = event.relatedTarget;
+
+        if (
+          !(nextFocusedElement instanceof Node) ||
+          !event.currentTarget.contains(nextFocusedElement)
+        ) {
+          onBlur?.();
+        }
+      }}
+    >
       <label className="ui-select__label" htmlFor={selectId} id={labelId}>
         {label}
       </label>
       <PrimeDropdown
         aria-describedby={describedBy}
         aria-invalid={visibleError ? true : undefined}
+        aria-required={required || undefined}
         aria-labelledby={labelId}
         className={`ui-select${visibleError ? " ui-select--invalid" : ""}`}
         disabled={isDisabled}

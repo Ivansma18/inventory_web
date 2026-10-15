@@ -95,6 +95,19 @@ describe("Input", () => {
     expect(screen.getByRole("textbox", { name: "Correo" })).toHaveAttribute("id", inputId);
   });
 
+  it("forwards required semantics and blur to the input", async () => {
+    const user = userEvent.setup();
+    const onBlur = vi.fn();
+
+    render(<Input label="SKU" required value="" onBlur={onBlur} onValueChange={() => undefined} />);
+
+    const input = screen.getByRole("textbox", { name: "SKU" });
+    expect(input).toBeRequired();
+    await user.click(input);
+    await user.tab();
+    expect(onBlur).toHaveBeenCalledOnce();
+  });
+
   it("associates both help and error text and marks the input invalid", () => {
     render(
       <Input

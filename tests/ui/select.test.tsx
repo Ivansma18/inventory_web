@@ -213,6 +213,28 @@ describe("Select", () => {
     expect(select).toHaveAccessibleDescription("Selecciona un estado.");
   });
 
+  it("forwards required semantics and blur to the select", async () => {
+    const user = userEvent.setup();
+    const onBlur = vi.fn();
+
+    render(
+      <Select
+        label="Categoría"
+        onBlur={onBlur}
+        options={options}
+        required
+        value={null}
+        onValueChange={() => undefined}
+      />,
+    );
+
+    const select = screen.getByLabelText("Categoría");
+    expect(select).toHaveAttribute("aria-required", "true");
+    select.focus();
+    await user.tab();
+    expect(onBlur).toHaveBeenCalledOnce();
+  });
+
   it("disables itself and announces when no options are available", () => {
     render(<Select label="Estado" options={[]} value={null} onValueChange={() => undefined} />);
 

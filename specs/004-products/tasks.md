@@ -18,7 +18,7 @@
   Hecho cuando: una prueba con dos respuestas MSW diferidas y fuera de orden deja visibles únicamente las filas de la consulta vigente.
 - [x] T9. Integrar el contrato OpenAPI y la consulta pública de categorías activas con búsqueda, paginación y estados de carga/error. (RF-46–RF-49)
   Hecho cuando: las pruebas MSW verifican categorías de páginas posteriores, búsqueda, carga, error y retry mediante la API pública de Categories, sin importar sus internos desde Products.
-- [ ] T10. Crear los campos y la validación básica del formulario de producto. (RF-32–RF-35)
+- [x] T10. Crear los campos y la validación básica del formulario de producto. (RF-32–RF-35)
   Hecho cuando: pruebas de UI verifican SKU, nombre, descripción, precios y categoría; campos requeridos, descripción opcional y errores accesibles para SKU/nombre vacíos tras trim.
 - [ ] T11. Implementar parseo, validación y presentación íntegra de precios decimales. (RF-36–RF-39, RF-125–RF-126; NFR-7)
   Hecho cuando: pruebas unitarias cubren vacío, no numérico, negativo, cero, coma/punto, dos y tres decimales, separadores de miles y mezcla de separadores; el valor no se redondea, se presenta con dos decimales y sin moneda, y se acepta venta menor que compra.

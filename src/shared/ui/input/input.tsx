@@ -13,6 +13,8 @@ export interface InputProps {
   label?: string;
   helpText?: string;
   error?: string;
+  required?: boolean;
+  onBlur?: () => void;
   type?: InputType;
   disabled?: boolean;
   readOnly?: boolean;
@@ -30,6 +32,8 @@ export const Input = ({
   label,
   helpText,
   error,
+  required = false,
+  onBlur,
   type = "text",
   disabled = false,
   readOnly = false,
@@ -67,6 +71,8 @@ export const Input = ({
         disabled={disabled}
         id={inputId}
         onChange={handleChange}
+        onBlur={onBlur}
+        required={required}
         readOnly={readOnly}
         type={inputType}
         value={value}

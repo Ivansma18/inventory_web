@@ -1,0 +1,102 @@
+.product-create-form {
+  display: grid;
+  gap: var(--ui-space-5);
+  margin-block-start: var(--ui-space-6);
+}
+
+.product-create-form__header {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+
+.product-create-form__heading {
+  margin: 0;
+  color: var(--ui-color-text);
+  font-size: var(--ui-font-size-xl);
+  font-weight: var(--ui-font-weight-semibold);
+  line-height: var(--ui-line-height-tight);
+}
+
+.product-create-form__intro {
+  max-inline-size: 65ch;
+  margin: 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-font-size-sm);
+  line-height: var(--ui-line-height-relaxed);
+}
+
+.product-create-form__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-space-4) var(--ui-space-5);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.product-create-form__category {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--ui-space-3);
+  min-inline-size: 0;
+  padding-block-start: var(--ui-space-4);
+  border-block-start: var(--ui-border-width) solid var(--ui-color-border);
+}
+
+.product-create-form__category-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--ui-space-3);
+}
+
+.product-create-form__category-status,
+.product-create-form__category-error p {
+  margin: 0;
+  font-size: var(--ui-font-size-sm);
+  line-height: var(--ui-line-height-normal);
+}
+
+.product-create-form__category-status {
+  color: var(--ui-color-text-muted);
+}
+
+.product-create-form__category-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+  color: var(--ui-color-on-error);
+}
+
+.product-create-form__category-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-font-size-sm);
+}
+
+@media (min-width: 40rem) {
+  .product-create-form__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 30rem) {
+  .product-create-form__category-search {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .product-create-form__category-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .product-create-form__category-pagination span {
+    order: -1;
+    text-align: center;
+  }
+}
