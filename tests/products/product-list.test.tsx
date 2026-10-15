@@ -131,6 +131,152 @@ describe("Product list remote query", () => {
     expect(productRequests).toHaveLength(2);
   });
 
+  it("applies case-insensitive partial search after trimming and omits an empty search", async () => {
+    const user = userEvent.setup();
+    const productRequests: URL[] = [];
+    const queryClient = createQueryClient();
+    queryClient.setDefaultOptions({
+      ...queryClient.getDefaultOptions(),
+      queries: { ...queryClient.getDefaultOptions().queries, staleTime: 0 },
+    });
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, ({ request }) => {
+        const url = new URL(request.url);
+        productRequests.push(url);
+        const search = url.searchParams.get("search")?.toLocaleLowerCase();
+        const results = search
+          ? [product(1)].filter(
+              (item) =>
+                item.sku.toLocaleLowerCase().includes(search) ||
+                item.name.toLocaleLowerCase().includes(search),
+            )
+          : Array.from({ length: 15 }, (_, index) => product(index + 1));
+
+        return HttpResponse.json({
+          data: results,
+          pagination: { total: search ? results.length : 16, page: 1, limit: 15 },
+        });
+      }),
+    );
+
+    renderProductRoute("/products", queryClient);
+
+    await screen.findByRole("cell", { name: "SKU-001" });
+    const searchInput = screen.getByRole("searchbox", { name: "Buscar productos" });
+    await user.type(searchInput, "  sKu-00  ");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+
+    expect(await screen.findByRole("cell", { name: "SKU-001" })).toBeVisible();
+    await waitFor(() => expect(productRequests).toHaveLength(2));
+    expect(productRequests[1]!.searchParams.get("search")).toBe("sKu-00");
+
+    await user.clear(searchInput);
+    await user.type(searchInput, "   ");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+
+    await waitFor(() => expect(productRequests).toHaveLength(3));
+    expect(productRequests[2]!.searchParams.has("search")).toBe(false);
+  });
+
+  it("combines search and status, sorts by every supported field and resets to page one", async () => {
+    const user = userEvent.setup();
+    const productRequests: URL[] = [];
+    const queryClient = createQueryClient();
+    queryClient.setDefaultOptions({
+      ...queryClient.getDefaultOptions(),
+      queries: { ...queryClient.getDefaultOptions().queries, staleTime: 0 },
+    });
+    const selectOptionByIndex = async (label: string, optionIndex: number) => {
+      const control = screen.getByRole("textbox", { name: label });
+      control.focus();
+      await user.keyboard("{ArrowDown}{Home}" + "{ArrowDown}".repeat(optionIndex + 1) + "{Enter}");
+    };
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, ({ request }) => {
+        const url = new URL(request.url);
+        productRequests.push(url);
+        const page = Number(url.searchParams.get("page"));
+
+        return HttpResponse.json({
+          data:
+            page === 1
+              ? Array.from({ length: 15 }, (_, index) => product(index + 1))
+              : [product(16)],
+          pagination: { total: 16, page, limit: 15 },
+        });
+      }),
+    );
+
+    renderProductRoute("/products", queryClient);
+
+    await screen.findByRole("cell", { name: "SKU-001" });
+    await user.click(screen.getByRole("button", { name: "Página siguiente" }));
+    await screen.findByRole("cell", { name: "SKU-016" });
+
+    await user.type(screen.getByRole("searchbox", { name: "Buscar productos" }), " partial ");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+    await screen.findByRole("cell", { name: "SKU-001" });
+    await waitFor(() => expect(productRequests).toHaveLength(3));
+    expect(Object.fromEntries(productRequests[2]!.searchParams)).toMatchObject({
+      page: "1",
+      search: "partial",
+      isActive: "true",
+    });
+
+    await user.click(screen.getByRole("button", { name: "Página siguiente" }));
+    await screen.findByRole("cell", { name: "SKU-016" });
+    await selectOptionByIndex("Estado del producto", 1);
+
+    await waitFor(() => expect(productRequests).toHaveLength(5));
+    expect(Object.fromEntries(productRequests[4]!.searchParams)).toMatchObject({
+      page: "1",
+      search: "partial",
+      isActive: "false",
+    });
+
+    const sortOptions = [
+      ["SKU", "sku", 1],
+      ["Nombre", "name", 0],
+      ["Precio de compra", "purchasePrice", 2],
+      ["Precio de venta", "salePrice", 3],
+      ["Fecha de creación", "createdAt", 4],
+      ["Fecha de actualización", "updatedAt", 5],
+    ] as const;
+
+    for (const [label, sort, optionIndex] of sortOptions) {
+      await user.click(screen.getByRole("button", { name: "Página siguiente" }));
+      await screen.findByRole("cell", { name: "SKU-016" });
+      const previousRequestCount = productRequests.length;
+      await selectOptionByIndex("Ordenar por", optionIndex);
+      expect(screen.getByRole("textbox", { name: "Ordenar por" })).toHaveValue(label);
+
+      await waitFor(() => expect(productRequests).toHaveLength(previousRequestCount + 1));
+      expect(productRequests.at(-1)!.searchParams.get("page")).toBe("1");
+      expect(productRequests.at(-1)!.searchParams.get("sort")).toBe(sort);
+      expect(productRequests.at(-1)!.searchParams.get("search")).toBe("partial");
+      expect(productRequests.at(-1)!.searchParams.get("isActive")).toBe("false");
+    }
+
+    for (const [order, optionIndex] of [
+      ["desc", 1],
+      ["asc", 0],
+    ] as const) {
+      await user.click(screen.getByRole("button", { name: "Página siguiente" }));
+      await screen.findByRole("cell", { name: "SKU-016" });
+      const previousRequestCount = productRequests.length;
+      await selectOptionByIndex("Dirección del orden", optionIndex);
+
+      await waitFor(() => expect(productRequests).toHaveLength(previousRequestCount + 1));
+      expect(productRequests.at(-1)!.searchParams.get("page")).toBe("1");
+      expect(productRequests.at(-1)!.searchParams.get("sort")).toBe("updatedAt");
+      expect(productRequests.at(-1)!.searchParams.get("order")).toBe(order);
+    }
+  }, 20_000);
+
   it("identifies the pending product query until its response arrives", async () => {
     let resolveProducts!: (response: Response) => void;
     const pendingProducts = new Promise<Response>((resolve) => {
