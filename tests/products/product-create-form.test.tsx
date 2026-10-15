@@ -233,4 +233,95 @@ describe("product creation form", () => {
       `${salePrice.id}-help ${salePriceError.id}`,
     );
   });
+
+  it("explains that an active category is needed and blocks submit without one", async () => {
+    const user = userEvent.setup();
+    let createRequests = 0;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(categoriesUrl, () =>
+        HttpResponse.json({ data: [], pagination: { total: 0, page: 1, limit: 15 } }),
+      ),
+      http.post("https://inventory.test/api/products", () => {
+        createRequests += 1;
+        return HttpResponse.json({ data: {} }, { status: 201 });
+      }),
+    );
+
+    renderProductCreateRoute();
+
+    const categorySelect = screen.getByRole("textbox", { name: "Categoría (obligatorio)" });
+    expect(
+      await screen.findByText(
+        "No hay categorías activas. No se puede crear un producto hasta que exista una.",
+      ),
+    ).toBeVisible();
+    expect(categorySelect).toBeDisabled();
+
+    expect(categorySelect).toHaveAttribute("aria-required", "true");
+    expect(
+      screen.queryByRole("button", {
+        name: /crear categoría|editar categoría|activar categoría|desactivar categoría/i,
+      }),
+    ).not.toBeInTheDocument();
+
+    await user.type(screen.getByRole("textbox", { name: "SKU (obligatorio)" }), "SKU-NEW");
+    await user.type(screen.getByRole("textbox", { name: "Nombre (obligatorio)" }), "Monitor");
+    await user.type(
+      screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" }),
+      "100,00",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" }),
+      "150,00",
+    );
+
+    fireEvent.submit(screen.getByRole("form", { name: "Datos del producto" }));
+
+    const categoryError = await screen.findByText("Selecciona una categoría activa.");
+    expect(categorySelect).toHaveAttribute("aria-invalid", "true");
+    expect(categorySelect).toHaveAccessibleDescription(
+      "Selecciona una categoría activa. No hay categorías activas. No se puede crear un producto hasta que exista una.",
+    );
+    expect(categorySelect).toHaveAttribute(
+      "aria-describedby",
+      expect.stringContaining(categoryError.id),
+    );
+    expect(createRequests).toBe(0);
+  });
+
+  it("does not report the global empty state when a category search has no matches", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(categoriesUrl, ({ request }) => {
+        const search = new URL(request.url).searchParams.get("search");
+
+        return search
+          ? HttpResponse.json({ data: [], pagination: { total: 0, page: 1, limit: 15 } })
+          : HttpResponse.json({
+              data: [category(1, "Oficina")],
+              pagination: { total: 1, page: 1, limit: 15 },
+            });
+      }),
+    );
+
+    renderProductCreateRoute();
+
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "Categoría (obligatorio)" })).toBeEnabled(),
+    );
+    const categorySearch = screen.getByRole("searchbox", { name: "Buscar categorías activas" });
+    await user.type(categorySearch, "sin coincidencias");
+    await user.click(screen.getByRole("button", { name: "Buscar categorías" }));
+
+    expect(await screen.findByText("No se encontraron categorías activas.")).toBeVisible();
+    expect(
+      screen.queryByText(
+        "No hay categorías activas. No se puede crear un producto hasta que exista una.",
+      ),
+    ).not.toBeInTheDocument();
+  });
 });

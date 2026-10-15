@@ -46,13 +46,17 @@ export const ProductCreateForm = () => {
     1,
     Math.ceil((categories.data?.pagination.total ?? 0) / (categories.data?.pagination.limit ?? 15)),
   );
+  const hasNoActiveCategories =
+    categories.isSuccess && !categorySearch && categories.data.pagination.total === 0;
   const emptyCategoryMessage = categories.isPending
     ? "Cargando categorías activas…"
     : categories.isError
       ? "No se pudieron cargar las categorías."
-      : categorySearch
-        ? "No se encontraron categorías activas."
-        : "No hay opciones disponibles.";
+      : hasNoActiveCategories
+        ? "No hay categorías activas. No se puede crear un producto hasta que exista una."
+        : categorySearch
+          ? "No se encontraron categorías activas."
+          : "No hay opciones disponibles.";
 
   const applyCategorySearch = () => {
     setCategoryPage(1);
