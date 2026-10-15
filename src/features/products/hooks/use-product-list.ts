@@ -9,6 +9,18 @@ export type ProductListStatus = "active" | "inactive";
 export type ProductListSortField = NonNullable<ProductListQuery["sort"]>;
 export type ProductListSortOrder = NonNullable<ProductListQuery["order"]>;
 
+export const PRODUCT_LIST_SORT_FIELDS = [
+  "name",
+  "sku",
+  "purchasePrice",
+  "salePrice",
+  "createdAt",
+  "updatedAt",
+] as const satisfies readonly ProductListSortField[];
+
+export const isProductListSortField = (value: string): value is ProductListSortField =>
+  PRODUCT_LIST_SORT_FIELDS.some((field) => field === value);
+
 export interface ProductListCriteria {
   search: string;
   status: ProductListStatus;

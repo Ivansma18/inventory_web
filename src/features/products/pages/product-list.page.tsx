@@ -1,6 +1,6 @@
 import "./product-list.page.css";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -17,13 +17,17 @@ import type { Product } from "../api/product-contract";
 import { ProductPageShell } from "../components/product-page-shell";
 import {
   buildProductListQuery,
-  DEFAULT_PRODUCT_LIST_CRITERIA,
+  isProductListSortField,
   PRODUCT_LIST_PAGE_SIZE,
   productListQueryKey,
   useProductList,
   type ProductListCriteria,
-  type ProductListSortField,
 } from "../hooks/use-product-list";
+import {
+  parseProductListUrlState,
+  serializeProductListUrlState,
+  type ProductListUrlState,
+} from "../utils/product-list-url-state";
 
 const currencyFormatter = new Intl.NumberFormat("es-ES", {
   minimumFractionDigits: 2,
@@ -77,23 +81,36 @@ const orderOptions: SelectOption[] = [
   { label: "Descendente", value: "desc" },
 ];
 
-const isProductSortField = (value: string): value is ProductListSortField =>
-  sortOptions.some((option) => option.value === value);
-
 export const ProductListPage = () => {
   const session = useSession();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [criteria, setCriteria] = useState<ProductListCriteria>(() => ({
-    ...DEFAULT_PRODUCT_LIST_CRITERIA,
-    search: searchParams.get("search") ?? "",
+  const serializedSearchParams = searchParams.toString();
+  const urlState = useMemo(
+    () => parseProductListUrlState(new URLSearchParams(serializedSearchParams)),
+    [serializedSearchParams],
+  );
+  const { page, criteria, needsNormalization } = urlState;
+  const [searchDraftState, setSearchDraftState] = useState(() => ({
+    searchParams: serializedSearchParams,
+    value: criteria.search,
   }));
-  const [searchDraft, setSearchDraft] = useState(() => searchParams.get("search") ?? "");
+  let searchDraft = searchDraftState.value;
+  if (searchDraftState.searchParams !== serializedSearchParams) {
+    searchDraft = criteria.search;
+    setSearchDraftState({ searchParams: serializedSearchParams, value: criteria.search });
+  }
+  const pendingPageCorrection = useRef<number | null>(null);
   const appliedSearch = criteria.search.trim();
   const hasAppliedSearch = appliedSearch.length > 0;
   const sessionId = session.status === "authenticated" ? session.session.id : null;
   const productList = useProductList(sessionId, page, criteria);
+
+  useEffect(() => {
+    if (needsNormalization) {
+      setSearchParams(serializeProductListUrlState(urlState), { replace: true });
+    }
+  }, [needsNormalization, setSearchParams, urlState]);
 
   const snapshot: DataTableSnapshot<Product> | undefined = productList.data
     ? {
@@ -120,31 +137,53 @@ export const ProductListPage = () => {
     productList.isSuccess &&
     productList.data.data.length === 0 &&
     productList.data.pagination.total === 0;
+  const navigateToListState = (nextState: ProductListUrlState, replace = false) => {
+    const nextSearchParams = serializeProductListUrlState(nextState);
+    if (nextSearchParams.toString() !== serializedSearchParams) {
+      setSearchParams(nextSearchParams, { replace });
+    }
+  };
   const updateCriteria = (updates: Partial<ProductListCriteria>) => {
-    setPage(1);
-    setCriteria((current) => ({ ...current, ...updates }));
+    const nextCriteria = { ...criteria, ...updates };
+    const criteriaChanged =
+      nextCriteria.search !== criteria.search ||
+      nextCriteria.status !== criteria.status ||
+      nextCriteria.sort !== criteria.sort ||
+      nextCriteria.order !== criteria.order;
+
+    if (criteriaChanged) {
+      navigateToListState({ page: 1, criteria: nextCriteria });
+    }
   };
   const applySearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     updateCriteria({ search: searchDraft.trim() });
   };
   const clearSearch = () => {
-    setSearchDraft("");
+    setSearchDraftState({ searchParams: serializedSearchParams, value: "" });
     updateCriteria({ search: "" });
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current);
-      next.delete("search");
-      return next;
-    });
+  };
+  const updateSearchDraft = (value: string) => {
+    setSearchDraftState({ searchParams: serializedSearchParams, value });
   };
   const updateTableSort = (nextSort: { columnId: string; direction: "asc" | "desc" } | null) => {
     if (nextSort === null) {
       updateCriteria({ sort: "name", order: "asc" });
-    } else if (isProductSortField(nextSort.columnId)) {
+    } else if (isProductListSortField(nextSort.columnId)) {
       updateCriteria({ sort: nextSort.columnId, order: nextSort.direction });
     }
   };
+  const changePage = (nextPage: number) => {
+    if (pendingPageCorrection.current === nextPage) {
+      pendingPageCorrection.current = null;
+      return;
+    }
+
+    navigateToListState({ page: nextPage, criteria });
+  };
   const correctPage = (correctedPage: number) => {
+    pendingPageCorrection.current = correctedPage;
+    navigateToListState({ page: correctedPage, criteria }, true);
     if (sessionId !== null) {
       void queryClient.invalidateQueries({
         queryKey: productListQueryKey(sessionId, buildProductListQuery(criteria, correctedPage)),
@@ -161,7 +200,7 @@ export const ProductListPage = () => {
           <Input
             helpText="Busca por SKU o nombre."
             label="Buscar productos"
-            onValueChange={setSearchDraft}
+            onValueChange={updateSearchDraft}
             type="search"
             value={searchDraft}
           />
@@ -182,7 +221,7 @@ export const ProductListPage = () => {
         <Select
           label="Ordenar por"
           onValueChange={(value) => {
-            if (value !== null && isProductSortField(value)) {
+            if (value !== null && isProductListSortField(value)) {
               updateCriteria({ sort: value });
             }
           }}
@@ -220,7 +259,7 @@ export const ProductListPage = () => {
             ? "No se encontraron productos con esta búsqueda."
             : "No hay productos activos para mostrar."
         }
-        onPageChange={setPage}
+        onPageChange={changePage}
         onPageCorrection={correctPage}
         onSortChange={updateTableSort}
         pageSize={PRODUCT_LIST_PAGE_SIZE}

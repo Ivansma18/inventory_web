@@ -12,7 +12,7 @@
   Hecho cuando: pruebas de UI cubren carga, error con retry, vacío, acción de limpiar búsqueda, última página válida y página 1 sin resultados.
 - [x] T6. Añadir búsqueda, filtro de estado, ordenación y reinicio de página al cambiar criterios. (RF-19–RF-26)
   Hecho cuando: pruebas unitarias e integración verifican búsqueda parcial insensible a mayúsculas, trim, ausencia de búsqueda vacía, combinación de filtro y búsqueda, los seis campos de orden, ambas direcciones y retorno a página 1.
-- [ ] T7. Serializar y restaurar criterios del listado desde URL e historial. (RF-27–RF-30)
+- [x] T7. Serializar y restaurar criterios del listado desde URL e historial. (RF-27–RF-30)
   Hecho cuando: pruebas verifican recarga, URL compartida, Atrás/Adelante y normalización por reemplazo de parámetros inválidos sin introducir una entrada adicional de historial.
 - [ ] T8. Evitar que una consulta obsoleta reemplace los resultados de criterios más recientes. (RF-31)
   Hecho cuando: una prueba con dos respuestas MSW diferidas y fuera de orden deja visibles únicamente las filas de la consulta vigente.

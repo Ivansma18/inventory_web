@@ -28,7 +28,7 @@ const publicAuthResponse = (): components["schemas"]["PublicAuthResponse"] => ({
   },
 });
 
-const product = (index: number) => ({
+const product = (index: number, isActive = true) => ({
   uuid: `550e8400-e29b-41d4-a716-${String(index).padStart(12, "0")}`,
   sku: `SKU-${String(index).padStart(3, "0")}`,
   name: `Producto ${String(index).padStart(3, "0")}`,
@@ -36,7 +36,7 @@ const product = (index: number) => ({
   purchasePrice: 25.5,
   salePrice: 31.25,
   categoryUuid: "550e8400-e29b-41d4-a716-446655440000",
-  isActive: true,
+  isActive,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 });
@@ -46,8 +46,15 @@ const routeResources: Array<{
   router: ReturnType<typeof createMemoryRouter>;
 }> = [];
 
-const renderProductRoute = (initialEntry = "/products", queryClient = createQueryClient()) => {
-  const router = createMemoryRouter(appRoutes, { initialEntries: [initialEntry] });
+const renderProductRoute = (
+  initialEntry: string | string[] = "/products",
+  queryClient = createQueryClient(),
+) => {
+  const initialEntries = Array.isArray(initialEntry) ? initialEntry : [initialEntry];
+  const router = createMemoryRouter(appRoutes, {
+    initialEntries,
+    initialIndex: initialEntries.length - 1,
+  });
   routeResources.push({ queryClient, router });
 
   render(
@@ -178,6 +185,142 @@ describe("Product list remote query", () => {
 
     await waitFor(() => expect(productRequests).toHaveLength(3));
     expect(productRequests[2]!.searchParams.has("search")).toBe(false);
+  });
+
+  it("restores a shared list URL on a fresh route and applies its full criteria remotely", async () => {
+    const requests: URL[] = [];
+    const sharedUrl = "/products?page=2&search=keyboard&status=inactive&sort=sku&order=desc";
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, ({ request }) => {
+        const url = new URL(request.url);
+        requests.push(url);
+
+        return HttpResponse.json({
+          data: [product(16, false)],
+          pagination: { total: 16, page: 2, limit: 15 },
+        });
+      }),
+    );
+
+    const { router } = renderProductRoute(sharedUrl);
+
+    expect(await screen.findByRole("cell", { name: "SKU-016" })).toBeVisible();
+    expect(Object.fromEntries(requests[0]!.searchParams)).toEqual({
+      page: "2",
+      limit: "15",
+      search: "keyboard",
+      isActive: "false",
+      sort: "sku",
+      order: "desc",
+    });
+    expect(screen.getByRole("searchbox", { name: "Buscar productos" })).toHaveValue("keyboard");
+    expect(screen.getByRole("textbox", { name: "Estado del producto" })).toHaveValue("Inactivos");
+    expect(screen.getByRole("textbox", { name: "Ordenar por" })).toHaveValue("SKU");
+    expect(screen.getByRole("textbox", { name: "Dirección del orden" })).toHaveValue("Descendente");
+    expect(screen.getByText("Página 2 de 2")).toBeVisible();
+    expect(router.state.location.pathname + router.state.location.search).toBe(sharedUrl);
+  });
+
+  it("restores previous and next list criteria through router history", async () => {
+    const user = userEvent.setup();
+    const queryClient = createQueryClient();
+    queryClient.setDefaultOptions({
+      ...queryClient.getDefaultOptions(),
+      queries: { ...queryClient.getDefaultOptions().queries, staleTime: 0 },
+    });
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, ({ request }) => {
+        const url = new URL(request.url);
+        const page = Number(url.searchParams.get("page"));
+        const search = url.searchParams.get("search");
+        const isInactive = url.searchParams.get("isActive") === "false";
+
+        return HttpResponse.json({
+          data: [product(page === 2 ? 16 : search ? 7 : 1, isInactive)],
+          pagination: { total: page === 2 ? 16 : 1, page, limit: 15 },
+        });
+      }),
+    );
+
+    const { router } = renderProductRoute("/products", queryClient);
+    expect(await screen.findByRole("cell", { name: "SKU-001" })).toBeVisible();
+
+    await user.type(screen.getByRole("searchbox", { name: "Buscar productos" }), "keyboard");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+    expect(await screen.findByRole("cell", { name: "SKU-007" })).toBeVisible();
+    expect(router.state.location.search).toBe(
+      "?page=1&search=keyboard&status=active&sort=name&order=asc",
+    );
+
+    await router.navigate(-1);
+    expect(await screen.findByRole("cell", { name: "SKU-001" })).toBeVisible();
+    expect(router.state.location.pathname + router.state.location.search).toBe("/products");
+    await waitFor(() =>
+      expect(screen.getByRole("searchbox", { name: "Buscar productos" })).toHaveValue(""),
+    );
+
+    await router.navigate(1);
+    expect(await screen.findByRole("cell", { name: "SKU-007" })).toBeVisible();
+    expect(router.state.location.search).toBe(
+      "?page=1&search=keyboard&status=active&sort=name&order=asc",
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("searchbox", { name: "Buscar productos" })).toHaveValue("keyboard"),
+    );
+  });
+
+  it("replaces invalid URL criteria without adding a history entry", async () => {
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () =>
+        HttpResponse.json({
+          data: [product(1)],
+          pagination: { total: 1, page: 1, limit: 15 },
+        }),
+      ),
+    );
+
+    const invalidUrl = "/products?page=0&search=%20%20&status=archived&sort=uuid&order=sideways";
+    const { router } = renderProductRoute(["/", invalidUrl]);
+
+    expect(await screen.findByRole("cell", { name: "SKU-001" })).toBeVisible();
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?page=1&status=active&sort=name&order=asc"),
+    );
+    expect(screen.getByRole("searchbox", { name: "Buscar productos" })).toHaveValue("");
+
+    await router.navigate(-1);
+    expect(router.state.location.pathname + router.state.location.search).toBe("/");
+  });
+
+  it("replaces an out-of-range page after the backend returns its last valid page", async () => {
+    const requestedPages: number[] = [];
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, ({ request }) => {
+        const url = new URL(request.url);
+        const page = Number(url.searchParams.get("page"));
+        requestedPages.push(page);
+
+        return HttpResponse.json({
+          data: [product(16)],
+          pagination: { total: 16, page, limit: 15 },
+        });
+      }),
+    );
+
+    const { router } = renderProductRoute(["/", "/products?page=3"]);
+    expect(await screen.findByRole("cell", { name: "SKU-016" })).toBeVisible();
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?page=2&status=active&sort=name&order=asc"),
+    );
+    expect(requestedPages).toEqual([3, 2]);
+
+    await router.navigate(-1);
+    expect(router.state.location.pathname + router.state.location.search).toBe("/");
   });
 
   it("combines search and status, sorts by every supported field and resets to page one", async () => {
@@ -362,7 +505,7 @@ describe("Product list remote query", () => {
     expect(await screen.findByText("No se encontraron productos con esta búsqueda.")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Limpiar búsqueda" }));
 
-    expect(router.state.location.search).toBe("");
+    expect(router.state.location.search).toBe("?page=1&status=active&sort=name&order=asc");
     expect(screen.queryByRole("button", { name: "Limpiar búsqueda" })).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("No hay productos activos para mostrar.");
   });
