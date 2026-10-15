@@ -5,6 +5,7 @@ import type { components, paths } from "@/shared/api/generated/product-contracts
 import { describe, expect, it } from "vitest";
 
 import {
+  parseProductDataResponse,
   parseProductListResponse,
   ProductResponseContractError,
 } from "@/features/products/api/product-contract";
@@ -44,6 +45,9 @@ const generatedProductList: components["schemas"]["ProductListResponse"] = {
   data: [generatedProduct],
   pagination: { total: 1, page: 1, limit: 15 },
 };
+const generatedProductData: components["schemas"]["ProductDataResponse"] = {
+  data: generatedProduct,
+};
 
 describe("Products OpenAPI contracts", () => {
   it("snapshots only the published Products operations and preserves their security scheme", () => {
@@ -78,5 +82,10 @@ describe("Products OpenAPI contracts", () => {
     expect(() =>
       parseProductListResponse({ data: [{ ...generatedProduct, isActive: "yes" }] }),
     ).toThrow(ProductResponseContractError);
+  });
+
+  it("validates the product data envelope before confirming a create response", () => {
+    expect(parseProductDataResponse(generatedProductData)).toEqual(generatedProduct);
+    expect(() => parseProductDataResponse({ data: {} })).toThrow(ProductResponseContractError);
   });
 });

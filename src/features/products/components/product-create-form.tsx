@@ -1,14 +1,17 @@
 import "./product-create-form.css";
 
-import { useState } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useNavigate } from "react-router";
 
 import { useSession } from "@/features/auth";
 import { useActiveCategories, type Category } from "@/features/categories";
-import { Button, Input, Select, Textarea } from "@/shared/ui";
+import { Button, Input, Select, Textarea, useToast } from "@/shared/ui";
 import type { SelectOption } from "@/shared/ui";
 
+import type { ProductCreatePayload } from "../api/product-contract";
+import { useCreateProduct } from "../hooks/use-create-product";
 import {
   DEFAULT_PRODUCT_CREATE_VALUES,
   productCreateSchema,
@@ -19,6 +22,9 @@ import {
 export const ProductCreateForm = () => {
   const session = useSession();
   const sessionId = session.status === "authenticated" ? session.session.id : null;
+  const navigate = useNavigate();
+  const toast = useToast();
+  const submitLock = useRef(false);
   const [categorySearchDraft, setCategorySearchDraft] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
   const [categoryPage, setCategoryPage] = useState(1);
@@ -29,6 +35,8 @@ export const ProductCreateForm = () => {
     mode: "onBlur",
     resolver: zodResolver(productCreateSchema),
   });
+  const createProductMutation = useCreateProduct(sessionId);
+  const operationPending = createProductMutation.isPending || form.formState.isSubmitting;
   const visibleCategories = categories.data?.data ?? [];
   const categoryOptions: SelectOption[] = visibleCategories.map((category) => ({
     label: category.name,
@@ -63,6 +71,50 @@ export const ProductCreateForm = () => {
     setCategorySearch(categorySearchDraft.trim());
   };
 
+  const submitProduct = async (values: ProductCreateFormValues) => {
+    const payload: ProductCreatePayload = {
+      sku: values.sku,
+      name: values.name,
+      ...(values.description.length > 0 ? { description: values.description } : {}),
+      purchasePrice: values.purchasePrice,
+      salePrice: values.salePrice,
+      categoryUuid: values.categoryUuid,
+    };
+
+    try {
+      await createProductMutation.mutateAsync(payload);
+    } catch {
+      form.setError("root.server", {
+        type: "server",
+        message: "No se pudo crear el producto. Inténtalo de nuevo.",
+      });
+      return;
+    }
+
+    toast.show({ kind: "success", message: "Producto creado correctamente." });
+    void navigate("/products?page=1&status=active&sort=name&order=asc", { replace: true });
+  };
+
+  const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (submitLock.current || createProductMutation.isPending) {
+      return;
+    }
+
+    submitLock.current = true;
+    form.clearErrors("root.server");
+
+    void form
+      .handleSubmit(
+        submitProduct,
+        () => undefined,
+      )(event)
+      .finally(() => {
+        submitLock.current = false;
+      });
+  };
+
   return (
     <section aria-labelledby="product-create-form-heading" className="product-create-form">
       <div className="product-create-form__header">
@@ -75,10 +127,11 @@ export const ProductCreateForm = () => {
       </div>
 
       <form
+        aria-busy={operationPending || undefined}
         aria-labelledby="product-create-form-heading"
         className="product-create-form__fields"
         noValidate
-        onSubmit={form.handleSubmit(() => undefined)}
+        onSubmit={handleFormSubmit}
       >
         <Controller
           control={form.control}
@@ -86,6 +139,7 @@ export const ProductCreateForm = () => {
           render={({ field, fieldState }) => (
             <Input
               error={fieldState.error?.message}
+              disabled={operationPending}
               label="SKU (obligatorio)"
               onBlur={field.onBlur}
               onValueChange={field.onChange}
@@ -101,6 +155,7 @@ export const ProductCreateForm = () => {
           render={({ field, fieldState }) => (
             <Input
               error={fieldState.error?.message}
+              disabled={operationPending}
               label="Nombre (obligatorio)"
               onBlur={field.onBlur}
               onValueChange={field.onChange}
@@ -116,6 +171,7 @@ export const ProductCreateForm = () => {
           render={({ field, fieldState }) => (
             <Input
               error={fieldState.error?.message}
+              disabled={operationPending}
               helpText="Usa coma o punto decimal; máximo dos decimales."
               inputMode="decimal"
               label="Precio de compra (obligatorio)"
@@ -133,6 +189,7 @@ export const ProductCreateForm = () => {
           render={({ field, fieldState }) => (
             <Input
               error={fieldState.error?.message}
+              disabled={operationPending}
               helpText="Usa coma o punto decimal; máximo dos decimales."
               inputMode="decimal"
               label="Precio de venta (obligatorio)"
@@ -149,6 +206,7 @@ export const ProductCreateForm = () => {
           name="description"
           render={({ field }) => (
             <Textarea
+              disabled={operationPending}
               label="Descripción (opcional)"
               onValueChange={field.onChange}
               rows={4}
@@ -160,13 +218,19 @@ export const ProductCreateForm = () => {
         <div className="product-create-form__category">
           <div className="product-create-form__category-search">
             <Input
+              disabled={operationPending}
               helpText="Busca por nombre entre categorías activas."
               label="Buscar categorías activas"
               onValueChange={setCategorySearchDraft}
               type="search"
               value={categorySearchDraft}
             />
-            <Button onClick={applyCategorySearch} type="button" variant="secondary">
+            <Button
+              disabled={operationPending}
+              onClick={applyCategorySearch}
+              type="button"
+              variant="secondary"
+            >
               Buscar categorías
             </Button>
           </div>
@@ -198,6 +262,7 @@ export const ProductCreateForm = () => {
               <Select
                 emptyMessage={emptyCategoryMessage}
                 error={fieldState.error?.message}
+                disabled={operationPending}
                 label="Categoría (obligatorio)"
                 onBlur={field.onBlur}
                 onValueChange={(value) => {
@@ -220,7 +285,7 @@ export const ProductCreateForm = () => {
           categories.data.pagination.total > categories.data.pagination.limit ? (
             <div className="product-create-form__category-pagination">
               <Button
-                disabled={categoryPage <= 1}
+                disabled={operationPending || categoryPage <= 1}
                 onClick={() => setCategoryPage((page) => Math.max(1, page - 1))}
                 type="button"
                 variant="secondary"
@@ -231,7 +296,7 @@ export const ProductCreateForm = () => {
                 Página {categories.data.pagination.page} de {totalPages}
               </span>
               <Button
-                disabled={categoryPage >= totalPages}
+                disabled={operationPending || categoryPage >= totalPages}
                 onClick={() => setCategoryPage((page) => Math.min(totalPages, page + 1))}
                 type="button"
                 variant="secondary"
@@ -240,6 +305,22 @@ export const ProductCreateForm = () => {
               </Button>
             </div>
           ) : null}
+        </div>
+
+        <div className="product-create-form__actions">
+          {form.formState.errors.root?.server?.message ? (
+            <p className="product-create-form__submit-error" role="alert">
+              {form.formState.errors.root.server.message}
+            </p>
+          ) : null}
+          {operationPending ? (
+            <p className="product-create-form__submit-status" role="status">
+              Creando producto…
+            </p>
+          ) : null}
+          <Button disabled={operationPending} loading={operationPending} type="submit">
+            {operationPending ? "Creando producto…" : "Crear producto"}
+          </Button>
         </div>
       </form>
     </section>

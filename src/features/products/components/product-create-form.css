@@ -100,3 +100,28 @@
     text-align: center;
   }
 }
+
+.product-create-form__actions {
+  display: grid;
+  grid-column: 1 / -1;
+  justify-items: end;
+  gap: var(--ui-space-3);
+  padding-block-start: var(--ui-space-4);
+  border-block-start: var(--ui-border-width) solid var(--ui-color-border);
+}
+
+.product-create-form__submit-error,
+.product-create-form__submit-status {
+  justify-self: stretch;
+  margin: 0;
+  font-size: var(--ui-font-size-sm);
+  line-height: var(--ui-line-height-normal);
+}
+
+.product-create-form__submit-error {
+  color: var(--ui-color-on-error);
+}
+
+.product-create-form__submit-status {
+  color: var(--ui-color-text-muted);
+}

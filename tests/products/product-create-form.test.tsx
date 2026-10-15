@@ -13,13 +13,16 @@ import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
 const categoriesUrl = "https://inventory.test/api/categories";
+const productsUrl = "https://inventory.test/api/products";
 
-const publicAuthResponse = (): components["schemas"]["PublicAuthResponse"] => ({
+const publicAuthResponse = (
+  role: components["schemas"]["PublicAuthResponse"]["data"]["user"]["role"] = "OPERATOR",
+): components["schemas"]["PublicAuthResponse"] => ({
   data: {
     user: {
       id: "product-create-user",
       email: "operator@example.com",
-      role: "OPERATOR",
+      role,
     },
     session: {
       id: "product-create-session",
@@ -36,6 +39,37 @@ const category = (index: number, name: string) => ({
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 });
+
+const createdProduct = {
+  uuid: "650e8400-e29b-41d4-a716-446655440000",
+  sku: "SKU-NEW",
+  name: "Monitor",
+  description: null,
+  purchasePrice: 10.25,
+  salePrice: 8.5,
+  categoryUuid: category(1, "Oficina").uuid,
+  isActive: true,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+};
+
+const activeCategoryResponse = () =>
+  HttpResponse.json({
+    data: [category(1, "Oficina")],
+    pagination: { total: 1, page: 1, limit: 15 },
+  });
+
+const fillValidProductForm = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.type(screen.getByRole("textbox", { name: "SKU (obligatorio)" }), "SKU-NEW");
+  await user.type(screen.getByRole("textbox", { name: "Nombre (obligatorio)" }), "Monitor");
+  await user.type(screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" }), "10,25");
+  await user.type(screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" }), "8.50");
+
+  const categorySelect = screen.getByRole("textbox", { name: "Categoría (obligatorio)" });
+  await waitFor(() => expect(categorySelect).toBeEnabled());
+  categorySelect.focus();
+  await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+};
 
 const routeResources: Array<{
   queryClient: ReturnType<typeof createQueryClient>;
@@ -324,4 +358,121 @@ describe("product creation form", () => {
       ),
     ).not.toBeInTheDocument();
   });
+
+  it("sends one request while pending, confirms only after a valid response, and returns to the default list", async () => {
+    const user = userEvent.setup();
+    let createRequests = 0;
+    let submittedBody: unknown;
+    let resolveCreate!: (response: Response) => void;
+    const deferredCreate = new Promise<Response>((resolve) => {
+      resolveCreate = resolve;
+    });
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(categoriesUrl, () => activeCategoryResponse()),
+      http.post(productsUrl, async ({ request }) => {
+        createRequests += 1;
+        submittedBody = await request.json();
+        return deferredCreate;
+      }),
+      http.get(productsUrl, () =>
+        HttpResponse.json({ data: [createdProduct], pagination: { total: 1, page: 1, limit: 15 } }),
+      ),
+    );
+
+    const { router } = renderProductCreateRoute();
+    await fillValidProductForm(user);
+
+    const form = screen.getByRole("form", { name: "Datos del producto" });
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Creando producto…");
+    await waitFor(() => expect(createRequests).toBe(1));
+    expect(submittedBody).toEqual({
+      sku: "SKU-NEW",
+      name: "Monitor",
+      purchasePrice: 10.25,
+      salePrice: 8.5,
+      categoryUuid: category(1, "Oficina").uuid,
+    });
+    expect(screen.getByRole("textbox", { name: "SKU (obligatorio)" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Creando producto…" })).toBeDisabled();
+    expect(screen.queryByText("Producto creado correctamente.")).not.toBeInTheDocument();
+
+    resolveCreate(HttpResponse.json({ data: createdProduct }, { status: 201 }));
+
+    expect(await screen.findByText("Producto creado correctamente.")).toBeVisible();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
+    expect(router.state.location.search).toBe("?page=1&status=active&sort=name&order=asc");
+    expect(createRequests).toBe(1);
+  });
+
+  it("keeps entered values editable and shows a safe message when creation fails", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(categoriesUrl, () => activeCategoryResponse()),
+      http.post(productsUrl, () =>
+        HttpResponse.json(
+          { error: { code: "INTERNAL_ERROR", message: "private server detail" } },
+          { status: 500 },
+        ),
+      ),
+    );
+
+    renderProductCreateRoute();
+    await fillValidProductForm(user);
+    fireEvent.submit(screen.getByRole("form", { name: "Datos del producto" }));
+
+    const error = await screen.findByRole("alert");
+    expect(error).toHaveTextContent("No se pudo crear el producto. Inténtalo de nuevo.");
+    expect(error).not.toHaveTextContent("private server detail");
+    expect(screen.getByRole("textbox", { name: "SKU (obligatorio)" })).toHaveValue("SKU-NEW");
+    expect(screen.getByRole("textbox", { name: "Nombre (obligatorio)" })).toHaveValue("Monitor");
+    expect(screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" })).toHaveValue(
+      "10,25",
+    );
+    expect(screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" })).toHaveValue(
+      "8.50",
+    );
+    expect(screen.getByRole("button", { name: "Crear producto" })).toBeEnabled();
+  });
+
+  it("does not confirm or navigate after a malformed successful response", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(categoriesUrl, () => activeCategoryResponse()),
+      http.post(productsUrl, () => HttpResponse.json({ data: {} }, { status: 201 })),
+    );
+
+    const { router } = renderProductCreateRoute();
+    await fillValidProductForm(user);
+    fireEvent.submit(screen.getByRole("form", { name: "Datos del producto" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No se pudo crear el producto. Inténtalo de nuevo.",
+    );
+    expect(screen.queryByText("Producto creado correctamente.")).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/products/new");
+    expect(screen.getByRole("textbox", { name: "SKU (obligatorio)" })).toHaveValue("SKU-NEW");
+  });
+
+  it.each(["ADMIN", "MANAGER", "OPERATOR", "VIEWER"] as const)(
+    "keeps the create action visible for the %s role",
+    async (role) => {
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse(role))),
+        http.get(categoriesUrl, () => activeCategoryResponse()),
+      );
+
+      renderProductCreateRoute();
+
+      expect(await screen.findByRole("button", { name: "Crear producto" })).toBeVisible();
+    },
+  );
 });

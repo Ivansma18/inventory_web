@@ -24,7 +24,7 @@
   Hecho cuando: pruebas unitarias cubren vacío, no numérico, negativo, cero, coma/punto, dos y tres decimales, separadores de miles y mezcla de separadores; el valor no se redondea, se presenta con dos decimales y sin moneda, y se acepta venta menor que compra.
 - [x] T12. Completar los estados de categoría requeridos para creación sin incluir gestión de categorías. (RF-50–RF-52)
   Hecho cuando: pruebas verifican el aviso de que hace falta una categoría activa, bloqueo de creación sin selección válida y ausencia de acciones de crear/editar/activar/desactivar categorías.
-- [ ] T13. Implementar el envío de creación, sus estados y el destino posterior al éxito. (RF-7, RF-40–RF-45)
+- [x] T13. Implementar el envío de creación, sus estados y el destino posterior al éxito. (RF-7, RF-40–RF-45)
   Hecho cuando: pruebas de operación diferida verifican una sola solicitud, indicador pendiente, confirmación solo tras respuesta válida, conservación de valores ante error y retorno a activos/página 1/sin búsqueda/nombre ascendente tras éxito; la acción de creación permanece visible para distintos roles presentados por el frontend.
 - [ ] T14. Mostrar y recuperar errores de categoría durante creación sin perder los demás valores. (RF-53–RF-54)
   Hecho cuando: pruebas de conflicto 404/409 identifican el campo categoría y permiten refrescar opciones manteniendo intactos los otros campos del formulario.

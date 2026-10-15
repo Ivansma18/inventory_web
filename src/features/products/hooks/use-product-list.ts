@@ -51,10 +51,10 @@ export const buildProductListQuery = (
   };
 };
 
+export const productListQueryPrefix = (sessionId: string | null) => ["products", "list", sessionId];
+
 export const productListQueryKey = (sessionId: string | null, params: ProductListQuery) => [
-  "products",
-  "list",
-  sessionId,
+  ...productListQueryPrefix(sessionId),
   params,
 ];
 

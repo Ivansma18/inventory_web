@@ -4,6 +4,7 @@ import type { components } from "@/shared/api/generated/product-contracts";
 
 export type Product = components["schemas"]["Product"];
 export type ProductListResponse = components["schemas"]["ProductListResponse"];
+export type ProductCreatePayload = components["schemas"]["CreateProduct"];
 
 const priceSchema = z
   .number()
@@ -32,6 +33,7 @@ const productListResponseSchema = z.object({
     limit: z.number().int().positive(),
   }),
 }) satisfies z.ZodType<ProductListResponse>;
+const productDataResponseSchema = z.object({ data: productSchema });
 
 export class ProductResponseContractError extends Error {
   readonly kind = "contract";
@@ -50,4 +52,14 @@ export const parseProductListResponse = (value: unknown): ProductListResponse =>
   }
 
   return result.data;
+};
+
+export const parseProductDataResponse = (value: unknown): Product => {
+  const result = productDataResponseSchema.safeParse(value);
+
+  if (!result.success) {
+    throw new ProductResponseContractError();
+  }
+
+  return result.data.data;
 };

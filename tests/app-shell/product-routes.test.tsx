@@ -7,6 +7,7 @@ import type { components } from "@/shared/api/generated/auth-contracts";
 import { describe, expect, it } from "vitest";
 
 import { appRoutes } from "@/app/router/router";
+import { UiProvider } from "@/app/providers/ui.provider";
 import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
@@ -70,7 +71,9 @@ describe("Product form routes", () => {
     const createQueryClientInstance = createQueryClient();
     const createView = render(
       <QueryClientProvider client={createQueryClientInstance}>
-        <RouterProvider router={createRouter} />
+        <UiProvider>
+          <RouterProvider router={createRouter} />
+        </UiProvider>
       </QueryClientProvider>,
     );
 
@@ -101,7 +104,9 @@ describe("Product form routes", () => {
     const editQueryClient = createQueryClient();
     render(
       <QueryClientProvider client={editQueryClient}>
-        <RouterProvider router={editRouter} />
+        <UiProvider>
+          <RouterProvider router={editRouter} />
+        </UiProvider>
       </QueryClientProvider>,
     );
 
