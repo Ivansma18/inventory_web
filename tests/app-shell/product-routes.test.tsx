@@ -64,6 +64,23 @@ describe("Product form routes", () => {
           pagination: { total: 1, page: 1, limit: 15 },
         }),
       ),
+      http.get(/\/api\/products\/[^/]+$/, ({ request }) => {
+        const uuid = new URL(request.url).pathname.split("/").at(-1);
+        return HttpResponse.json({
+          data: {
+            uuid,
+            sku: "SKU-EDIT-01",
+            name: "Monitor",
+            description: null,
+            purchasePrice: 125.5,
+            salePrice: 189.99,
+            categoryUuid: null,
+            isActive: true,
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-02T00:00:00.000Z",
+          },
+        });
+      }),
     );
 
     const createPath = "/products/new";

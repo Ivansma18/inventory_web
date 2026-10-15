@@ -5,10 +5,12 @@ import {
   parseProductDataResponse,
   parseProductListResponse,
   type ProductCreatePayload,
+  type Product,
   type ProductListResponse,
 } from "./product-contract";
 
 export type ProductListQuery = NonNullable<paths["/products"]["get"]["parameters"]["query"]>;
+export type ProductDetailPath = NonNullable<paths["/products/{uuid}"]["get"]["parameters"]["path"]>;
 
 export const listProducts = async (
   params: ProductListQuery,
@@ -22,6 +24,19 @@ export const listProducts = async (
   });
 
   return parseProductListResponse(response);
+};
+
+export const getProduct = async (
+  { uuid }: ProductDetailPath,
+  signal?: AbortSignal,
+): Promise<Product> => {
+  const response = await httpClient.request<unknown>({
+    path: `/products/${encodeURIComponent(uuid)}`,
+    method: "GET",
+    signal,
+  });
+
+  return parseProductDataResponse(response);
 };
 
 export const createProduct = async (payload: ProductCreatePayload) => {
