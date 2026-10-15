@@ -441,6 +441,72 @@ describe("Product list remote query", () => {
     expect(screen.queryByText("Cargando datos...")).not.toBeInTheDocument();
   });
 
+  it("keeps the newest search visible when an older deferred response resolves later", async () => {
+    const user = userEvent.setup();
+    const queryClient = createQueryClient();
+    const requestedSearches: string[] = [];
+    const mockedResponseSearches: string[] = [];
+    let resolveOlderResponse!: (response: Response) => void;
+    let resolveNewerResponse!: (response: Response) => void;
+    const onMockedResponse = ({ request }: { request: Request }) => {
+      const url = new URL(request.url);
+      if (url.pathname.endsWith("/products")) {
+        mockedResponseSearches.push(url.searchParams.get("search") ?? "");
+      }
+    };
+
+    server.events.on("response:mocked", onMockedResponse);
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, ({ request }) => {
+        const search = new URL(request.url).searchParams.get("search") ?? "";
+        requestedSearches.push(search);
+
+        return new Promise<Response>((resolve) => {
+          if (search === "older") {
+            resolveOlderResponse = resolve;
+          } else if (search === "newer") {
+            resolveNewerResponse = resolve;
+          }
+        });
+      }),
+    );
+
+    try {
+      renderProductRoute("/products?search=older", queryClient);
+      await waitFor(() => expect(requestedSearches).toEqual(["older"]));
+
+      const searchInput = screen.getByRole("searchbox", { name: "Buscar productos" });
+      await user.clear(searchInput);
+      await user.type(searchInput, "newer");
+      await user.click(screen.getByRole("button", { name: "Buscar" }));
+      await waitFor(() => expect(requestedSearches).toEqual(["older", "newer"]));
+
+      resolveNewerResponse(
+        HttpResponse.json({
+          data: [product(2)],
+          pagination: { total: 1, page: 1, limit: 15 },
+        }),
+      );
+      expect(await screen.findByRole("cell", { name: "SKU-002" })).toBeVisible();
+      await waitFor(() => expect(mockedResponseSearches).toContain("newer"));
+
+      resolveOlderResponse(
+        HttpResponse.json({
+          data: [product(1)],
+          pagination: { total: 1, page: 1, limit: 15 },
+        }),
+      );
+      await waitFor(() => expect(mockedResponseSearches).toContain("older"));
+      expect(mockedResponseSearches).toEqual(["newer", "older"]);
+      expect(screen.getByRole("cell", { name: "SKU-002" })).toBeVisible();
+      expect(screen.queryByRole("cell", { name: "SKU-001" })).not.toBeInTheDocument();
+      expect(screen.getByRole("searchbox", { name: "Buscar productos" })).toHaveValue("newer");
+    } finally {
+      server.events.removeListener("response:mocked", onMockedResponse);
+    }
+  });
+
   it("shows a recoverable error and retries the list query on request", async () => {
     const user = userEvent.setup();
     let requestCount = 0;

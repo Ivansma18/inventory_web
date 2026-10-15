@@ -14,7 +14,7 @@
   Hecho cuando: pruebas unitarias e integración verifican búsqueda parcial insensible a mayúsculas, trim, ausencia de búsqueda vacía, combinación de filtro y búsqueda, los seis campos de orden, ambas direcciones y retorno a página 1.
 - [x] T7. Serializar y restaurar criterios del listado desde URL e historial. (RF-27–RF-30)
   Hecho cuando: pruebas verifican recarga, URL compartida, Atrás/Adelante y normalización por reemplazo de parámetros inválidos sin introducir una entrada adicional de historial.
-- [ ] T8. Evitar que una consulta obsoleta reemplace los resultados de criterios más recientes. (RF-31)
+- [x] T8. Evitar que una consulta obsoleta reemplace los resultados de criterios más recientes. (RF-31)
   Hecho cuando: una prueba con dos respuestas MSW diferidas y fuera de orden deja visibles únicamente las filas de la consulta vigente.
 - [ ] T9. Integrar el contrato OpenAPI y la consulta pública de categorías activas con búsqueda, paginación y estados de carga/error. (RF-46–RF-49)
   Hecho cuando: las pruebas MSW verifican categorías de páginas posteriores, búsqueda, carga, error y retry mediante la API pública de Categories, sin importar sus internos desde Products.
