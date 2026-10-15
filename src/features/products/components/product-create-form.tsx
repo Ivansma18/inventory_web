@@ -12,6 +12,7 @@ import type { SelectOption } from "@/shared/ui";
 import {
   DEFAULT_PRODUCT_CREATE_VALUES,
   productCreateSchema,
+  type ProductCreateFormInput,
   type ProductCreateFormValues,
 } from "../schemas/product-create.schema";
 
@@ -23,7 +24,7 @@ export const ProductCreateForm = () => {
   const [categoryPage, setCategoryPage] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const categories = useActiveCategories(sessionId, { page: categoryPage, search: categorySearch });
-  const form = useForm<ProductCreateFormValues>({
+  const form = useForm<ProductCreateFormInput, unknown, ProductCreateFormValues>({
     defaultValues: DEFAULT_PRODUCT_CREATE_VALUES,
     mode: "onBlur",
     resolver: zodResolver(productCreateSchema),
@@ -111,6 +112,8 @@ export const ProductCreateForm = () => {
           render={({ field, fieldState }) => (
             <Input
               error={fieldState.error?.message}
+              helpText="Usa coma o punto decimal; máximo dos decimales."
+              inputMode="decimal"
               label="Precio de compra (obligatorio)"
               onBlur={field.onBlur}
               onValueChange={field.onChange}
@@ -126,6 +129,8 @@ export const ProductCreateForm = () => {
           render={({ field, fieldState }) => (
             <Input
               error={fieldState.error?.message}
+              helpText="Usa coma o punto decimal; máximo dos decimales."
+              inputMode="decimal"
               label="Precio de venta (obligatorio)"
               onBlur={field.onBlur}
               onValueChange={field.onChange}

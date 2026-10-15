@@ -15,6 +15,7 @@ import type {
 
 import type { Product } from "../api/product-contract";
 import { ProductPageShell } from "../components/product-page-shell";
+import { formatProductPrice } from "../utils/product-price";
 import {
   buildProductListQuery,
   isProductListSortField,
@@ -29,24 +30,19 @@ import {
   type ProductListUrlState,
 } from "../utils/product-list-url-state";
 
-const currencyFormatter = new Intl.NumberFormat("es-ES", {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
 const productColumns: DataTableColumn<Product>[] = [
   { key: "sku", header: "SKU", sortable: true },
   { key: "name", header: "Nombre", sortable: true },
   {
     key: "purchasePrice",
     header: "Precio de compra",
-    render: (product) => currencyFormatter.format(product.purchasePrice),
+    render: (product) => formatProductPrice(product.purchasePrice),
     sortable: true,
   },
   {
     key: "salePrice",
     header: "Precio de venta",
-    render: (product) => currencyFormatter.format(product.salePrice),
+    render: (product) => formatProductPrice(product.salePrice),
     sortable: true,
   },
   {

@@ -101,6 +101,9 @@ describe("product creation form", () => {
     expect(purchasePrice).toBeRequired();
     expect(salePrice).toBeRequired();
     expect(description).not.toBeRequired();
+    expect(purchasePrice).toHaveAttribute("inputmode", "decimal");
+    expect(salePrice).toHaveAttribute("inputmode", "decimal");
+    expect(screen.getAllByText("Usa coma o punto decimal; máximo dos decimales.")).toHaveLength(2);
     expect(categorySelect).toHaveAttribute("aria-required", "true");
     expect(screen.getByRole("searchbox", { name: "Buscar categorías activas" })).toBeVisible();
 
@@ -184,5 +187,50 @@ describe("product creation form", () => {
     expect(screen.getByText("El precio de compra es obligatorio.")).toBeVisible();
     expect(screen.getByText("El precio de venta es obligatorio.")).toBeVisible();
     expect(screen.getByText("Selecciona una categoría activa.")).toBeVisible();
+  });
+
+  it("keeps the typed decimal text and associates invalid price errors with their fields", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(categoriesUrl, () =>
+        HttpResponse.json({
+          data: [category(1, "Oficina")],
+          pagination: { total: 1, page: 1, limit: 15 },
+        }),
+      ),
+    );
+
+    renderProductCreateRoute();
+
+    const purchasePrice = screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" });
+    await user.type(purchasePrice, "1,234");
+    await user.tab();
+
+    const purchasePriceError = await screen.findByText(
+      "El precio de compra admite como máximo dos decimales.",
+    );
+    expect(purchasePrice).toHaveValue("1,234");
+    expect(purchasePrice).toHaveAttribute("aria-invalid", "true");
+    expect(purchasePrice).toHaveAccessibleDescription(
+      "Usa coma o punto decimal; máximo dos decimales. El precio de compra admite como máximo dos decimales.",
+    );
+    expect(purchasePrice).toHaveAttribute(
+      "aria-describedby",
+      `${purchasePrice.id}-help ${purchasePriceError.id}`,
+    );
+
+    const salePrice = screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" });
+    await user.type(salePrice, "-1");
+    await user.tab();
+
+    const salePriceError = await screen.findByText("El precio de venta no puede ser negativo.");
+    expect(salePrice).toHaveValue("-1");
+    expect(salePrice).toHaveAttribute("aria-invalid", "true");
+    expect(salePrice).toHaveAttribute(
+      "aria-describedby",
+      `${salePrice.id}-help ${salePriceError.id}`,
+    );
   });
 });

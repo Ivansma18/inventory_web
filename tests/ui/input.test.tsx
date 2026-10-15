@@ -108,6 +108,14 @@ describe("Input", () => {
     expect(onBlur).toHaveBeenCalledOnce();
   });
 
+  it("forwards decimal input mode to support locale-aware numeric keyboards", () => {
+    render(
+      <Input inputMode="decimal" label="Precio" value="1,25" onValueChange={() => undefined} />,
+    );
+
+    expect(screen.getByRole("textbox", { name: "Precio" })).toHaveAttribute("inputmode", "decimal");
+  });
+
   it("associates both help and error text and marks the input invalid", () => {
     render(
       <Input
