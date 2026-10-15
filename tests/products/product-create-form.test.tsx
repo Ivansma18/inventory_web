@@ -441,6 +441,115 @@ describe("product creation form", () => {
     expect(screen.getByRole("button", { name: "Crear producto" })).toBeEnabled();
   });
 
+  it.each([
+    { status: 404, code: "PRODUCT_CATEGORY_NOT_FOUND" },
+    { status: 409, code: "PRODUCT_CATEGORY_INACTIVE" },
+    { status: 409, code: "PRODUCT_CATEGORY_ASSIGNMENT_CONFLICT" },
+  ])(
+    "identifies a rejected category ($status $code), refreshes choices, and preserves the other values",
+    async ({ status, code }) => {
+      const user = userEvent.setup();
+      let categoryRequests = 0;
+
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(categoriesUrl, () => {
+          categoryRequests += 1;
+          return categoryRequests === 1
+            ? activeCategoryResponse()
+            : HttpResponse.json({
+                data: [category(2, "Papelería")],
+                pagination: { total: 1, page: 1, limit: 15 },
+              });
+        }),
+        http.post(productsUrl, () =>
+          HttpResponse.json({ error: { code, message: "private category detail" } }, { status }),
+        ),
+      );
+
+      renderProductCreateRoute();
+      await fillValidProductForm(user);
+      await user.type(
+        screen.getByRole("textbox", { name: "Descripción (opcional)" }),
+        "Pantalla profesional para oficina.",
+      );
+      fireEvent.submit(screen.getByRole("form", { name: "Datos del producto" }));
+
+      const categorySelect = screen.getByRole("textbox", { name: "Categoría (obligatorio)" });
+      const categoryError = await screen.findByText(
+        "No se pudo asignar esta categoría. Actualiza las opciones y selecciona una categoría activa.",
+      );
+      expect(categorySelect).toHaveAttribute("aria-invalid", "true");
+      expect(categorySelect).toHaveAccessibleDescription(categoryError.textContent ?? "");
+      expect(categorySelect).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Actualizar categorías activas" })).toBeVisible();
+      expect(screen.queryByText("private category detail")).not.toBeInTheDocument();
+      expect(screen.queryByText("No se pudo crear el producto. Inténtalo de nuevo.")).toBeNull();
+      expect(screen.getByRole("textbox", { name: "SKU (obligatorio)" })).toHaveValue("SKU-NEW");
+      expect(screen.getByRole("textbox", { name: "Nombre (obligatorio)" })).toHaveValue("Monitor");
+      expect(screen.getByRole("textbox", { name: "Descripción (opcional)" })).toHaveValue(
+        "Pantalla profesional para oficina.",
+      );
+      expect(screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" })).toHaveValue(
+        "10,25",
+      );
+      expect(screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" })).toHaveValue(
+        "8.50",
+      );
+
+      await user.click(screen.getByRole("button", { name: "Actualizar categorías activas" }));
+      await waitFor(() => expect(categoryRequests).toBe(2));
+      expect(await screen.findByText("Selecciona una categoría activa.")).toBeVisible();
+      expect(categorySelect).toBeEnabled();
+
+      categorySelect.focus();
+      await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+
+      expect(categorySelect).toHaveValue("Papelería");
+      expect(categorySelect).not.toHaveAttribute("aria-invalid", "true");
+      expect(screen.queryByText(/No se pudo asignar esta categoría/)).not.toBeInTheDocument();
+      expect(screen.getByRole("textbox", { name: "SKU (obligatorio)" })).toHaveValue("SKU-NEW");
+      expect(screen.getByRole("textbox", { name: "Nombre (obligatorio)" })).toHaveValue("Monitor");
+      expect(screen.getByRole("textbox", { name: "Descripción (opcional)" })).toHaveValue(
+        "Pantalla profesional para oficina.",
+      );
+      expect(screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" })).toHaveValue(
+        "10,25",
+      );
+      expect(screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" })).toHaveValue(
+        "8.50",
+      );
+    },
+  );
+
+  it("does not treat an unrelated 409 as a category rejection", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(categoriesUrl, () => activeCategoryResponse()),
+      http.post(productsUrl, () =>
+        HttpResponse.json(
+          { error: { code: "PRODUCT_SKU_ALREADY_EXISTS", message: "private conflict detail" } },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    renderProductCreateRoute();
+    await fillValidProductForm(user);
+    fireEvent.submit(screen.getByRole("form", { name: "Datos del producto" }));
+
+    expect(
+      await screen.findByText("No se pudo crear el producto. Inténtalo de nuevo."),
+    ).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Categoría (obligatorio)" })).not.toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(screen.queryByRole("button", { name: "Actualizar categorías activas" })).toBeNull();
+  });
+
   it("does not confirm or navigate after a malformed successful response", async () => {
     const user = userEvent.setup();
 

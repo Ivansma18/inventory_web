@@ -70,6 +70,11 @@
   color: var(--ui-color-on-error);
 }
 
+.product-create-form__category-recovery {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .product-create-form__category-pagination {
   display: flex;
   align-items: center;

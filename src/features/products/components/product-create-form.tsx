@@ -19,6 +19,33 @@ import {
   type ProductCreateFormValues,
 } from "../schemas/product-create.schema";
 
+const categoryAssignmentErrorStatuses: Record<string, number> = {
+  PRODUCT_CATEGORY_NOT_FOUND: 404,
+  PRODUCT_CATEGORY_INACTIVE: 409,
+  PRODUCT_CATEGORY_ASSIGNMENT_CONFLICT: 409,
+};
+
+const rejectedCategoryMessage =
+  "No se pudo asignar esta categoría. Actualiza las opciones y selecciona una categoría activa.";
+const categoryReselectionMessage = "Selecciona una categoría activa.";
+
+const isCategoryAssignmentRejection = (error: unknown): boolean => {
+  if (
+    typeof error !== "object" ||
+    error === null ||
+    !("kind" in error) ||
+    error.kind !== "http" ||
+    !("status" in error) ||
+    typeof error.status !== "number" ||
+    !("code" in error) ||
+    typeof error.code !== "string"
+  ) {
+    return false;
+  }
+
+  return categoryAssignmentErrorStatuses[error.code] === error.status;
+};
+
 export const ProductCreateForm = () => {
   const session = useSession();
   const sessionId = session.status === "authenticated" ? session.session.id : null;
@@ -28,6 +55,7 @@ export const ProductCreateForm = () => {
   const [categorySearchDraft, setCategorySearchDraft] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
   const [categoryPage, setCategoryPage] = useState(1);
+  const [categoryRefreshRequired, setCategoryRefreshRequired] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const categories = useActiveCategories(sessionId, { page: categoryPage, search: categorySearch });
   const form = useForm<ProductCreateFormInput, unknown, ProductCreateFormValues>({
@@ -71,6 +99,15 @@ export const ProductCreateForm = () => {
     setCategorySearch(categorySearchDraft.trim());
   };
 
+  const refreshRejectedCategory = async () => {
+    const result = await categories.refetch();
+
+    if (result.isSuccess) {
+      setCategoryRefreshRequired(false);
+      form.setError("categoryUuid", { type: "server", message: categoryReselectionMessage });
+    }
+  };
+
   const submitProduct = async (values: ProductCreateFormValues) => {
     const payload: ProductCreatePayload = {
       sku: values.sku,
@@ -83,7 +120,15 @@ export const ProductCreateForm = () => {
 
     try {
       await createProductMutation.mutateAsync(payload);
-    } catch {
+    } catch (error: unknown) {
+      if (isCategoryAssignmentRejection(error)) {
+        form.setValue("categoryUuid", "", { shouldDirty: true });
+        setSelectedCategory(null);
+        setCategoryRefreshRequired(true);
+        form.setError("categoryUuid", { type: "server", message: rejectedCategoryMessage });
+        return;
+      }
+
       form.setError("root.server", {
         type: "server",
         message: "No se pudo crear el producto. Inténtalo de nuevo.",
@@ -262,7 +307,6 @@ export const ProductCreateForm = () => {
               <Select
                 emptyMessage={emptyCategoryMessage}
                 error={fieldState.error?.message}
-                disabled={operationPending}
                 label="Categoría (obligatorio)"
                 onBlur={field.onBlur}
                 onValueChange={(value) => {
@@ -273,13 +317,33 @@ export const ProductCreateForm = () => {
                           selectedCategory)
                       : null,
                   );
+
+                  if (value) {
+                    form.clearErrors("categoryUuid");
+                    setCategoryRefreshRequired(false);
+                  }
                 }}
                 options={categoryOptions}
                 required
+                disabled={operationPending || categoryRefreshRequired}
                 value={field.value || null}
               />
             )}
           />
+
+          {categoryRefreshRequired ? (
+            <div className="product-create-form__category-recovery">
+              <Button
+                disabled={operationPending}
+                loading={categories.isFetching}
+                onClick={() => void refreshRejectedCategory()}
+                type="button"
+                variant="secondary"
+              >
+                Actualizar categorías activas
+              </Button>
+            </div>
+          ) : null}
 
           {categories.data &&
           categories.data.pagination.total > categories.data.pagination.limit ? (

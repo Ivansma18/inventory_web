@@ -26,7 +26,7 @@
   Hecho cuando: pruebas verifican el aviso de que hace falta una categoría activa, bloqueo de creación sin selección válida y ausencia de acciones de crear/editar/activar/desactivar categorías.
 - [x] T13. Implementar el envío de creación, sus estados y el destino posterior al éxito. (RF-7, RF-40–RF-45)
   Hecho cuando: pruebas de operación diferida verifican una sola solicitud, indicador pendiente, confirmación solo tras respuesta válida, conservación de valores ante error y retorno a activos/página 1/sin búsqueda/nombre ascendente tras éxito; la acción de creación permanece visible para distintos roles presentados por el frontend.
-- [ ] T14. Mostrar y recuperar errores de categoría durante creación sin perder los demás valores. (RF-53–RF-54)
+- [x] T14. Mostrar y recuperar errores de categoría durante creación sin perder los demás valores. (RF-53–RF-54)
   Hecho cuando: pruebas de conflicto 404/409 identifican el campo categoría y permiten refrescar opciones manteniendo intactos los otros campos del formulario.
 - [ ] T15. Consultar y presentar los datos iniciales de edición para productos activos e inactivos. (RF-55–RF-58)
   Hecho cuando: pruebas verifican consulta por UUID, formulario no editable antes de la carga, inicialización con los datos recibidos y edición posible en ambos estados.
