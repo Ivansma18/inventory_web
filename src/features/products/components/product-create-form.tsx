@@ -12,6 +12,7 @@ import type { SelectOption } from "@/shared/ui";
 
 import type { ProductCreatePayload } from "../api/product-contract";
 import { useCreateProduct } from "../hooks/use-create-product";
+import { useProductFormNavigationGuard } from "../hooks/use-product-form-navigation-guard";
 import {
   DEFAULT_PRODUCT_CREATE_VALUES,
   productCreateSchema,
@@ -26,6 +27,7 @@ import {
   isUncertainProductMutationError,
   productSkuConflictMessage,
 } from "../utils/product-api-errors";
+import { ProductUnsavedChangesDialog } from "./product-unsaved-changes-dialog";
 
 const categoryAssignmentErrorStatuses: Record<string, number> = {
   PRODUCT_CATEGORY_NOT_FOUND: 404,
@@ -73,6 +75,7 @@ export const ProductCreateForm = () => {
   });
   const createProductMutation = useCreateProduct(sessionId);
   const operationPending = createProductMutation.isPending || form.formState.isSubmitting;
+  const { blocker, dismissProtection } = useProductFormNavigationGuard(form.formState.isDirty);
   const visibleCategories = categories.data?.data ?? [];
   const categoryOptions: SelectOption[] = visibleCategories.map((category) => ({
     label: category.name,
@@ -187,6 +190,7 @@ export const ProductCreateForm = () => {
       return;
     }
 
+    dismissProtection();
     toast.show({ kind: "success", message: "Producto creado correctamente." });
     void navigate("/products?page=1&status=active&sort=name&order=asc", { replace: true });
   };
@@ -443,6 +447,20 @@ export const ProductCreateForm = () => {
           </Button>
         </div>
       </form>
+      <ProductUnsavedChangesDialog
+        onContinueEditing={() => {
+          if (blocker.state === "blocked") {
+            blocker.reset();
+          }
+        }}
+        onDiscardChanges={() => {
+          if (blocker.state === "blocked") {
+            dismissProtection();
+            blocker.proceed();
+          }
+        }}
+        open={blocker.state === "blocked"}
+      />
     </section>
   );
 };

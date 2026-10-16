@@ -132,6 +132,46 @@ afterEach(() => {
 });
 
 describe("product edit page", () => {
+  it("confirms internal navigation for a dirty edit and preserves its values when staying", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+    );
+
+    const { router } = renderProductEditRoute();
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Nombre pendiente");
+
+    const dirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, dirtyUnloadEvent);
+    expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
+
+    const navigation = within(screen.getByRole("navigation", { name: "Navegación principal" }));
+    const productsLink = navigation.getByRole("link", { name: "Productos" });
+    await user.click(productsLink);
+
+    const prompt = await screen.findByRole("dialog");
+    await user.click(within(prompt).getByRole("button", { name: "Continuar editando" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(router.state.location.pathname).toBe(`/products/${productUuid}/edit`);
+    expect(name).toHaveValue("Nombre pendiente");
+
+    await user.click(productsLink);
+    const discardPrompt = await screen.findByRole("dialog");
+    await user.click(within(discardPrompt).getByRole("button", { name: "Descartar cambios" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Productos" })).toBeVisible();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
+
+    const afterDiscardUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, afterDiscardUnloadEvent);
+    expect(afterDiscardUnloadEvent.defaultPrevented).toBe(false);
+  });
+
   it("shows an invalid-address state without requesting a malformed UUID and returns to the list", async () => {
     const user = userEvent.setup();
     const productRequests: string[] = [];
@@ -554,6 +594,11 @@ describe("product edit page", () => {
     const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
     await user.clear(name);
     await user.type(name, "Monitor actualizado");
+
+    const dirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, dirtyUnloadEvent);
+    expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
+
     await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
 
     await waitFor(() =>
@@ -590,6 +635,11 @@ describe("product edit page", () => {
     const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
     await user.clear(name);
     await user.type(name, "Monitor actualizado");
+
+    const dirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, dirtyUnloadEvent);
+    expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
+
     await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
 
     expect(await screen.findByText("Producto actualizado correctamente.")).toBeVisible();
@@ -605,6 +655,10 @@ describe("product edit page", () => {
       sort: "sku",
       order: "desc",
     });
+
+    const afterSaveUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, afterSaveUnloadEvent);
+    expect(afterSaveUnloadEvent.defaultPrevented).toBe(false);
   });
 
   it("keeps edit success when refreshing the list fails and retries only the list query", async () => {

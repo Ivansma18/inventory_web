@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
@@ -100,6 +100,52 @@ afterEach(() => {
 });
 
 describe("product creation form", () => {
+  it("confirms internal navigation for a dirty form and keeps browser warnings until discard", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(categoriesUrl, () => activeCategoryResponse()),
+    );
+
+    const { router } = renderProductCreateRoute();
+    const sku = await screen.findByRole("textbox", { name: "SKU (obligatorio)" });
+    await user.type(sku, "SKU-DRAFT");
+
+    const dirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, dirtyUnloadEvent);
+    expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
+
+    const navigation = within(screen.getByRole("navigation", { name: "Navegación principal" }));
+    const homeLink = navigation.getByRole("link", { name: "Inicio" });
+    await user.click(homeLink);
+
+    const firstPrompt = await screen.findByRole("dialog");
+    expect(firstPrompt).toHaveTextContent("Hay cambios sin guardar");
+    await user.click(within(firstPrompt).getByRole("button", { name: "Continuar editando" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(router.state.location.pathname).toBe("/products/new");
+    expect(sku).toHaveValue("SKU-DRAFT");
+
+    const stillDirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, stillDirtyUnloadEvent);
+    expect(stillDirtyUnloadEvent.defaultPrevented).toBe(true);
+
+    await user.click(homeLink);
+    const discardPrompt = await screen.findByRole("dialog");
+    await user.click(within(discardPrompt).getByRole("button", { name: "Descartar cambios" }));
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+    ).toBeVisible();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+
+    const afterDiscardUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, afterDiscardUnloadEvent);
+    expect(afterDiscardUnloadEvent.defaultPrevented).toBe(false);
+  });
+
   it("shows the required product fields, optional description, and active category selector", async () => {
     const user = userEvent.setup();
     const categoryRequests: URL[] = [];
@@ -384,6 +430,10 @@ describe("product creation form", () => {
     const { router } = renderProductCreateRoute();
     await fillValidProductForm(user);
 
+    const dirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, dirtyUnloadEvent);
+    expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
+
     const form = screen.getByRole("form", { name: "Datos del producto" });
     fireEvent.submit(form);
     fireEvent.submit(form);
@@ -407,6 +457,10 @@ describe("product creation form", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
     expect(router.state.location.search).toBe("?page=1&status=active&sort=name&order=asc");
     expect(createRequests).toBe(1);
+
+    const afterSaveUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, afterSaveUnloadEvent);
+    expect(afterSaveUnloadEvent.defaultPrevented).toBe(false);
   });
 
   it.each(["network", "server"] as const)(

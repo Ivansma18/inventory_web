@@ -11,6 +11,7 @@ import { Badge, Button, Input, Textarea, useToast } from "@/shared/ui";
 import type { Product } from "../api/product-contract";
 import { ProductEditCategoryField } from "./product-edit-category-field";
 import { useUpdateProduct } from "../hooks/use-update-product";
+import { useProductFormNavigationGuard } from "../hooks/use-product-form-navigation-guard";
 import {
   productEditSchema,
   type ProductEditFormInput,
@@ -26,6 +27,7 @@ import {
 } from "../utils/product-api-errors";
 import { formatProductPrice } from "../utils/product-price";
 import { buildProductUpdatePayload } from "../utils/product-update-payload";
+import { ProductUnsavedChangesDialog } from "./product-unsaved-changes-dialog";
 
 interface ProductEditFormProps {
   product: Product;
@@ -53,6 +55,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
     resolver: zodResolver(productEditSchema),
   });
   const operationPending = updateProductMutation.isPending || form.formState.isSubmitting;
+  const { blocker, dismissProtection } = useProductFormNavigationGuard(form.formState.isDirty);
 
   const submitProduct = async (values: ProductEditFormValues) => {
     const payload = buildProductUpdatePayload(product, values);
@@ -105,6 +108,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
       return;
     }
 
+    dismissProtection();
     toast.show({ kind: "success", message: "Producto actualizado correctamente." });
     navigate(returnTo);
   };
@@ -269,6 +273,20 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
           </Button>
         </div>
       </form>
+      <ProductUnsavedChangesDialog
+        onContinueEditing={() => {
+          if (blocker.state === "blocked") {
+            blocker.reset();
+          }
+        }}
+        onDiscardChanges={() => {
+          if (blocker.state === "blocked") {
+            dismissProtection();
+            blocker.proceed();
+          }
+        }}
+        open={blocker.state === "blocked"}
+      />
     </section>
   );
 };

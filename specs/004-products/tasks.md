@@ -54,7 +54,7 @@
   Hecho cuando: pruebas verifican reconsulta de sesión tras 401, prioridad del SessionBoundary, error de red/servidor sin afirmar el resultado, ausencia de reenvío automático y error distinguible para respuesta inválida; mensajes no exponen texto interno ni datos sensibles.
 - [x] T27. Separar éxito de escritura de error al refrescar el listado. (RF-99–RF-100)
   Hecho cuando: una prueba confirma la escritura, fuerza fallo de la consulta posterior y verifica que se conserva el éxito y que retry repite solo la lectura.
-- [ ] T28. Proteger formularios sucios ante navegación interna y salida del navegador. (RF-101–RF-105)
+- [x] T28. Proteger formularios sucios ante navegación interna y salida del navegador. (RF-101–RF-105)
   Hecho cuando: pruebas verifican continuar editando, descartar hacia el destino solicitado, aviso nativo al recargar/cerrar y eliminación del aviso tras guardar o descartar.
 - [ ] T29. Dar prioridad a los estados de sesión sobre el diálogo de cambios sin guardar. (RF-106)
   Hecho cuando: una prueba sustituye el formulario por un estado de sesión mientras está abierto el guard y confirma que no se interpone la confirmación de descarte.
