@@ -36,7 +36,7 @@
   Hecho cuando: pruebas verifican conservación sin reasignación, sustitución por categoría activa, etiqueta «Sin categoría», guardado de otros campos sin exigir categoría para productos heredados sin ella y que una selección vacía no retire una asociación existente.
 - [x] T18. Construir PATCH parcial y evitar actualizaciones sin cambios o cambios de estado accidentales. (RF-66–RF-67)
   Hecho cuando: pruebas comparan el payload con el snapshot original; campos no modificados y `isActive` no se envían, y un formulario limpio no dispara PATCH.
-- [ ] T19. Implementar los estados pendiente y confirmado de la actualización de producto. (RF-68–RF-70)
+- [x] T19. Implementar los estados pendiente y confirmado de la actualización de producto. (RF-68–RF-70)
   Hecho cuando: pruebas con respuesta diferida verifican indicador de operación, bloqueo de envíos duplicados y confirmación de éxito únicamente tras respuesta válida.
 - [ ] T20. Completar retorno al origen y conservación de cambios ante fallos de edición. (RF-7, RF-71–RF-73)
   Hecho cuando: pruebas verifican retorno a los criterios de origen después del éxito, uso de criterios predeterminados cuando edición se abrió directamente sin origen y conservación editable de los valores locales después de un error ordinario; la acción de edición permanece visible para distintos roles presentados por el frontend.

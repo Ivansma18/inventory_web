@@ -12,6 +12,7 @@ import { Button, Input, Select } from "@/shared/ui";
 import type { SelectOption } from "@/shared/ui";
 
 interface ProductEditCategoryFieldProps {
+  disabled?: boolean;
   error?: string;
   onBlur: () => void;
   onValueChange: (value: string | null) => void;
@@ -21,6 +22,7 @@ interface ProductEditCategoryFieldProps {
 }
 
 export const ProductEditCategoryField = ({
+  disabled = false,
   error,
   onBlur,
   onValueChange,
@@ -118,13 +120,14 @@ export const ProductEditCategoryField = ({
     <div className="product-edit-category-field">
       <div className="product-edit-category-field__search">
         <Input
+          disabled={disabled}
           helpText="Busca por nombre entre categorías activas."
           label="Buscar categorías activas"
           onValueChange={setCategorySearchDraft}
           type="search"
           value={categorySearchDraft}
         />
-        <Button onClick={applyCategorySearch} type="button" variant="secondary">
+        <Button disabled={disabled} onClick={applyCategorySearch} type="button" variant="secondary">
           Buscar categorías
         </Button>
       </div>
@@ -151,6 +154,7 @@ export const ProductEditCategoryField = ({
         <div className="product-edit-category-field__error" role="alert">
           <p>No se pudieron cargar las categorías activas.</p>
           <Button
+            disabled={disabled}
             loading={categories.isFetching}
             onClick={() => void categories.refetch()}
             type="button"
@@ -171,6 +175,7 @@ export const ProductEditCategoryField = ({
         <div className="product-edit-category-field__error" role="alert">
           <p>La categoría actual no está disponible. Se conservará mientras no elijas otra.</p>
           <Button
+            disabled={disabled}
             loading={originalCategoryQuery.isFetching}
             onClick={() => void originalCategoryQuery.refetch()}
             type="button"
@@ -193,7 +198,7 @@ export const ProductEditCategoryField = ({
 
       <Select
         allowEmptySelection={originalCategoryUuid === null}
-        disabled={categories.isPending || categories.isError}
+        disabled={disabled || categories.isPending || categories.isError}
         emptyMessage={emptyCategoryMessage}
         error={error}
         key={`${value ?? "empty"}:${categoryOptions.find((option) => option.value === value)?.label ?? ""}`}
@@ -209,7 +214,7 @@ export const ProductEditCategoryField = ({
       {categories.data && categories.data.pagination.total > categories.data.pagination.limit ? (
         <div className="product-edit-category-field__pagination">
           <Button
-            disabled={categoryPage <= 1}
+            disabled={disabled || categoryPage <= 1}
             onClick={() => setCategoryPage((page) => Math.max(1, page - 1))}
             type="button"
             variant="secondary"
@@ -220,7 +225,7 @@ export const ProductEditCategoryField = ({
             Página {categories.data.pagination.page} de {totalPages}
           </span>
           <Button
-            disabled={categoryPage >= totalPages}
+            disabled={disabled || categoryPage >= totalPages}
             onClick={() => setCategoryPage((page) => Math.min(totalPages, page + 1))}
             type="button"
             variant="secondary"

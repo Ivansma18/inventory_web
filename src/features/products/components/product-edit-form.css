@@ -43,9 +43,28 @@
 }
 
 .product-edit-form__actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ui-space-3);
   grid-column: 1 / -1;
-  justify-content: flex-end;
+}
+
+.product-edit-form__status {
+  margin: 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-font-size-sm);
+  line-height: var(--ui-line-height-normal);
+}
+
+@media (max-width: 30rem) {
+  .product-edit-form__actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .product-edit-form__actions > .ui-button {
+    justify-self: end;
+  }
 }
 
 @media (min-width: 40rem) {

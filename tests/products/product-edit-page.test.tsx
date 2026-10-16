@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
@@ -389,6 +389,72 @@ describe("product edit page", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(patchRequests).toHaveLength(0);
+  });
+
+  it("shows pending state, blocks duplicate submits, and confirms after a valid PATCH response", async () => {
+    const user = userEvent.setup();
+    const patchResponse = deferred<Response>();
+    const patchRequests: unknown[] = [];
+
+    server.use(
+      http.patch(productUrl, async ({ request }) => {
+        patchRequests.push(await request.json());
+        return patchResponse.promise;
+      }),
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+    );
+
+    renderProductEditRoute();
+
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Monitor actualizado");
+
+    const form = screen.getByRole("form", { name: "Datos del producto" });
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+
+    const pendingStatus = await screen.findByText("Guardando cambios del producto…");
+    expect(pendingStatus).toHaveAttribute("role", "status");
+    await waitFor(() => expect(patchRequests).toHaveLength(1));
+    expect(form).toHaveAttribute("aria-busy", "true");
+    expect(name).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Categoría" })).toBeDisabled();
+    expect(screen.getByRole("searchbox", { name: "Buscar categorías activas" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Guardando cambios…" })).toBeDisabled();
+    expect(screen.queryByText("Producto actualizado correctamente.")).not.toBeInTheDocument();
+
+    patchResponse.resolve(
+      HttpResponse.json({
+        data: { ...product(true), name: "Monitor actualizado" },
+      }),
+    );
+
+    expect(await screen.findByText("Producto actualizado correctamente.")).toBeVisible();
+    expect(patchRequests).toEqual([{ name: "Monitor actualizado" }]);
+  });
+
+  it("does not confirm success when the PATCH response violates the product contract", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.patch(productUrl, () => HttpResponse.json({ data: { uuid: productUuid } })),
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+    );
+
+    renderProductEditRoute();
+
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Monitor actualizado");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeEnabled(),
+    );
+    expect(screen.queryByText("Producto actualizado correctamente.")).not.toBeInTheDocument();
   });
 
   it.each([
