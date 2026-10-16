@@ -132,6 +132,103 @@ afterEach(() => {
 });
 
 describe("product edit page", () => {
+  it("shows an invalid-address state without requesting a malformed UUID and returns to the list", async () => {
+    const user = userEvent.setup();
+    const productRequests: string[] = [];
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(/\/api\/products\/[^/]+$/, ({ request }) => {
+        productRequests.push(request.url);
+        return HttpResponse.json({ data: product(true) });
+      }),
+    );
+
+    const { router } = renderProductEditRoute(
+      buildProductEditLocation("not-a-uuid", DEFAULT_PRODUCT_LIST_RETURN_TO),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "La dirección del producto no es válida.",
+    );
+    expect(productRequests).toEqual([]);
+
+    await user.click(screen.getByRole("button", { name: "Volver al listado" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
+    expect(router.state.location.search).toBe(
+      DEFAULT_PRODUCT_LIST_RETURN_TO.slice("/products".length),
+    );
+  });
+
+  it("shows a distinct not-found state for a 404 and returns to the list", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () =>
+        HttpResponse.json(
+          { error: { code: "PRODUCT_NOT_FOUND", message: "Product not found" } },
+          { status: 404 },
+        ),
+      ),
+    );
+
+    const { router } = renderProductEditRoute(
+      buildProductEditLocation(productUuid, DEFAULT_PRODUCT_LIST_RETURN_TO),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se encontró el producto.");
+    expect(screen.queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Volver al listado" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
+    expect(router.state.location.search).toBe(
+      DEFAULT_PRODUCT_LIST_RETURN_TO.slice("/products".length),
+    );
+  });
+
+  it.each(["network", "server"] as const)(
+    "allows retry after a %s failure while loading the product",
+    async (failureKind) => {
+      const user = userEvent.setup();
+      let productRequests = 0;
+
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(productUrl, () => {
+          productRequests += 1;
+
+          if (productRequests > 1) {
+            return HttpResponse.json({ data: product(true) });
+          }
+
+          return failureKind === "network"
+            ? HttpResponse.error()
+            : HttpResponse.json(
+                { error: { code: "INTERNAL_ERROR", message: "private server detail" } },
+                { status: 503 },
+              );
+        }),
+      );
+
+      renderProductEditRoute();
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "No se pudo cargar el producto por un problema de conexión o del servidor.",
+      );
+      expect(screen.getByRole("button", { name: "Reintentar" })).toBeEnabled();
+
+      await user.click(screen.getByRole("button", { name: "Reintentar" }));
+
+      expect(await screen.findByRole("textbox", { name: "Nombre (obligatorio)" })).toHaveValue(
+        "Monitor activo",
+      );
+      expect(productRequests).toBe(2);
+    },
+  );
+
   it("requests the product by UUID and keeps editable fields unavailable until it arrives", async () => {
     const pendingProduct = deferred<Response>();
     const productRequestStarted = deferred<string>();

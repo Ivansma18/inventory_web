@@ -7,6 +7,8 @@ export type ProductListResponse = components["schemas"]["ProductListResponse"];
 export type ProductCreatePayload = components["schemas"]["CreateProduct"];
 export type ProductUpdatePayload = components["schemas"]["UpdateProduct"];
 
+export const productUuidSchema = z.uuid();
+
 const priceSchema = z
   .number()
   .finite()
@@ -14,13 +16,13 @@ const priceSchema = z
   .refine((price) => Math.abs(price * 100 - Math.round(price * 100)) <= 1e-8);
 
 const productSchema = z.object({
-  uuid: z.uuid(),
+  uuid: productUuidSchema,
   sku: z.string().min(1),
   name: z.string().min(1),
   description: z.string().nullable(),
   purchasePrice: priceSchema,
   salePrice: priceSchema,
-  categoryUuid: z.uuid().nullable(),
+  categoryUuid: productUuidSchema.nullable(),
   isActive: z.boolean(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
