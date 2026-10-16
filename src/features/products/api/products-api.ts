@@ -3,11 +3,13 @@ import { httpClient } from "@/shared/api/http-client";
 
 import {
   parseProductDataResponse,
+  parseProductDeactivationResponse,
   parseProductListResponse,
   type ProductCreatePayload,
   type Product,
   type ProductListResponse,
   type ProductUpdatePayload,
+  ProductResponseContractError,
 } from "./product-contract";
 
 export type ProductListQuery = NonNullable<paths["/products"]["get"]["parameters"]["query"]>;
@@ -20,6 +22,13 @@ export interface ProductUpdateVariables {
   uuid: ProductUpdatePath["uuid"];
   payload: ProductUpdatePayload;
 }
+
+export interface ProductStatusVariables {
+  uuid: ProductUpdatePath["uuid"];
+  isActive: boolean;
+}
+
+export type ProductStatusResult = Pick<Product, "uuid" | "isActive">;
 
 export const listProducts = async (
   params: ProductListQuery,
@@ -66,4 +75,29 @@ export const updateProduct = async ({ uuid, payload }: ProductUpdateVariables) =
   });
 
   return parseProductDataResponse(response);
+};
+
+export const changeProductStatus = async ({
+  uuid,
+  isActive,
+}: ProductStatusVariables): Promise<ProductStatusResult> => {
+  const path = `/products/${encodeURIComponent(uuid)}`;
+
+  if (isActive) {
+    const response = await httpClient.request<unknown, ProductUpdatePayload>({
+      path,
+      method: "PATCH",
+      data: { isActive: true },
+    });
+    const product = parseProductDataResponse(response);
+
+    if (product.uuid !== uuid || !product.isActive) {
+      throw new ProductResponseContractError();
+    }
+
+    return { uuid: product.uuid, isActive: product.isActive };
+  }
+
+  const response = await httpClient.request<unknown>({ path, method: "DELETE" });
+  return parseProductDeactivationResponse(response, uuid);
 };

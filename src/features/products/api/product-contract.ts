@@ -6,6 +6,7 @@ export type Product = components["schemas"]["Product"];
 export type ProductListResponse = components["schemas"]["ProductListResponse"];
 export type ProductCreatePayload = components["schemas"]["CreateProduct"];
 export type ProductUpdatePayload = components["schemas"]["UpdateProduct"];
+export type ProductDeactivationResponse = components["schemas"]["DeletedProductDataResponse"];
 
 export const productUuidSchema = z.uuid();
 
@@ -37,6 +38,9 @@ const productListResponseSchema = z.object({
   }),
 }) satisfies z.ZodType<ProductListResponse>;
 const productDataResponseSchema = z.object({ data: productSchema });
+const productDeactivationResponseSchema = z.object({
+  data: z.object({ uuid: productUuidSchema, isActive: z.literal(false) }),
+}) satisfies z.ZodType<ProductDeactivationResponse>;
 
 export class ProductResponseContractError extends Error {
   readonly kind = "contract";
@@ -61,6 +65,19 @@ export const parseProductDataResponse = (value: unknown): Product => {
   const result = productDataResponseSchema.safeParse(value);
 
   if (!result.success) {
+    throw new ProductResponseContractError();
+  }
+
+  return result.data.data;
+};
+
+export const parseProductDeactivationResponse = (
+  value: unknown,
+  expectedUuid: string,
+): ProductDeactivationResponse["data"] => {
+  const result = productDeactivationResponseSchema.safeParse(value);
+
+  if (!result.success || result.data.data.uuid !== expectedUuid) {
     throw new ProductResponseContractError();
   }
 

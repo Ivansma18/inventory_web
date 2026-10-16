@@ -48,6 +48,11 @@
   line-height: var(--ui-line-height-relaxed);
 }
 
+.product-list__status-confirmation > .product-list__status-pending {
+  color: var(--ui-color-text-muted);
+  font-weight: var(--ui-font-weight-medium);
+}
+
 .product-list__status-confirmation-actions {
   justify-content: flex-end;
 }

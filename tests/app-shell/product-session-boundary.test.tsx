@@ -9,6 +9,7 @@ import type { components } from "@/shared/api/generated/auth-contracts";
 import { describe, expect, it } from "vitest";
 
 import { appRoutes } from "@/app/router/router";
+import { UiProvider } from "@/app/providers/ui.provider";
 import { QueryProvider } from "@/app/providers/query.provider";
 import { server } from "../mocks/server";
 
@@ -83,10 +84,12 @@ describe("Product routes and session boundary", () => {
 
     render(
       <QueryProvider>
-        <>
-          <RouterProvider router={router} />
-          <SessionRefreshDriver />
-        </>
+        <UiProvider>
+          <>
+            <RouterProvider router={router} />
+            <SessionRefreshDriver />
+          </>
+        </UiProvider>
       </QueryProvider>,
     );
 

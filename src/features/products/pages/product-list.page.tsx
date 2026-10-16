@@ -5,7 +5,7 @@ import { useNavigate, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useSession } from "@/features/auth";
-import { Badge, Button, DataTable, Dialog, Input, Select } from "@/shared/ui";
+import { Badge, Button, DataTable, Dialog, Input, Select, useToast } from "@/shared/ui";
 import type {
   DataTableColumn,
   DataTableResult,
@@ -15,6 +15,11 @@ import type {
 
 import type { Product } from "../api/product-contract";
 import { ProductPageShell } from "../components/product-page-shell";
+import { ProductStatusAction } from "../components/product-status-action";
+import {
+  useChangeProductStatus,
+  usePendingProductStatusUuids,
+} from "../hooks/use-change-product-status";
 import { formatProductPrice } from "../utils/product-price";
 import {
   buildProductListQuery,
@@ -92,7 +97,9 @@ export const ProductListPage = () => {
   const session = useSession();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const toast = useToast();
   const [statusConfirmationProduct, setStatusConfirmationProduct] = useState<Product | null>(null);
+  const statusSubmissionLock = useRef(new Set<string>());
   const [searchParams, setSearchParams] = useSearchParams();
   const serializedSearchParams = searchParams.toString();
   const urlState = useMemo(
@@ -114,6 +121,45 @@ export const ProductListPage = () => {
   const hasAppliedSearch = appliedSearch.length > 0;
   const sessionId = session.status === "authenticated" ? session.session.id : null;
   const productList = useProductList(sessionId, page, criteria);
+  const changeStatusMutation = useChangeProductStatus(sessionId);
+  const pendingProductUuids = usePendingProductStatusUuids(sessionId);
+  const statusLockKey = (uuid: string) => `${sessionId ?? "no-session"}:${uuid}`;
+  const isConfirmationPending =
+    statusConfirmationProduct !== null &&
+    pendingProductUuids.includes(statusConfirmationProduct.uuid);
+  const confirmStatusChange = () => {
+    const product = statusConfirmationProduct;
+
+    if (product === null || sessionId === null) {
+      return;
+    }
+
+    const lockKey = statusLockKey(product.uuid);
+    if (statusSubmissionLock.current.has(lockKey) || pendingProductUuids.includes(product.uuid)) {
+      return;
+    }
+
+    statusSubmissionLock.current.add(lockKey);
+    void changeStatusMutation
+      .mutateAsync({
+        uuid: product.uuid,
+        isActive: !product.isActive,
+        sessionId,
+      })
+      .then(() => {
+        setStatusConfirmationProduct((currentProduct) =>
+          currentProduct?.uuid === product.uuid ? null : currentProduct,
+        );
+        toast.show({
+          kind: "success",
+          message: product.isActive
+            ? "Producto desactivado correctamente."
+            : "Producto activado correctamente.",
+        });
+      })
+      .catch(() => undefined)
+      .finally(() => statusSubmissionLock.current.delete(lockKey));
+  };
 
   useEffect(() => {
     if (needsNormalization) {
@@ -216,15 +262,17 @@ export const ProductListPage = () => {
             >
               Editar
             </Button>
-            <Button onClick={() => setStatusConfirmationProduct(product)} variant="secondary">
-              {product.isActive ? "Desactivar" : "Activar"}
-            </Button>
+            <ProductStatusAction
+              onRequestChange={setStatusConfirmationProduct}
+              product={product}
+              sessionId={sessionId}
+            />
           </div>
         ),
         sortable: false,
       },
     ],
-    [navigate, setStatusConfirmationProduct, sourceListUrl],
+    [navigate, sessionId, sourceListUrl],
   );
 
   return (
@@ -307,10 +355,16 @@ export const ProductListPage = () => {
           statusConfirmationProduct ? (
             <div className="product-list__status-confirmation-actions">
               <Button onClick={() => setStatusConfirmationProduct(null)} variant="secondary">
-                Cancelar
+                {isConfirmationPending ? "Cerrar" : "Cancelar"}
               </Button>
-              <Button onClick={() => setStatusConfirmationProduct(null)}>
-                {statusConfirmationProduct.isActive ? "Desactivar" : "Activar"}
+              <Button loading={isConfirmationPending} onClick={confirmStatusChange}>
+                {isConfirmationPending
+                  ? statusConfirmationProduct.isActive
+                    ? "Desactivando…"
+                    : "Activando…"
+                  : statusConfirmationProduct.isActive
+                    ? "Desactivar"
+                    : "Activar"}
               </Button>
             </div>
           ) : undefined
@@ -330,6 +384,12 @@ export const ProductListPage = () => {
             </p>
             {statusConfirmationProduct.isActive ? (
               <p>El producto se conservará en el catálogo; desactivarlo no lo elimina.</p>
+            ) : null}
+            {isConfirmationPending ? (
+              <p aria-atomic="true" className="product-list__status-pending" role="status">
+                {statusConfirmationProduct.isActive ? "Desactivando" : "Activando"} producto{" "}
+                {statusConfirmationProduct.sku}…
+              </p>
             ) : null}
           </div>
         ) : null}

@@ -181,6 +181,119 @@ describe("Product list remote query", () => {
     },
   );
 
+  it.each([
+    {
+      initialActive: true,
+      action: "Desactivar",
+      targetActive: false,
+      method: "DELETE",
+      successMessage: "Producto desactivado correctamente.",
+    },
+    {
+      initialActive: false,
+      action: "Activar",
+      targetActive: true,
+      method: "PATCH",
+      successMessage: "Producto activado correctamente.",
+    },
+  ] as const)(
+    "waits for the backend before $action, prevents duplicates and refreshes the active criteria",
+    async ({ initialActive, action, targetActive, method, successMessage }) => {
+      const user = userEvent.setup();
+      const listRequests: URL[] = [];
+      const mutationRequests: Array<{ method: string; body: string }> = [];
+      let resolveMutation!: (response: Response) => void;
+      const pendingMutation = new Promise<Response>((resolve) => {
+        resolveMutation = resolve;
+      });
+      const listUrl = `/products?page=1&search=SKU-001&status=${
+        initialActive ? "active" : "inactive"
+      }&sort=sku&order=desc`;
+      const mutationHandler =
+        method === "PATCH"
+          ? http.patch(productStatusUrl, async ({ request }) => {
+              mutationRequests.push({ method: request.method, body: await request.text() });
+              return pendingMutation;
+            })
+          : http.delete(productStatusUrl, async ({ request }) => {
+              mutationRequests.push({ method: request.method, body: await request.text() });
+              return pendingMutation;
+            });
+
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(productUrl, ({ request }) => {
+          listRequests.push(new URL(request.url));
+          return HttpResponse.json({
+            data: listRequests.length === 1 ? [product(1, initialActive)] : [],
+            pagination: {
+              total: listRequests.length === 1 ? 1 : 0,
+              page: 1,
+              limit: 15,
+            },
+          });
+        }),
+        mutationHandler,
+      );
+
+      const { router } = renderProductRoute(listUrl);
+      const productRow = await screen.findByRole("row", { name: /SKU-001/ });
+      await user.click(within(productRow).getByRole("button", { name: action }));
+      const dialog = await screen.findByRole("dialog");
+      const confirmButton = within(dialog).getByRole("button", { name: action });
+
+      await user.click(confirmButton);
+
+      await waitFor(() => expect(mutationRequests).toHaveLength(1));
+      expect(confirmButton).toBeDisabled();
+      expect(confirmButton).toHaveAttribute("aria-busy", "true");
+      expect(within(dialog).getByRole("status")).toHaveTextContent(
+        initialActive ? "Desactivando producto SKU-001" : "Activando producto SKU-001",
+      );
+      expect(productRow).toHaveTextContent(initialActive ? "Activo" : "Inactivo");
+      await user.keyboard("{Escape}");
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      const pendingProductRow = screen.getByRole("row", { name: /SKU-001/ });
+      const pendingRowStatusButton = within(pendingProductRow).getByRole("button", {
+        name: action,
+      });
+      expect(pendingRowStatusButton).toBeDisabled();
+      expect(pendingRowStatusButton).toHaveAttribute("aria-busy", "true");
+      expect(pendingProductRow).toHaveTextContent(initialActive ? "Activo" : "Inactivo");
+      expect(listRequests).toHaveLength(1);
+      await user.click(pendingRowStatusButton);
+      expect(mutationRequests).toHaveLength(1);
+
+      resolveMutation(
+        HttpResponse.json({
+          data: targetActive ? product(1, true) : { uuid: product(1).uuid, isActive: false },
+        }),
+      );
+
+      expect(await screen.findByRole("status")).toHaveTextContent(successMessage);
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      await waitFor(() => expect(listRequests).toHaveLength(2));
+      expect(router.state.location.pathname + router.state.location.search).toBe(listUrl);
+      expect(Object.fromEntries(listRequests[1]!.searchParams)).toEqual({
+        page: "1",
+        limit: "15",
+        search: "SKU-001",
+        isActive: String(initialActive),
+        sort: "sku",
+        order: "desc",
+      });
+      expect(mutationRequests).toEqual([
+        {
+          method,
+          body: method === "PATCH" ? JSON.stringify({ isActive: true }) : "",
+        },
+      ]);
+      expect(
+        await screen.findByText("No se encontraron productos con esta búsqueda."),
+      ).toBeVisible();
+    },
+  );
+
   it.each(["ADMIN", "MANAGER", "OPERATOR", "VIEWER"] as const)(
     "keeps the edit action available to %s and carries the current list criteria",
     async (role) => {

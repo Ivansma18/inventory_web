@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import { appNavigationItems } from "@/app/router/navigation";
 import { QueryProvider } from "@/app/providers/query.provider";
+import { UiProvider } from "@/app/providers/ui.provider";
 import { appRoutes } from "@/app/router/router";
 import { server } from "../mocks/server";
 
@@ -85,10 +86,12 @@ describe("App Shell routes and navigation catalog", () => {
 
     render(
       <QueryProvider>
-        <>
-          <RouterProvider router={router} />
-          <SessionRefreshDriver />
-        </>
+        <UiProvider>
+          <>
+            <RouterProvider router={router} />
+            <SessionRefreshDriver />
+          </>
+        </UiProvider>
       </QueryProvider>,
     );
 
