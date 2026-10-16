@@ -128,6 +128,35 @@ describe("Select", () => {
     expect(screen.getByLabelText("Estado")).toHaveValue("Selecciona una opción");
   });
 
+  it("omits the empty option when the selection cannot be cleared", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <Select
+        allowEmptySelection={false}
+        label="Categoría"
+        options={options}
+        value="draft"
+        onValueChange={() => undefined}
+      />,
+    );
+
+    const select = screen.getByRole("textbox", { name: "Categoría" });
+    select.focus();
+    await user.keyboard("{ArrowDown}");
+
+    const listbox = screen.getByRole("listbox", { hidden: true });
+    expect(
+      within(listbox).queryByRole("option", {
+        hidden: true,
+        name: "Selecciona una opción",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(listbox).getByRole("option", { hidden: true, name: "Borrador" }),
+    ).toBeInTheDocument();
+  });
+
   it("reports null once when the selected option is removed", () => {
     const onValueChange = vi.fn();
     const selectedOptions: SelectOption[] = [{ label: "Borrador", value: "draft" }];

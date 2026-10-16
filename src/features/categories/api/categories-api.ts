@@ -1,9 +1,17 @@
 import type { paths } from "@/shared/api/generated/category-contracts";
 import { httpClient } from "@/shared/api/http-client";
 
-import { parseCategoryListResponse, type CategoryListResponse } from "./category-contract";
+import {
+  parseCategoryDataResponse,
+  parseCategoryListResponse,
+  type Category,
+  type CategoryListResponse,
+} from "./category-contract";
 
 export type CategoryListQuery = NonNullable<paths["/categories"]["get"]["parameters"]["query"]>;
+export type CategoryDetailPath = NonNullable<
+  paths["/categories/{uuid}"]["get"]["parameters"]["path"]
+>;
 
 export interface ActiveCategoryListCriteria {
   page: number;
@@ -39,4 +47,17 @@ export const listActiveCategories = async (
   });
 
   return parseCategoryListResponse(response);
+};
+
+export const getCategory = async (
+  { uuid }: CategoryDetailPath,
+  signal?: AbortSignal,
+): Promise<Category> => {
+  const response = await httpClient.request<unknown>({
+    path: `/categories/${encodeURIComponent(uuid)}`,
+    method: "GET",
+    signal,
+  });
+
+  return parseCategoryDataResponse(response);
 };

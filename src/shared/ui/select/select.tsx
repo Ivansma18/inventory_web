@@ -19,6 +19,7 @@ export interface SelectProps {
   disabled?: boolean;
   error?: string;
   required?: boolean;
+  allowEmptySelection?: boolean;
   onBlur?: () => void;
   emptyMessage?: string;
 }
@@ -39,6 +40,7 @@ export const Select = ({
   disabled = false,
   error,
   required = false,
+  allowEmptySelection = true,
   onBlur,
   emptyMessage = "No hay opciones disponibles.",
 }: SelectProps) => {
@@ -60,8 +62,10 @@ export const Select = ({
 
   const dropdownOptions: DropdownOption[] = hasNoOptions
     ? []
-    : [{ label: placeholder, value: emptyOptionValue }, ...options];
-  const dropdownValue = value ?? emptyOptionValue;
+    : allowEmptySelection
+      ? [{ label: placeholder, value: emptyOptionValue }, ...options]
+      : options;
+  const dropdownValue = value ?? (allowEmptySelection ? emptyOptionValue : null);
 
   useEffect(() => {
     if (value === null) {

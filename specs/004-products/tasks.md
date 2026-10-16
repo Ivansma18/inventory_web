@@ -32,7 +32,7 @@
   Hecho cuando: pruebas verifican consulta por UUID, formulario no editable antes de la carga, inicialización con los datos recibidos y edición posible en ambos estados.
 - [x] T16. Aplicar validaciones de creación en edición y permitir retirar una descripción existente. (RF-59–RF-60)
   Hecho cuando: pruebas verifican las reglas de SKU/nombre/precios en edición y que borrar la descripción envía `description: null` según el contrato PATCH.
-- [ ] T17. Implementar la selección de categoría en edición, incluida la categoría original ausente. (RF-61–RF-65)
+- [x] T17. Implementar la selección de categoría en edición, incluida la categoría original ausente. (RF-61–RF-65)
   Hecho cuando: pruebas verifican conservación sin reasignación, sustitución por categoría activa, etiqueta «Sin categoría», guardado de otros campos sin exigir categoría para productos heredados sin ella y que una selección vacía no retire una asociación existente.
 - [ ] T18. Construir PATCH parcial y evitar actualizaciones sin cambios o cambios de estado accidentales. (RF-66–RF-67)
   Hecho cuando: pruebas comparan el payload con el snapshot original; campos no modificados y `isActive` no se envían, y un formulario limpio no dispara PATCH.

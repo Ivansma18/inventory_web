@@ -28,7 +28,11 @@ export const ProductEditPage = () => {
           No se pudieron cargar los datos del producto.
         </p>
       ) : productQuery.data ? (
-        <ProductEditForm key={productQuery.data.uuid} product={productQuery.data} />
+        <ProductEditForm
+          key={productQuery.data.uuid}
+          product={productQuery.data}
+          sessionId={sessionId}
+        />
       ) : null}
     </ProductPageShell>
   );

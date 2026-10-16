@@ -9,6 +9,7 @@ const validProductEdit = {
   description: "Descripción actual",
   purchasePrice: "20,50",
   salePrice: "10.25",
+  categoryUuid: "550e8400-e29b-41d4-a716-446655440000",
 };
 
 describe("product edit schema", () => {
@@ -58,6 +59,7 @@ describe("product edit schema", () => {
       expect(updatePayload).toEqual({ description: null });
       expect(result.data.purchasePrice).toBe(20.5);
       expect(result.data.salePrice).toBe(10.25);
+      expect(result.data.categoryUuid).toBe("550e8400-e29b-41d4-a716-446655440000");
     }
   });
 
@@ -67,6 +69,15 @@ describe("product edit schema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.description).toBe("Descripción actual");
+    }
+  });
+
+  it("accepts a legacy product without a category while its other fields remain valid", () => {
+    const result = productEditSchema.safeParse({ ...validProductEdit, categoryUuid: null });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.categoryUuid).toBeNull();
     }
   });
 });

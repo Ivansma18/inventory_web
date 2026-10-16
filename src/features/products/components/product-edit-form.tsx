@@ -7,6 +7,7 @@ import { Controller, useForm } from "react-hook-form";
 import { Badge, Input, Textarea } from "@/shared/ui";
 
 import type { Product } from "../api/product-contract";
+import { ProductEditCategoryField } from "./product-edit-category-field";
 import {
   productEditSchema,
   type ProductEditFormInput,
@@ -16,13 +17,14 @@ import { formatProductPrice } from "../utils/product-price";
 
 interface ProductEditFormProps {
   product: Product;
+  sessionId: string | null;
 }
 
 const preventNativeSubmit = (event: FormEvent<HTMLFormElement>) => {
   event.preventDefault();
 };
 
-export const ProductEditForm = ({ product }: ProductEditFormProps) => {
+export const ProductEditForm = ({ product, sessionId }: ProductEditFormProps) => {
   const form = useForm<ProductEditFormInput, unknown, ProductEditFormValues>({
     defaultValues: {
       sku: product.sku,
@@ -30,6 +32,7 @@ export const ProductEditForm = ({ product }: ProductEditFormProps) => {
       description: product.description ?? "",
       purchasePrice: formatProductPrice(product.purchasePrice),
       salePrice: formatProductPrice(product.salePrice),
+      categoryUuid: product.categoryUuid,
     },
     mode: "onBlur",
     resolver: zodResolver(productEditSchema),
@@ -128,6 +131,21 @@ export const ProductEditForm = ({ product }: ProductEditFormProps) => {
               label="Descripción (opcional)"
               onValueChange={field.onChange}
               rows={4}
+              value={field.value}
+            />
+          )}
+        />
+
+        <Controller
+          control={form.control}
+          name="categoryUuid"
+          render={({ field, fieldState }) => (
+            <ProductEditCategoryField
+              error={fieldState.error?.message}
+              onBlur={field.onBlur}
+              onValueChange={field.onChange}
+              originalCategoryUuid={product.categoryUuid}
+              sessionId={sessionId}
               value={field.value}
             />
           )}

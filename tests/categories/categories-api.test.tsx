@@ -4,7 +4,7 @@ import type { PropsWithChildren } from "react";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { useActiveCategories } from "@/features/categories";
+import { useActiveCategories, useCategory } from "@/features/categories";
 import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
@@ -134,5 +134,27 @@ describe("public active categories query", () => {
 
     expect(result.current.data?.data[0]?.name).toBe("Herramientas");
     expect(requestCount).toBe(2);
+  });
+
+  it("retrieves an associated category by UUID through the public API", async () => {
+    const requestedUrls: URL[] = [];
+    const queryClient = createQueryClient();
+    queryClients.push(queryClient);
+
+    server.use(
+      http.get(`https://inventory.test/api/categories/${categoryUuid}`, ({ request }) => {
+        requestedUrls.push(new URL(request.url));
+        return HttpResponse.json({ data: { ...category("Oficina"), isActive: false } });
+      }),
+    );
+
+    const { result } = renderHook(() => useCategory(sessionId, categoryUuid), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual({ ...category("Oficina"), isActive: false });
+    expect(requestedUrls).toHaveLength(1);
+    expect(requestedUrls[0]?.pathname).toBe(`/api/categories/${categoryUuid}`);
   });
 });

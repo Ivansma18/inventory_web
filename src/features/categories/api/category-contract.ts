@@ -22,6 +22,7 @@ const categoryListResponseSchema = z.object({
     limit: z.number().int().positive(),
   }),
 }) satisfies z.ZodType<CategoryListResponse>;
+const categoryDataResponseSchema = z.object({ data: categorySchema });
 
 export class CategoryResponseContractError extends Error {
   readonly kind = "contract";
@@ -40,4 +41,14 @@ export const parseCategoryListResponse = (value: unknown): CategoryListResponse 
   }
 
   return result.data;
+};
+
+export const parseCategoryDataResponse = (value: unknown): Category => {
+  const result = categoryDataResponseSchema.safeParse(value);
+
+  if (!result.success) {
+    throw new CategoryResponseContractError();
+  }
+
+  return result.data.data;
 };
