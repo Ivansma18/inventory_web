@@ -20,7 +20,12 @@ import {
   useChangeProductStatus,
   usePendingProductStatusUuids,
 } from "../hooks/use-change-product-status";
-import { isProductForbiddenError } from "../utils/product-api-errors";
+import {
+  isProductForbiddenError,
+  isProductResponseContractError,
+  isProductUnauthorizedError,
+  isUncertainProductMutationError,
+} from "../utils/product-api-errors";
 import { formatProductPrice } from "../utils/product-price";
 import {
   buildProductListQuery,
@@ -104,10 +109,12 @@ const isProductNotFoundError = (error: unknown) => {
   return status === 404 || code === "PRODUCT_NOT_FOUND";
 };
 
+type ProductStatusFailureReason =
+  "not-found" | "forbidden" | "uncertain" | "invalid-response" | "other";
+
 interface ProductStatusFailure {
   productUuid: string;
-  isNotFound: boolean;
-  isForbidden: boolean;
+  reason: ProductStatusFailureReason;
 }
 
 export const ProductListPage = () => {
@@ -165,8 +172,8 @@ export const ProductListPage = () => {
       false);
   const canRetryStatusChange =
     statusFailureForConfirmation !== null &&
-    !statusFailureForConfirmation.isNotFound &&
-    !statusFailureForConfirmation.isForbidden &&
+    statusFailureForConfirmation.reason !== "not-found" &&
+    statusFailureForConfirmation.reason !== "forbidden" &&
     statusProductIsAvailable;
   const isConfirmationPending =
     statusConfirmationProduct !== null &&
@@ -212,11 +219,30 @@ export const ProductListPage = () => {
             : "Producto activado correctamente.",
         });
       })
-      .catch((error: unknown) => {
+      .catch(async (error: unknown) => {
+        if (isProductUnauthorizedError(error)) {
+          const refreshedSession = await session.refetch();
+          if (sessionId !== null && refreshedSession.data?.data.session.id === sessionId) {
+            toast.show({
+              kind: "error",
+              message:
+                "La sesión se verificó, pero no se confirmó el resultado del cambio de estado. Comprueba el estado del producto antes de volver a intentarlo.",
+            });
+          }
+          return;
+        }
+
         setStatusFailure({
           productUuid: product.uuid,
-          isNotFound: isProductNotFoundError(error),
-          isForbidden: isProductForbiddenError(error),
+          reason: isProductNotFoundError(error)
+            ? "not-found"
+            : isProductForbiddenError(error)
+              ? "forbidden"
+              : isProductResponseContractError(error)
+                ? "invalid-response"
+                : isUncertainProductMutationError(error)
+                  ? "uncertain"
+                  : "other",
         });
       })
       .finally(() => statusSubmissionLock.current.delete(lockKey));
@@ -457,13 +483,17 @@ export const ProductListPage = () => {
             ) : null}
             {statusFailureForConfirmation !== null ? (
               <p className="product-list__status-error" role="alert">
-                {statusFailureForConfirmation.isForbidden
+                {statusFailureForConfirmation.reason === "forbidden"
                   ? "No tienes permiso para cambiar el estado de este producto."
-                  : statusFailureForConfirmation.isNotFound
+                  : statusFailureForConfirmation.reason === "not-found"
                     ? "No se pudo confirmar el cambio de estado; el producto no está disponible para reintentar."
-                    : canRetryStatusChange
-                      ? "No se pudo cambiar el estado del producto. Puedes intentarlo de nuevo."
-                      : "No se pudo cambiar el estado del producto y ya no está disponible para esta operación."}
+                    : statusFailureForConfirmation.reason === "invalid-response"
+                      ? "La respuesta del cambio de estado no se pudo validar. Comprueba el estado del producto antes de volver a intentarlo."
+                      : statusFailureForConfirmation.reason === "uncertain"
+                        ? "No se pudo confirmar el resultado del cambio de estado. Comprueba el estado del producto antes de volver a intentarlo."
+                        : canRetryStatusChange
+                          ? "No se pudo cambiar el estado del producto. Puedes intentarlo de nuevo."
+                          : "No se pudo cambiar el estado del producto y ya no está disponible para esta operación."}
               </p>
             ) : null}
           </div>

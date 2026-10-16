@@ -21,6 +21,9 @@ import {
 import {
   isDuplicateProductSkuError,
   isProductForbiddenError,
+  isProductResponseContractError,
+  isProductUnauthorizedError,
+  isUncertainProductMutationError,
   productSkuConflictMessage,
 } from "../utils/product-api-errors";
 
@@ -126,6 +129,18 @@ export const ProductCreateForm = () => {
     try {
       await createProductMutation.mutateAsync(payload);
     } catch (error: unknown) {
+      if (isProductUnauthorizedError(error)) {
+        const refreshedSession = await session.refetch();
+        if (sessionId !== null && refreshedSession.data?.data.session.id === sessionId) {
+          toast.show({
+            kind: "error",
+            message:
+              "La sesión se verificó, pero no se confirmó el resultado de la creación. Revisa el catálogo antes de volver a intentarlo.",
+          });
+        }
+        return;
+      }
+
       if (isCategoryAssignmentRejection(error)) {
         form.setValue("categoryUuid", "", { shouldDirty: true });
         setSelectedCategory(null);
@@ -143,6 +158,24 @@ export const ProductCreateForm = () => {
         form.setError("root.server", {
           type: "server",
           message: "No tienes permiso para crear productos.",
+        });
+        return;
+      }
+
+      if (isProductResponseContractError(error)) {
+        form.setError("root.server", {
+          type: "server",
+          message:
+            "La respuesta de creación no se pudo validar. Revisa el catálogo antes de volver a intentarlo.",
+        });
+        return;
+      }
+
+      if (isUncertainProductMutationError(error)) {
+        form.setError("root.server", {
+          type: "server",
+          message:
+            "No se pudo confirmar el resultado de la creación. Revisa el catálogo antes de volver a intentarlo.",
         });
         return;
       }

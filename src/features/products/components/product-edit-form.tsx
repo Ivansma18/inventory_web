@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router";
 
+import { useSession } from "@/features/auth";
 import { Badge, Button, Input, Textarea, useToast } from "@/shared/ui";
 
 import type { Product } from "../api/product-contract";
@@ -18,6 +19,9 @@ import {
 import {
   isDuplicateProductSkuError,
   isProductForbiddenError,
+  isProductResponseContractError,
+  isProductUnauthorizedError,
+  isUncertainProductMutationError,
   productSkuConflictMessage,
 } from "../utils/product-api-errors";
 import { formatProductPrice } from "../utils/product-price";
@@ -32,6 +36,7 @@ interface ProductEditFormProps {
 export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFormProps) => {
   const submitLock = useRef(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const session = useSession();
   const navigate = useNavigate();
   const toast = useToast();
   const updateProductMutation = useUpdateProduct();
@@ -60,6 +65,18 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
     try {
       await updateProductMutation.mutateAsync({ uuid: product.uuid, payload });
     } catch (error: unknown) {
+      if (isProductUnauthorizedError(error)) {
+        const refreshedSession = await session.refetch();
+        if (sessionId !== null && refreshedSession.data?.data.session.id === sessionId) {
+          toast.show({
+            kind: "error",
+            message:
+              "La sesión se verificó, pero no se confirmó el resultado de la actualización. Revisa el producto antes de volver a intentarlo.",
+          });
+        }
+        return;
+      }
+
       if (isDuplicateProductSkuError(error)) {
         form.setError("sku", { type: "server", message: productSkuConflictMessage });
         return;
@@ -67,6 +84,20 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
 
       if (isProductForbiddenError(error)) {
         setSaveError("No tienes permiso para editar este producto.");
+        return;
+      }
+
+      if (isProductResponseContractError(error)) {
+        setSaveError(
+          "La respuesta de actualización no se pudo validar. Revisa el producto antes de volver a intentarlo.",
+        );
+        return;
+      }
+
+      if (isUncertainProductMutationError(error)) {
+        setSaveError(
+          "No se pudo confirmar el resultado de la actualización. Revisa el producto antes de volver a intentarlo.",
+        );
         return;
       }
 

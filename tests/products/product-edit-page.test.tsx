@@ -559,6 +559,9 @@ describe("product edit page", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeEnabled(),
     );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "La respuesta de actualización no se pudo validar. Revisa el producto antes de volver a intentarlo.",
+    );
     expect(screen.queryByText("Producto actualizado correctamente.")).not.toBeInTheDocument();
   });
 
@@ -643,33 +646,96 @@ describe("product edit page", () => {
     });
   });
 
-  it("keeps edited values enabled and reports an ordinary update error", async () => {
+  it.each(["network", "server"] as const)(
+    "preserves edits and reports an uncertain outcome after an update %s failure",
+    async (failureKind) => {
+      const user = userEvent.setup();
+      let patchRequests = 0;
+
+      server.use(
+        http.patch(productUrl, () => {
+          patchRequests += 1;
+          return failureKind === "network"
+            ? HttpResponse.error()
+            : HttpResponse.json(
+                { error: { code: "INTERNAL_ERROR", message: "private backend details" } },
+                { status: 503 },
+              );
+        }),
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+      );
+
+      const { router } = renderProductEditRoute();
+      const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+      await user.clear(name);
+      await user.type(name, "Nombre local conservado");
+      await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+      const error = await screen.findByRole("alert");
+      expect(error).toHaveTextContent(
+        "No se pudo confirmar el resultado de la actualización. Revisa el producto antes de volver a intentarlo.",
+      );
+      expect(error).not.toHaveTextContent("private backend details");
+      await waitFor(() => expect(name).toBeEnabled());
+      expect(name).toHaveValue("Nombre local conservado");
+      expect(router.state.location.pathname).toBe(`/products/${productUuid}/edit`);
+      expect(screen.queryByText("Producto actualizado correctamente.")).not.toBeInTheDocument();
+      expect(patchRequests).toBe(1);
+    },
+  );
+
+  it("rechecks the session after a 401 and lets SessionBoundary replace the edit form", async () => {
     const user = userEvent.setup();
-    const { router } = renderProductEditRoute();
+    let mutationRejected = false;
+    let sessionRefreshRequests = 0;
+    let patchRequests = 0;
+    let resolveSessionRefresh!: (response: Response) => void;
+    const sessionRefresh = new Promise<Response>((resolve) => {
+      resolveSessionRefresh = resolve;
+    });
 
     server.use(
-      http.patch(productUrl, () =>
-        HttpResponse.json(
-          { error: { code: "INTERNAL_ERROR", message: "private backend details" } },
-          { status: 500 },
-        ),
-      ),
-      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(/\/api\/auth\/get-session/, () => {
+        if (mutationRejected) {
+          sessionRefreshRequests += 1;
+          return sessionRefresh;
+        }
+        return HttpResponse.json(publicAuthResponse());
+      }),
       http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+      http.patch(productUrl, () => {
+        patchRequests += 1;
+        mutationRejected = true;
+        return HttpResponse.json(
+          { error: { code: "UNAUTHORIZED", message: "private authentication detail" } },
+          { status: 401 },
+        );
+      }),
     );
 
+    renderProductEditRoute();
     const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
     await user.clear(name);
-    await user.type(name, "Nombre local conservado");
+    await user.type(name, "Nombre editado");
     await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
 
-    const error = await screen.findByRole("alert");
-    expect(error).toHaveTextContent("No se pudieron guardar los cambios. Inténtalo de nuevo.");
-    expect(error).not.toHaveTextContent("private backend details");
-    await waitFor(() => expect(name).toBeEnabled());
-    expect(name).toHaveValue("Nombre local conservado");
-    expect(router.state.location.pathname).toBe(`/products/${productUuid}/edit`);
+    expect(await screen.findByRole("heading", { name: "Comprobando tu sesión" })).toBeVisible();
+    await waitFor(() => expect(sessionRefreshRequests).toBe(1));
+    expect(patchRequests).toBe(1);
+    expect(screen.queryByRole("textbox", { name: "Nombre (obligatorio)" })).not.toBeInTheDocument();
     expect(screen.queryByText("Producto actualizado correctamente.")).not.toBeInTheDocument();
+
+    resolveSessionRefresh(HttpResponse.json(publicAuthResponse()));
+
+    expect(await screen.findByRole("textbox", { name: "Nombre (obligatorio)" })).toBeVisible();
+    expect(
+      await screen.findByText(
+        "La sesión se verificó, pero no se confirmó el resultado de la actualización. Revisa el producto antes de volver a intentarlo.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("private authentication detail")).not.toBeInTheDocument();
+    expect(patchRequests).toBe(1);
   });
 
   it.each([

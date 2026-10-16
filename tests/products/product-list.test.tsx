@@ -383,7 +383,7 @@ describe("Product list remote query", () => {
     await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-      "No se pudo cambiar el estado del producto.",
+      "No se pudo confirmar el resultado del cambio de estado. Comprueba el estado del producto antes de volver a intentarlo.",
     );
     expect(within(dialog).getByRole("alert")).not.toHaveTextContent("Internal server details");
     expect(within(dialog).getByRole("button", { name: "Reintentar" })).toBeVisible();
@@ -397,6 +397,61 @@ describe("Product list remote query", () => {
     await waitFor(() => expect(mutationRequests).toBe(2));
     await waitFor(() => expect(listRequests).toBe(2));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("rechecks the session after a 401 status response and lets SessionBoundary take priority", async () => {
+    const user = userEvent.setup();
+    let mutationRejected = false;
+    let sessionRefreshRequests = 0;
+    let mutationRequests = 0;
+    let resolveSessionRefresh!: (response: Response) => void;
+    const sessionRefresh = new Promise<Response>((resolve) => {
+      resolveSessionRefresh = resolve;
+    });
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => {
+        if (mutationRejected) {
+          sessionRefreshRequests += 1;
+          return sessionRefresh;
+        }
+        return HttpResponse.json(publicAuthResponse());
+      }),
+      http.get(productUrl, () =>
+        HttpResponse.json({ data: [product(1)], pagination: { total: 1, page: 1, limit: 15 } }),
+      ),
+      http.delete(productStatusUrl, () => {
+        mutationRequests += 1;
+        mutationRejected = true;
+        return HttpResponse.json(
+          { error: { code: "UNAUTHORIZED", message: "private authentication detail" } },
+          { status: 401 },
+        );
+      }),
+    );
+
+    renderProductRoute();
+    const row = await screen.findByRole("row", { name: /SKU-001/ });
+    await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+
+    expect(await screen.findByRole("heading", { name: "Comprobando tu sesión" })).toBeVisible();
+    await waitFor(() => expect(sessionRefreshRequests).toBe(1));
+    expect(mutationRequests).toBe(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText("Producto desactivado correctamente.")).not.toBeInTheDocument();
+
+    resolveSessionRefresh(HttpResponse.json(publicAuthResponse()));
+
+    expect(await screen.findByRole("row", { name: /SKU-001/ })).toBeVisible();
+    expect(
+      await screen.findByText(
+        "La sesión se verificó, pero no se confirmó el resultado del cambio de estado. Comprueba el estado del producto antes de volver a intentarlo.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("private authentication detail")).not.toBeInTheDocument();
+    expect(mutationRequests).toBe(1);
   });
 
   it.each([true, false])(
@@ -453,6 +508,36 @@ describe("Product list remote query", () => {
     },
   );
 
+  it("distinguishes an invalid status response from a confirmed change", async () => {
+    const user = userEvent.setup();
+    let mutationRequests = 0;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () =>
+        HttpResponse.json({ data: [product(1)], pagination: { total: 1, page: 1, limit: 15 } }),
+      ),
+      http.delete(productStatusUrl, () => {
+        mutationRequests += 1;
+        return HttpResponse.json({ data: { uuid: product(1).uuid, isActive: true } });
+      }),
+    );
+
+    renderProductRoute();
+    const row = await screen.findByRole("row", { name: /SKU-001/ });
+    await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "La respuesta del cambio de estado no se pudo validar. Comprueba el estado del producto antes de volver a intentarlo.",
+    );
+    expect(within(dialog).getByRole("button", { name: "Reintentar" })).toBeVisible();
+    expect(row).toHaveTextContent("Activo");
+    expect(screen.queryByText("Producto desactivado correctamente.")).not.toBeInTheDocument();
+    expect(mutationRequests).toBe(1);
+  });
+
   it("removes the retry action when the failed product is no longer available", async () => {
     const user = userEvent.setup();
     let mutationRequests = 0;
@@ -490,7 +575,9 @@ describe("Product list remote query", () => {
     await queryClient.invalidateQueries({ queryKey: ["products", "list", "product-list-session"] });
 
     await waitFor(() => expect(listRequests).toBe(2));
-    expect(within(dialog).getByRole("alert")).toHaveTextContent("No se pudo cambiar el estado");
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "No se pudo confirmar el resultado del cambio de estado.",
+    );
     expect(within(dialog).queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
     expect(mutationRequests).toBe(1);
   });

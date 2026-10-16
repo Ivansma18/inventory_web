@@ -50,7 +50,7 @@
   Hecho cuando: pruebas verifican última página disponible después de retirar resultados y error con retry manual solo mientras el producto siga disponible.
 - [x] T25. Presentar conflictos de SKU y rechazos de autorización del backend. (RF-90–RF-93; NFR-8)
   Hecho cuando: pruebas de SKU duplicado activo/inactivo sitúan el error junto al campo, explican que desactivar un producto no libera su SKU sin afirmar qué producto lo ocupa, y respuestas 403 en creación/edición/cambio de estado se muestran como no permitidas, nunca como éxito.
-- [ ] T26. Manejar sesión expirada, resultado incierto, respuestas inválidas y reintentos de escritura. (RF-94–RF-98; NFR-9)
+- [x] T26. Manejar sesión expirada, resultado incierto, respuestas inválidas y reintentos de escritura. (RF-94–RF-98; NFR-9)
   Hecho cuando: pruebas verifican reconsulta de sesión tras 401, prioridad del SessionBoundary, error de red/servidor sin afirmar el resultado, ausencia de reenvío automático y error distinguible para respuesta inválida; mensajes no exponen texto interno ni datos sensibles.
 - [ ] T27. Separar éxito de escritura de error al refrescar el listado. (RF-99–RF-100)
   Hecho cuando: una prueba confirma la escritura, fuerza fallo de la consulta posterior y verifica que se conserva el éxito y que retry repite solo la lectura.
