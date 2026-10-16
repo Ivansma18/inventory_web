@@ -181,6 +181,72 @@ describe("Product list remote query", () => {
     },
   );
 
+  it("opens and closes the status confirmation from the keyboard and restores focus", async () => {
+    const user = userEvent.setup();
+    let mutationRequests = 0;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () =>
+        HttpResponse.json({ data: [product(1)], pagination: { total: 1, page: 1, limit: 15 } }),
+      ),
+      http.delete(productStatusUrl, () => {
+        mutationRequests += 1;
+        return HttpResponse.json({ data: { uuid: product(1).uuid, isActive: false } });
+      }),
+    );
+
+    const { router } = renderProductRoute();
+    const row = await screen.findByRole("row", { name: /SKU-001/ });
+    const action = within(row).getByRole("button", { name: "Desactivar" });
+    action.focus();
+    await user.keyboard("{Enter}");
+
+    expect(await screen.findByRole("dialog", { name: "Confirmar desactivación" })).toBeVisible();
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(action).toHaveFocus());
+    expect(router.state.location.pathname).toBe("/products");
+    expect(mutationRequests).toBe(0);
+  });
+
+  it("confirms a status change with keyboard activation and announces its result", async () => {
+    const user = userEvent.setup();
+    let mutationRequests = 0;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () =>
+        HttpResponse.json({ data: [product(1)], pagination: { total: 1, page: 1, limit: 15 } }),
+      ),
+      http.delete(productStatusUrl, () => {
+        mutationRequests += 1;
+        return HttpResponse.json({ data: { uuid: product(1).uuid, isActive: false } });
+      }),
+    );
+
+    renderProductRoute();
+    const row = await screen.findByRole("row", { name: /SKU-001/ });
+    const action = within(row).getByRole("button", { name: "Desactivar" });
+    action.focus();
+    await user.keyboard("{Enter}");
+
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    const cancelButton = within(dialog).getByRole("button", { name: "Cancelar" });
+    const confirmButton = within(dialog).getByRole("button", { name: "Desactivar" });
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    await user.tab();
+    expect(cancelButton).toHaveFocus();
+    await user.tab();
+    expect(confirmButton).toHaveFocus();
+    await user.keyboard("{Enter}");
+
+    const announcement = await screen.findByText("Producto desactivado correctamente.");
+    expect(announcement.closest('[role="status"]')).toBeInTheDocument();
+    expect(mutationRequests).toBe(1);
+  });
+
   it.each([
     {
       initialActive: true,
@@ -270,7 +336,8 @@ describe("Product list remote query", () => {
         }),
       );
 
-      expect(await screen.findByRole("status")).toHaveTextContent(successMessage);
+      const announcement = await screen.findByText(successMessage);
+      expect(announcement.closest('[role="status"]')).toBeInTheDocument();
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
       await waitFor(() => expect(listRequests).toHaveLength(2));
       expect(router.state.location.pathname + router.state.location.search).toBe(listUrl);
@@ -727,6 +794,58 @@ describe("Product list remote query", () => {
     expect(productRequests).toHaveLength(2);
   });
 
+  it("filters, sorts and paginates with keyboard controls", async () => {
+    const user = userEvent.setup();
+    const productRequests: URL[] = [];
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, ({ request }) => {
+        const url = new URL(request.url);
+        productRequests.push(url);
+        const page = Number(url.searchParams.get("page"));
+
+        return HttpResponse.json({
+          data:
+            page === 1
+              ? Array.from({ length: 15 }, (_, index) => product(index + 1))
+              : [product(16)],
+          pagination: { total: 16, page, limit: 15 },
+        });
+      }),
+    );
+
+    renderProductRoute();
+
+    const search = await screen.findByRole("searchbox", { name: "Buscar productos" });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("16 productos"));
+    search.focus();
+    await user.type(search, "monitor");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => expect(productRequests).toHaveLength(2));
+    expect(productRequests[1]!.searchParams.get("search")).toBe("monitor");
+    expect(search).toHaveFocus();
+
+    const skuHeader = screen.getByRole("columnheader", { name: "SKU" });
+    skuHeader.focus();
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => expect(productRequests).toHaveLength(3));
+    expect(productRequests[2]!.searchParams.get("sort")).toBe("sku");
+    expect(productRequests[2]!.searchParams.get("order")).toBe("asc");
+
+    const nextPage = screen.getByRole("button", { name: "Página siguiente" });
+    nextPage.focus();
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => expect(productRequests).toHaveLength(4));
+    expect(productRequests[3]!.searchParams.get("page")).toBe("2");
+    expect(productRequests[3]!.searchParams.get("search")).toBe("monitor");
+    expect(productRequests[3]!.searchParams.get("sort")).toBe("sku");
+    expect(await screen.findByRole("cell", { name: "SKU-016" })).toBeVisible();
+  });
+
   it("applies case-insensitive partial search after trimming and omits an empty search", async () => {
     const user = userEvent.setup();
     const productRequests: URL[] = [];
@@ -1162,7 +1281,9 @@ describe("Product list remote query", () => {
 
     expect(router.state.location.search).toBe("?page=1&status=active&sort=name&order=asc");
     expect(screen.queryByRole("button", { name: "Limpiar búsqueda" })).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("No hay productos activos para mostrar.");
+    expect(
+      screen.getByText("No hay productos activos para mostrar.").closest('[role="status"]'),
+    ).toBeInTheDocument();
   });
 
   it("corrects a page made invalid by a smaller result set to the last valid page", async () => {

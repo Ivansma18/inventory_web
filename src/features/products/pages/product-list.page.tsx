@@ -408,7 +408,7 @@ export const ProductListPage = () => {
         />
       </form>
       {productList.isSuccess ? (
-        <p aria-live="polite" className="product-list__summary">
+        <p className="product-list__summary" role="status">
           {productList.data.pagination.total} producto
           {productList.data.pagination.total === 1 ? "" : "s"}
         </p>

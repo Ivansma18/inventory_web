@@ -58,7 +58,7 @@
   Hecho cuando: pruebas verifican continuar editando, descartar hacia el destino solicitado, aviso nativo al recargar/cerrar y eliminación del aviso tras guardar o descartar.
 - [x] T29. Dar prioridad a los estados de sesión sobre el diálogo de cambios sin guardar. (RF-106)
   Hecho cuando: una prueba sustituye el formulario por un estado de sesión mientras está abierto el guard y confirma que no se interpone la confirmación de descarte.
-- [ ] T30. Completar interacción por teclado, errores asociados, anuncios y gestión de foco. (RF-107–RF-112; NFR-2)
+- [x] T30. Completar interacción por teclado, errores asociados, anuncios y gestión de foco. (RF-107–RF-112; NFR-2)
   Hecho cuando: pruebas de UI cubren teclado en filtros/tabla/formularios/confirmaciones, asociación y foco del primer error, anuncio no basado solo en color, foco al encabezado de la nueva página y retorno al control relacionado al cerrar un diálogo.
 - [ ] T31. Bloquear edición y navegación interna durante guardados pendientes sin encolar salidas. (RF-113–RF-117)
   Hecho cuando: pruebas diferidas verifican campos bloqueados, aviso de espera para navegación interna y Atrás/Adelante, ausencia de descarte o navegación encolada, edición tras fallo y prioridad de sesión durante el guardado.

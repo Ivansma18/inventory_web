@@ -12,6 +12,7 @@ import type { SelectOption } from "@/shared/ui";
 
 import type { ProductCreatePayload } from "../api/product-contract";
 import { useCreateProduct } from "../hooks/use-create-product";
+import { useFocusFirstInvalidField } from "../hooks/use-focus-first-invalid-field";
 import { useProductFormNavigationGuard } from "../hooks/use-product-form-navigation-guard";
 import {
   DEFAULT_PRODUCT_CREATE_VALUES,
@@ -62,6 +63,8 @@ export const ProductCreateForm = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const submitLock = useRef(false);
+  const formElementRef = useRef<HTMLFormElement>(null);
+  const [invalidSubmitCount, setInvalidSubmitCount] = useState(0);
   const [categorySearchDraft, setCategorySearchDraft] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
   const [categoryPage, setCategoryPage] = useState(1);
@@ -73,6 +76,7 @@ export const ProductCreateForm = () => {
     mode: "onBlur",
     resolver: zodResolver(productCreateSchema),
   });
+  useFocusFirstInvalidField(formElementRef, invalidSubmitCount);
   const createProductMutation = useCreateProduct(sessionId);
   const operationPending = createProductMutation.isPending || form.formState.isSubmitting;
   const { blocker, dismissProtection } = useProductFormNavigationGuard(form.formState.isDirty);
@@ -206,10 +210,7 @@ export const ProductCreateForm = () => {
     form.clearErrors("root.server");
 
     void form
-      .handleSubmit(
-        submitProduct,
-        () => undefined,
-      )(event)
+      .handleSubmit(submitProduct, () => setInvalidSubmitCount((count) => count + 1))(event)
       .finally(() => {
         submitLock.current = false;
       });
@@ -232,6 +233,7 @@ export const ProductCreateForm = () => {
         className="product-create-form__fields"
         noValidate
         onSubmit={handleFormSubmit}
+        ref={formElementRef}
       >
         <Controller
           control={form.control}

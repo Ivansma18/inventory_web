@@ -112,6 +112,57 @@ afterEach(() => {
 });
 
 describe("product creation form", () => {
+  it("moves focus to the first invalid field after a keyboard submission", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(categoriesUrl, () => activeCategoryResponse()),
+    );
+
+    renderProductCreateRoute();
+
+    const sku = await screen.findByRole("textbox", { name: "SKU (obligatorio)" });
+    screen.getByRole("button", { name: "Crear producto" }).focus();
+    await user.keyboard("{Enter}");
+
+    expect(await screen.findByText("El SKU es obligatorio.")).toBeVisible();
+    await waitFor(() => expect(sku).toHaveFocus());
+    expect(sku).toHaveAttribute("aria-invalid", "true");
+    expect(sku).toHaveAccessibleDescription("El SKU es obligatorio.");
+  });
+
+  it("focuses the product page heading after navigating to a different product page", async () => {
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(categoriesUrl, () => activeCategoryResponse()),
+    );
+
+    const { router } = renderProductCreateRoute();
+    const createHeading = await screen.findByRole("heading", {
+      level: 1,
+      name: "Crear producto",
+    });
+
+    await act(async () => {
+      await router.navigate("/");
+    });
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+    ).toBeVisible();
+
+    await act(async () => {
+      await router.navigate("/products/new");
+    });
+
+    const newCreateHeading = await screen.findByRole("heading", {
+      level: 1,
+      name: "Crear producto",
+    });
+    expect(newCreateHeading).not.toBe(createHeading);
+    await waitFor(() => expect(newCreateHeading).toHaveFocus());
+  });
+
   it("lets the session boundary replace a dirty form while its discard prompt is open", async () => {
     const user = userEvent.setup();
     let refetchSession: UseSessionResult["refetch"] | undefined;

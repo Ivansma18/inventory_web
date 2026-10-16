@@ -11,6 +11,7 @@ import { Badge, Button, Input, Textarea, useToast } from "@/shared/ui";
 import type { Product } from "../api/product-contract";
 import { ProductEditCategoryField } from "./product-edit-category-field";
 import { useUpdateProduct } from "../hooks/use-update-product";
+import { useFocusFirstInvalidField } from "../hooks/use-focus-first-invalid-field";
 import { useProductFormNavigationGuard } from "../hooks/use-product-form-navigation-guard";
 import {
   productEditSchema,
@@ -37,6 +38,8 @@ interface ProductEditFormProps {
 
 export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFormProps) => {
   const submitLock = useRef(false);
+  const formElementRef = useRef<HTMLFormElement>(null);
+  const [invalidSubmitCount, setInvalidSubmitCount] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
   const session = useSession();
   const navigate = useNavigate();
@@ -54,6 +57,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
     mode: "onBlur",
     resolver: zodResolver(productEditSchema),
   });
+  useFocusFirstInvalidField(formElementRef, invalidSubmitCount);
   const operationPending = updateProductMutation.isPending || form.formState.isSubmitting;
   const { blocker, dismissProtection } = useProductFormNavigationGuard(form.formState.isDirty);
 
@@ -122,10 +126,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
 
     submitLock.current = true;
     void form
-      .handleSubmit(
-        submitProduct,
-        () => undefined,
-      )(event)
+      .handleSubmit(submitProduct, () => setInvalidSubmitCount((count) => count + 1))(event)
       .finally(() => {
         submitLock.current = false;
       });
@@ -158,6 +159,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
         className="product-edit-form__fields"
         noValidate
         onSubmit={handleFormSubmit}
+        ref={formElementRef}
       >
         <Controller
           control={form.control}

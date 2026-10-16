@@ -920,6 +920,27 @@ describe("product edit page", () => {
     expect(screen.queryByText("Producto actualizado correctamente.")).not.toBeInTheDocument();
   });
 
+  it("moves focus to the first invalid field after a keyboard save attempt", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+    );
+
+    renderProductEditRoute();
+
+    const sku = await screen.findByRole("textbox", { name: "SKU (obligatorio)" });
+    await user.clear(sku);
+    screen.getByRole("button", { name: "Guardar cambios" }).focus();
+    await user.keyboard("{Enter}");
+
+    const skuError = await screen.findByText("El SKU es obligatorio.");
+    await waitFor(() => expect(sku).toHaveFocus());
+    expect(sku).toHaveAttribute("aria-invalid", "true");
+    expect(sku).toHaveAccessibleDescription(skuError.textContent ?? "");
+  });
+
   it.each([
     {
       field: "SKU (obligatorio)",
