@@ -141,3 +141,86 @@ test("keeps the product active until the backend confirms deactivation", async (
   expect(statusMutationRequests).toBe(1);
   expect(listRequests).toBe(initialListRequests + 1);
 });
+
+test("offers a manual retry after a recoverable status failure while the product remains listed", async ({
+  page,
+}) => {
+  let listRequests = 0;
+  let statusMutationRequests = 0;
+  let deactivationConfirmed = false;
+
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          user: { id: "product-status-user", email: "operator@example.com", role: "OPERATOR" },
+          session: { id: "product-status-session", createdAt: "2026-01-01T00:00:00.000Z" },
+        },
+      }),
+    });
+  });
+
+  await page.route("**/api/backend/products**", async (route) => {
+    if (route.request().method() === "GET") {
+      listRequests += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: deactivationConfirmed ? [] : [product(1, true)],
+          pagination: { total: deactivationConfirmed ? 0 : 1, page: 1, limit: 15 },
+        }),
+      });
+      return;
+    }
+
+    statusMutationRequests += 1;
+    if (statusMutationRequests === 1) {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: { code: "INTERNAL_ERROR", message: "Internal server details" },
+        }),
+      });
+      return;
+    }
+
+    deactivationConfirmed = true;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { uuid: product(1, true).uuid, isActive: false } }),
+    });
+  });
+
+  await page.goto("/products");
+
+  const productRow = page.locator('[role="row"]').filter({ hasText: "SKU-001" });
+  await expect(productRow).toBeVisible();
+  const initialListRequests = listRequests;
+  await productRow.getByRole("button", { name: "Desactivar" }).click();
+  const dialog = page.getByRole("dialog", { name: "Confirmar desactivación" });
+  await dialog.getByRole("button", { name: "Desactivar" }).click();
+
+  await expect(dialog.getByRole("alert")).toContainText(
+    "No se pudo cambiar el estado del producto.",
+  );
+  await expect(dialog.getByRole("alert")).not.toContainText("Internal server details");
+  await expect(dialog.getByRole("button", { name: "Reintentar" })).toBeVisible();
+  await expect(productRow).toContainText("Activo");
+  expect(statusMutationRequests).toBe(1);
+  expect(listRequests).toBe(initialListRequests);
+
+  await dialog.getByRole("button", { name: "Reintentar" }).click();
+
+  await expect(
+    page.getByRole("status").filter({ hasText: "Producto desactivado correctamente." }),
+  ).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText("No hay productos activos para mostrar.")).toBeVisible();
+  expect(statusMutationRequests).toBe(2);
+  expect(listRequests).toBe(initialListRequests + 1);
+});

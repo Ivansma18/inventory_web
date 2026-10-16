@@ -294,6 +294,182 @@ describe("Product list remote query", () => {
     },
   );
 
+  it("moves to the last available page after deactivation removes the current page", async () => {
+    const user = userEvent.setup();
+    const requestedPages: number[] = [];
+    let pageTwoRequestCount = 0;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get("page"));
+        requestedPages.push(page);
+
+        if (page === 2) {
+          pageTwoRequestCount += 1;
+          return pageTwoRequestCount === 1
+            ? HttpResponse.json({
+                data: [product(16)],
+                pagination: { total: 16, page: 2, limit: 15 },
+              })
+            : HttpResponse.json({ data: [], pagination: { total: 15, page: 2, limit: 15 } });
+        }
+
+        return HttpResponse.json({
+          data: Array.from({ length: 15 }, (_, index) => product(index + 1)),
+          pagination: { total: 15, page: 1, limit: 15 },
+        });
+      }),
+      http.delete(`${productUrl}/${product(16).uuid}`, () =>
+        HttpResponse.json({ data: { uuid: product(16).uuid, isActive: false } }),
+      ),
+    );
+
+    const listUrl = "/products?page=2&search=SKU&status=active&sort=sku&order=desc";
+    const { router } = renderProductRoute(listUrl);
+    const productRow = await screen.findByRole("row", { name: /SKU-016/ });
+
+    await user.click(within(productRow).getByRole("button", { name: "Desactivar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+
+    expect(await screen.findByText("Producto desactivado correctamente.")).toBeVisible();
+    await waitFor(() =>
+      expect(router.state.location.search).toBe(
+        "?page=1&search=SKU&status=active&sort=sku&order=desc",
+      ),
+    );
+    expect(await screen.findByRole("row", { name: /SKU-001/ })).toBeVisible();
+    expect(screen.getByText("Página 1 de 1")).toBeVisible();
+    expect(requestedPages).toEqual([2, 2, 1]);
+    expect(router.state.location.pathname + router.state.location.search).toBe(
+      "/products?page=1&search=SKU&status=active&sort=sku&order=desc",
+    );
+  });
+
+  it("shows a recoverable status error and retries only after an explicit request", async () => {
+    const user = userEvent.setup();
+    let mutationRequests = 0;
+    let listRequests = 0;
+    let deactivationConfirmed = false;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => {
+        listRequests += 1;
+        return HttpResponse.json({
+          data: deactivationConfirmed ? [] : [product(1)],
+          pagination: { total: deactivationConfirmed ? 0 : 1, page: 1, limit: 15 },
+        });
+      }),
+      http.delete(productStatusUrl, () => {
+        mutationRequests += 1;
+        if (mutationRequests === 1) {
+          return HttpResponse.json(
+            { error: { code: "INTERNAL_ERROR", message: "Internal server details" } },
+            { status: 500 },
+          );
+        }
+
+        deactivationConfirmed = true;
+        return HttpResponse.json({ data: { uuid: product(1).uuid, isActive: false } });
+      }),
+    );
+
+    renderProductRoute();
+    const productRow = await screen.findByRole("row", { name: /SKU-001/ });
+    await user.click(within(productRow).getByRole("button", { name: "Desactivar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "No se pudo cambiar el estado del producto.",
+    );
+    expect(within(dialog).getByRole("alert")).not.toHaveTextContent("Internal server details");
+    expect(within(dialog).getByRole("button", { name: "Reintentar" })).toBeVisible();
+    expect(mutationRequests).toBe(1);
+    expect(listRequests).toBe(1);
+    expect(productRow).toHaveTextContent("Activo");
+
+    await user.click(within(dialog).getByRole("button", { name: "Reintentar" }));
+
+    expect(await screen.findByText("Producto desactivado correctamente.")).toBeVisible();
+    await waitFor(() => expect(mutationRequests).toBe(2));
+    await waitFor(() => expect(listRequests).toBe(2));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("removes the retry action when the failed product is no longer available", async () => {
+    const user = userEvent.setup();
+    let mutationRequests = 0;
+    let listRequests = 0;
+    let productAvailable = true;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => {
+        listRequests += 1;
+        return HttpResponse.json({
+          data: productAvailable ? [product(1)] : [],
+          pagination: { total: productAvailable ? 1 : 0, page: 1, limit: 15 },
+        });
+      }),
+      http.delete(productStatusUrl, () => {
+        mutationRequests += 1;
+        return HttpResponse.json(
+          { error: { code: "INTERNAL_ERROR", message: "Failure" } },
+          {
+            status: 500,
+          },
+        );
+      }),
+    );
+
+    const { queryClient } = renderProductRoute();
+    const productRow = await screen.findByRole("row", { name: /SKU-001/ });
+    await user.click(within(productRow).getByRole("button", { name: "Desactivar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+    expect(await within(dialog).findByRole("alert")).toBeVisible();
+
+    productAvailable = false;
+    await queryClient.invalidateQueries({ queryKey: ["products", "list", "product-list-session"] });
+
+    await waitFor(() => expect(listRequests).toBe(2));
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("No se pudo cambiar el estado");
+    expect(within(dialog).queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
+    expect(mutationRequests).toBe(1);
+  });
+
+  it("does not offer a status retry after the backend reports the product missing", async () => {
+    const user = userEvent.setup();
+    let mutationRequests = 0;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () =>
+        HttpResponse.json({ data: [product(1)], pagination: { total: 1, page: 1, limit: 15 } }),
+      ),
+      http.delete(productStatusUrl, () => {
+        mutationRequests += 1;
+        return HttpResponse.json(
+          { error: { code: "PRODUCT_NOT_FOUND", message: "Not found" } },
+          { status: 404 },
+        );
+      }),
+    );
+
+    renderProductRoute();
+    const productRow = await screen.findByRole("row", { name: /SKU-001/ });
+    await user.click(within(productRow).getByRole("button", { name: "Desactivar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+
+    expect(await within(dialog).findByRole("alert")).toBeVisible();
+    expect(within(dialog).queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
+    expect(mutationRequests).toBe(1);
+  });
+
   it.each(["ADMIN", "MANAGER", "OPERATOR", "VIEWER"] as const)(
     "keeps the edit action available to %s and carries the current list criteria",
     async (role) => {

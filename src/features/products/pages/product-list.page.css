@@ -53,6 +53,14 @@
   font-weight: var(--ui-font-weight-medium);
 }
 
+.product-list__status-confirmation > .product-list__status-error {
+  background-color: var(--ui-color-error-surface);
+  border: var(--ui-border-width) solid var(--ui-color-error);
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-color-on-error);
+  padding: var(--ui-space-3);
+}
+
 .product-list__status-confirmation-actions {
   justify-content: flex-end;
 }

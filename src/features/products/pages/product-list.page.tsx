@@ -1,6 +1,6 @@
 import "./product-list.page.css";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -93,13 +93,37 @@ const getProductListFocusFallback = () => {
   return heading;
 };
 
+const isProductNotFoundError = (error: unknown) => {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+
+  const status = "status" in error ? error.status : undefined;
+  const code = "code" in error ? error.code : undefined;
+  return status === 404 || code === "PRODUCT_NOT_FOUND";
+};
+
+interface ProductStatusFailure {
+  productUuid: string;
+  isNotFound: boolean;
+}
+
 export const ProductListPage = () => {
   const session = useSession();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const toast = useToast();
   const [statusConfirmationProduct, setStatusConfirmationProduct] = useState<Product | null>(null);
+  const [statusFailure, setStatusFailure] = useState<ProductStatusFailure | null>(null);
   const statusSubmissionLock = useRef(new Set<string>());
+  const requestStatusChange = useCallback((product: Product) => {
+    setStatusFailure(null);
+    setStatusConfirmationProduct(product);
+  }, []);
+  const closeStatusConfirmation = useCallback(() => {
+    setStatusFailure(null);
+    setStatusConfirmationProduct(null);
+  }, []);
   const [searchParams, setSearchParams] = useSearchParams();
   const serializedSearchParams = searchParams.toString();
   const urlState = useMemo(
@@ -124,6 +148,23 @@ export const ProductListPage = () => {
   const changeStatusMutation = useChangeProductStatus(sessionId);
   const pendingProductUuids = usePendingProductStatusUuids(sessionId);
   const statusLockKey = (uuid: string) => `${sessionId ?? "no-session"}:${uuid}`;
+  const statusFailureForConfirmation =
+    statusConfirmationProduct !== null &&
+    statusFailure?.productUuid === statusConfirmationProduct.uuid
+      ? statusFailure
+      : null;
+  const statusProductIsAvailable =
+    statusConfirmationProduct !== null &&
+    (productList.data?.data.some(
+      (product) =>
+        product.uuid === statusConfirmationProduct.uuid &&
+        product.isActive === statusConfirmationProduct.isActive,
+    ) ??
+      false);
+  const canRetryStatusChange =
+    statusFailureForConfirmation !== null &&
+    !statusFailureForConfirmation.isNotFound &&
+    statusProductIsAvailable;
   const isConfirmationPending =
     statusConfirmationProduct !== null &&
     pendingProductUuids.includes(statusConfirmationProduct.uuid);
@@ -134,12 +175,23 @@ export const ProductListPage = () => {
       return;
     }
 
+    const productIsAvailable =
+      productList.data?.data.some(
+        (listedProduct) =>
+          listedProduct.uuid === product.uuid && listedProduct.isActive === product.isActive,
+      ) ?? false;
+
+    if (!productIsAvailable || (statusFailureForConfirmation !== null && !canRetryStatusChange)) {
+      return;
+    }
+
     const lockKey = statusLockKey(product.uuid);
     if (statusSubmissionLock.current.has(lockKey) || pendingProductUuids.includes(product.uuid)) {
       return;
     }
 
     statusSubmissionLock.current.add(lockKey);
+    setStatusFailure(null);
     void changeStatusMutation
       .mutateAsync({
         uuid: product.uuid,
@@ -157,10 +209,14 @@ export const ProductListPage = () => {
             : "Producto activado correctamente.",
         });
       })
-      .catch(() => undefined)
+      .catch((error: unknown) => {
+        setStatusFailure({
+          productUuid: product.uuid,
+          isNotFound: isProductNotFoundError(error),
+        });
+      })
       .finally(() => statusSubmissionLock.current.delete(lockKey));
   };
-
   useEffect(() => {
     if (needsNormalization) {
       setSearchParams(serializeProductListUrlState(urlState), { replace: true });
@@ -263,7 +319,7 @@ export const ProductListPage = () => {
               Editar
             </Button>
             <ProductStatusAction
-              onRequestChange={setStatusConfirmationProduct}
+              onRequestChange={requestStatusChange}
               product={product}
               sessionId={sessionId}
             />
@@ -272,7 +328,7 @@ export const ProductListPage = () => {
         sortable: false,
       },
     ],
-    [navigate, sessionId, sourceListUrl],
+    [navigate, requestStatusChange, sessionId, sourceListUrl],
   );
 
   return (
@@ -354,22 +410,26 @@ export const ProductListPage = () => {
         footer={
           statusConfirmationProduct ? (
             <div className="product-list__status-confirmation-actions">
-              <Button onClick={() => setStatusConfirmationProduct(null)} variant="secondary">
+              <Button onClick={closeStatusConfirmation} variant="secondary">
                 {isConfirmationPending ? "Cerrar" : "Cancelar"}
               </Button>
-              <Button loading={isConfirmationPending} onClick={confirmStatusChange}>
-                {isConfirmationPending
-                  ? statusConfirmationProduct.isActive
-                    ? "Desactivando…"
-                    : "Activando…"
-                  : statusConfirmationProduct.isActive
-                    ? "Desactivar"
-                    : "Activar"}
-              </Button>
+              {statusFailureForConfirmation === null || canRetryStatusChange ? (
+                <Button loading={isConfirmationPending} onClick={confirmStatusChange}>
+                  {isConfirmationPending
+                    ? statusConfirmationProduct.isActive
+                      ? "Desactivando…"
+                      : "Activando…"
+                    : canRetryStatusChange
+                      ? "Reintentar"
+                      : statusConfirmationProduct.isActive
+                        ? "Desactivar"
+                        : "Activar"}
+                </Button>
+              ) : null}
             </div>
           ) : undefined
         }
-        onCloseRequest={() => setStatusConfirmationProduct(null)}
+        onCloseRequest={closeStatusConfirmation}
         open={statusConfirmationProduct !== null}
         title={
           statusConfirmationProduct?.isActive ? "Confirmar desactivación" : "Confirmar activación"
@@ -389,6 +449,15 @@ export const ProductListPage = () => {
               <p aria-atomic="true" className="product-list__status-pending" role="status">
                 {statusConfirmationProduct.isActive ? "Desactivando" : "Activando"} producto{" "}
                 {statusConfirmationProduct.sku}…
+              </p>
+            ) : null}
+            {statusFailureForConfirmation !== null ? (
+              <p className="product-list__status-error" role="alert">
+                {statusFailureForConfirmation.isNotFound
+                  ? "No se pudo confirmar el cambio de estado; el producto no está disponible para reintentar."
+                  : canRetryStatusChange
+                    ? "No se pudo cambiar el estado del producto. Puedes intentarlo de nuevo."
+                    : "No se pudo cambiar el estado del producto y ya no está disponible para esta operación."}
               </p>
             ) : null}
           </div>
