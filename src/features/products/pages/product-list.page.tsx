@@ -1,7 +1,7 @@
 import "./product-list.page.css";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useSession } from "@/features/auth";
@@ -29,6 +29,7 @@ import {
   serializeProductListUrlState,
   type ProductListUrlState,
 } from "../utils/product-list-url-state";
+import { buildProductEditLocation } from "../utils/product-edit-return-to";
 
 const productColumns: DataTableColumn<Product>[] = [
   { key: "sku", header: "SKU", sortable: true },
@@ -80,6 +81,7 @@ const orderOptions: SelectOption[] = [
 export const ProductListPage = () => {
   const session = useSession();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const serializedSearchParams = searchParams.toString();
   const urlState = useMemo(
@@ -188,6 +190,26 @@ export const ProductListPage = () => {
     }
   };
   const tableSort = { columnId: criteria.sort, direction: criteria.order } as const;
+  const sourceListUrl = `/products?${serializeProductListUrlState(urlState).toString()}`;
+  const columns = useMemo<DataTableColumn<Product>[]>(
+    () => [
+      ...productColumns,
+      {
+        key: "uuid",
+        header: "Acciones",
+        render: (product) => (
+          <Button
+            onClick={() => navigate(buildProductEditLocation(product.uuid, sourceListUrl))}
+            variant="secondary"
+          >
+            Editar
+          </Button>
+        ),
+        sortable: false,
+      },
+    ],
+    [navigate, sourceListUrl],
+  );
 
   return (
     <ProductPageShell contentWidth="wide" description="Catálogo de productos" title="Productos">
@@ -242,7 +264,7 @@ export const ProductListPage = () => {
         </p>
       ) : null}
       <DataTable
-        columns={productColumns}
+        columns={columns}
         emptyAction={
           hasEmptyResult && hasAppliedSearch ? (
             <Button onClick={clearSearch} variant="secondary">

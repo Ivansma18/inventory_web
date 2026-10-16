@@ -13,6 +13,8 @@ import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
 const productUrl = "https://inventory.test/api/products";
+const categoryUuid = "550e8400-e29b-41d4-a716-446655440000";
+const categoriesUrl = "https://inventory.test/api/categories";
 
 const publicAuthResponse = (): components["schemas"]["PublicAuthResponse"] => ({
   data: {
@@ -20,6 +22,22 @@ const publicAuthResponse = (): components["schemas"]["PublicAuthResponse"] => ({
       id: "product-list-user",
       email: "operator@example.com",
       role: "OPERATOR",
+    },
+    session: {
+      id: "product-list-session",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    },
+  },
+});
+
+const publicAuthResponseForRole = (
+  role: components["schemas"]["PublicAuthResponse"]["data"]["user"]["role"],
+): components["schemas"]["PublicAuthResponse"] => ({
+  data: {
+    user: {
+      id: "product-list-user",
+      email: "operator@example.com",
+      role,
     },
     session: {
       id: "product-list-session",
@@ -76,6 +94,60 @@ afterEach(() => {
 });
 
 describe("Product list remote query", () => {
+  it.each(["ADMIN", "MANAGER", "OPERATOR", "VIEWER"] as const)(
+    "keeps the edit action available to %s and carries the current list criteria",
+    async (role) => {
+      const user = userEvent.setup();
+      const listRequests: URL[] = [];
+      const initialListUrl = "/products?page=2&search=monitor&status=inactive&sort=sku&order=desc";
+
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () =>
+          HttpResponse.json(publicAuthResponseForRole(role)),
+        ),
+        http.get(productUrl, ({ request }) => {
+          listRequests.push(new URL(request.url));
+          return HttpResponse.json({
+            data: [product(1, false)],
+            pagination: { total: 16, page: 2, limit: 15 },
+          });
+        }),
+        http.get(`${productUrl}/${product(1, false).uuid}`, () =>
+          HttpResponse.json({ data: product(1, false) }),
+        ),
+        http.get(categoriesUrl, () =>
+          HttpResponse.json({
+            data: [
+              {
+                uuid: categoryUuid,
+                name: "Oficina",
+                description: null,
+                isActive: true,
+                createdAt: "2026-01-01T00:00:00.000Z",
+                updatedAt: "2026-01-01T00:00:00.000Z",
+              },
+            ],
+            pagination: { total: 1, page: 1, limit: 15 },
+          }),
+        ),
+      );
+
+      const { router } = renderProductRoute(initialListUrl);
+
+      const editButton = await screen.findByRole("button", { name: "Editar" });
+      expect(editButton).toBeVisible();
+      await user.click(editButton);
+
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe(`/products/${product(1, false).uuid}/edit`),
+      );
+      expect(new URLSearchParams(router.state.location.search).get("returnTo")).toBe(
+        "/products?page=2&search=monitor&status=inactive&sort=sku&order=desc",
+      );
+      expect(listRequests).toHaveLength(1);
+    },
+  );
+
   it("loads the default active page and requests the next page from the backend", async () => {
     const user = userEvent.setup();
     const productRequests: URL[] = [];

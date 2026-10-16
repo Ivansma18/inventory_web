@@ -13,7 +13,12 @@ import { appRoutes } from "@/app/router/router";
 import { UiProvider } from "@/app/providers/ui.provider";
 import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
+import {
+  buildProductEditLocation,
+  DEFAULT_PRODUCT_LIST_RETURN_TO,
+} from "@/features/products/utils/product-edit-return-to";
 
+const productsUrl = "https://inventory.test/api/products";
 const productUuid = "650e8400-e29b-41d4-a716-446655440000";
 const categoryUuid = "550e8400-e29b-41d4-a716-446655440000";
 const alternativeCategoryUuid = "550e8400-e29b-41d4-a716-446655440001";
@@ -95,13 +100,16 @@ beforeEach(() => {
   server.use(
     http.get(categoriesUrl, () => HttpResponse.json(categoryListResponse())),
     http.get(categoryUrl, () => HttpResponse.json({ data: category("Oficina") })),
+    http.get(productsUrl, () =>
+      HttpResponse.json({ data: [product(true)], pagination: { total: 1, page: 1, limit: 15 } }),
+    ),
   );
 });
 
-const renderProductEditRoute = () => {
+const renderProductEditRoute = (initialEntry = `/products/${productUuid}/edit`) => {
   const queryClient = createQueryClient();
   const router = createMemoryRouter(appRoutes, {
-    initialEntries: [`/products/${productUuid}/edit`],
+    initialEntries: [initialEntry],
   });
   routeResources.push({ queryClient, router });
 
@@ -454,6 +462,116 @@ describe("product edit page", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeEnabled(),
     );
+    expect(screen.queryByText("Producto actualizado correctamente.")).not.toBeInTheDocument();
+  });
+
+  it("returns to the source list criteria after a successful edit", async () => {
+    const user = userEvent.setup();
+    const sourceListUrl = "/products?page=3&search=monitor&status=inactive&sort=sku&order=desc";
+    const listRequests: URL[] = [];
+
+    server.use(
+      http.patch(productUrl, () =>
+        HttpResponse.json({ data: { ...product(true), name: "Monitor actualizado" } }),
+      ),
+      http.get(productsUrl, ({ request }) => {
+        listRequests.push(new URL(request.url));
+        return HttpResponse.json({
+          data: [product(true)],
+          pagination: { total: 1, page: 3, limit: 15 },
+        });
+      }),
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+    );
+
+    const { router } = renderProductEditRoute(buildProductEditLocation(productUuid, sourceListUrl));
+
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Monitor actualizado");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    expect(await screen.findByText("Producto actualizado correctamente.")).toBeVisible();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
+    expect(router.state.location.search).toBe(
+      "?page=3&search=monitor&status=inactive&sort=sku&order=desc",
+    );
+    await waitFor(() => expect(listRequests).toHaveLength(1));
+    expect(Object.fromEntries(listRequests[0]!.searchParams)).toMatchObject({
+      page: "3",
+      search: "monitor",
+      isActive: "false",
+      sort: "sku",
+      order: "desc",
+    });
+  });
+
+  it("uses default list criteria after an edit opened without a source URL", async () => {
+    const user = userEvent.setup();
+    const listRequests: URL[] = [];
+
+    server.use(
+      http.patch(productUrl, () =>
+        HttpResponse.json({ data: { ...product(true), name: "Monitor actualizado" } }),
+      ),
+      http.get(productsUrl, ({ request }) => {
+        listRequests.push(new URL(request.url));
+        return HttpResponse.json({
+          data: [product(true)],
+          pagination: { total: 1, page: 1, limit: 15 },
+        });
+      }),
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+    );
+
+    const { router } = renderProductEditRoute();
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Monitor actualizado");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    expect(await screen.findByText("Producto actualizado correctamente.")).toBeVisible();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
+    expect(router.state.location.search).toBe(
+      DEFAULT_PRODUCT_LIST_RETURN_TO.slice("/products".length),
+    );
+    await waitFor(() => expect(listRequests).toHaveLength(1));
+    expect(Object.fromEntries(listRequests[0]!.searchParams)).toMatchObject({
+      page: "1",
+      isActive: "true",
+      sort: "name",
+      order: "asc",
+    });
+  });
+
+  it("keeps edited values enabled and reports an ordinary update error", async () => {
+    const user = userEvent.setup();
+    const { router } = renderProductEditRoute();
+
+    server.use(
+      http.patch(productUrl, () =>
+        HttpResponse.json(
+          { error: { code: "INTERNAL_ERROR", message: "private backend details" } },
+          { status: 500 },
+        ),
+      ),
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+    );
+
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Nombre local conservado");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    const error = await screen.findByRole("alert");
+    expect(error).toHaveTextContent("No se pudieron guardar los cambios. Inténtalo de nuevo.");
+    expect(error).not.toHaveTextContent("private backend details");
+    await waitFor(() => expect(name).toBeEnabled());
+    expect(name).toHaveValue("Nombre local conservado");
+    expect(router.state.location.pathname).toBe(`/products/${productUuid}/edit`);
     expect(screen.queryByText("Producto actualizado correctamente.")).not.toBeInTheDocument();
   });
 

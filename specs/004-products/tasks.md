@@ -38,7 +38,7 @@
   Hecho cuando: pruebas comparan el payload con el snapshot original; campos no modificados y `isActive` no se envían, y un formulario limpio no dispara PATCH.
 - [x] T19. Implementar los estados pendiente y confirmado de la actualización de producto. (RF-68–RF-70)
   Hecho cuando: pruebas con respuesta diferida verifican indicador de operación, bloqueo de envíos duplicados y confirmación de éxito únicamente tras respuesta válida.
-- [ ] T20. Completar retorno al origen y conservación de cambios ante fallos de edición. (RF-7, RF-71–RF-73)
+- [x] T20. Completar retorno al origen y conservación de cambios ante fallos de edición. (RF-7, RF-71–RF-73)
   Hecho cuando: pruebas verifican retorno a los criterios de origen después del éxito, uso de criterios predeterminados cuando edición se abrió directamente sin origen y conservación editable de los valores locales después de un error ordinario; la acción de edición permanece visible para distintos roles presentados por el frontend.
 - [ ] T21. Implementar estados de UUID inválido, producto inexistente y error recuperable al cargar edición. (RF-74–RF-76)
   Hecho cuando: pruebas verifican estados distintos para dirección inválida y producto 404, que un UUID inválido no genera petición, retorno al listado y retry de un error de red/servidor.

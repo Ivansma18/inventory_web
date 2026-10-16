@@ -1,8 +1,9 @@
 import "./product-edit-form.css";
 
-import { useRef, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
+import { useNavigate } from "react-router";
 
 import { Badge, Button, Input, Textarea, useToast } from "@/shared/ui";
 
@@ -19,11 +20,14 @@ import { buildProductUpdatePayload } from "../utils/product-update-payload";
 
 interface ProductEditFormProps {
   product: Product;
+  returnTo: string;
   sessionId: string | null;
 }
 
-export const ProductEditForm = ({ product, sessionId }: ProductEditFormProps) => {
+export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFormProps) => {
   const submitLock = useRef(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const navigate = useNavigate();
   const toast = useToast();
   const updateProductMutation = useUpdateProduct();
   const form = useForm<ProductEditFormInput, unknown, ProductEditFormValues>({
@@ -47,13 +51,16 @@ export const ProductEditForm = ({ product, sessionId }: ProductEditFormProps) =>
       return;
     }
 
+    setSaveError(null);
     try {
       await updateProductMutation.mutateAsync({ uuid: product.uuid, payload });
     } catch {
+      setSaveError("No se pudieron guardar los cambios. Inténtalo de nuevo.");
       return;
     }
 
     toast.show({ kind: "success", message: "Producto actualizado correctamente." });
+    navigate(returnTo);
   };
 
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -88,6 +95,12 @@ export const ProductEditForm = ({ product, sessionId }: ProductEditFormProps) =>
         </div>
         <p className="product-edit-form__intro">Información actual del producto.</p>
       </div>
+
+      {saveError ? (
+        <p className="product-edit-form__error" role="alert">
+          {saveError}
+        </p>
+      ) : null}
 
       <form
         aria-busy={operationPending || undefined}
