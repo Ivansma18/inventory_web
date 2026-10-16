@@ -56,7 +56,7 @@
   Hecho cuando: una prueba confirma la escritura, fuerza fallo de la consulta posterior y verifica que se conserva el éxito y que retry repite solo la lectura.
 - [x] T28. Proteger formularios sucios ante navegación interna y salida del navegador. (RF-101–RF-105)
   Hecho cuando: pruebas verifican continuar editando, descartar hacia el destino solicitado, aviso nativo al recargar/cerrar y eliminación del aviso tras guardar o descartar.
-- [ ] T29. Dar prioridad a los estados de sesión sobre el diálogo de cambios sin guardar. (RF-106)
+- [x] T29. Dar prioridad a los estados de sesión sobre el diálogo de cambios sin guardar. (RF-106)
   Hecho cuando: una prueba sustituye el formulario por un estado de sesión mientras está abierto el guard y confirma que no se interpone la confirmación de descarte.
 - [ ] T30. Completar interacción por teclado, errores asociados, anuncios y gestión de foco. (RF-107–RF-112; NFR-2)
   Hecho cuando: pruebas de UI cubren teclado en filtros/tabla/formularios/confirmaciones, asociación y foco del primer error, anuncio no basado solo en color, foco al encabezado de la nueva página y retorno al control relacionado al cerrar un diálogo.

@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { appRoutes } from "@/app/router/router";
 import { UiProvider } from "@/app/providers/ui.provider";
+import { useSession } from "@/features/auth";
+import type { UseSessionResult } from "@/features/auth";
 import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
@@ -76,15 +78,25 @@ const routeResources: Array<{
   router: ReturnType<typeof createMemoryRouter>;
 }> = [];
 
-const renderProductCreateRoute = () => {
+const renderProductCreateRoute = (
+  onSessionRefetch?: (refetch: UseSessionResult["refetch"]) => void,
+) => {
   const queryClient = createQueryClient();
   const router = createMemoryRouter(appRoutes, { initialEntries: ["/products/new"] });
   routeResources.push({ queryClient, router });
+  const SessionRefreshDriver = () => {
+    const session = useSession();
+    onSessionRefetch?.(session.refetch);
+    return null;
+  };
 
   render(
     <QueryClientProvider client={queryClient}>
       <UiProvider>
-        <RouterProvider router={router} />
+        <>
+          <RouterProvider router={router} />
+          {onSessionRefetch ? <SessionRefreshDriver /> : null}
+        </>
       </UiProvider>
     </QueryClientProvider>,
   );
@@ -100,6 +112,64 @@ afterEach(() => {
 });
 
 describe("product creation form", () => {
+  it("lets the session boundary replace a dirty form while its discard prompt is open", async () => {
+    const user = userEvent.setup();
+    let refetchSession: UseSessionResult["refetch"] | undefined;
+    let sessionRefreshStarted!: () => void;
+    let resolveSessionRefresh!: (response: Response) => void;
+    const sessionRefreshRequested = new Promise<void>((resolve) => {
+      sessionRefreshStarted = resolve;
+    });
+    const sessionRefresh = new Promise<Response>((resolve) => {
+      resolveSessionRefresh = resolve;
+    });
+    let shouldHoldSessionRefresh = false;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => {
+        if (shouldHoldSessionRefresh) {
+          sessionRefreshStarted();
+          return sessionRefresh;
+        }
+
+        return HttpResponse.json(publicAuthResponse());
+      }),
+      http.get(categoriesUrl, () => activeCategoryResponse()),
+    );
+
+    renderProductCreateRoute((refetch) => {
+      refetchSession = refetch;
+    });
+    const sku = await screen.findByRole("textbox", { name: "SKU (obligatorio)" });
+    await user.type(sku, "SKU-DRAFT");
+    await user.click(
+      within(screen.getByRole("navigation", { name: "Navegación principal" })).getByRole("link", {
+        name: "Inicio",
+      }),
+    );
+    expect(await screen.findByRole("dialog", { name: "¿Descartar los cambios?" })).toBeVisible();
+
+    shouldHoldSessionRefresh = true;
+    if (!refetchSession) {
+      throw new Error("The session refresh driver did not expose refetch.");
+    }
+    let refreshResult!: ReturnType<UseSessionResult["refetch"]>;
+    act(() => {
+      refreshResult = refetchSession!();
+    });
+    await sessionRefreshRequested;
+
+    expect(await screen.findByRole("heading", { name: "Comprobando tu sesión" })).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Datos del producto" })).not.toBeInTheDocument();
+
+    resolveSessionRefresh(HttpResponse.json(publicAuthResponse()));
+    await act(async () => refreshResult);
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Crear producto" })).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("confirms internal navigation for a dirty form and keeps browser warnings until discard", async () => {
     const user = userEvent.setup();
 
