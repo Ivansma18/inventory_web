@@ -48,7 +48,7 @@
   Hecho cuando: pruebas diferidas verifican indicador y protección contra duplicados por producto, ausencia de optimistic update, uso de PATCH para activar y DELETE lógico para desactivar, confirmación y refresco con los criterios aplicados.
 - [x] T24. Manejar páginas fuera de rango y errores recuperables del cambio de estado. (RF-87–RF-88)
   Hecho cuando: pruebas verifican última página disponible después de retirar resultados y error con retry manual solo mientras el producto siga disponible.
-- [ ] T25. Presentar conflictos de SKU y rechazos de autorización del backend. (RF-90–RF-93; NFR-8)
+- [x] T25. Presentar conflictos de SKU y rechazos de autorización del backend. (RF-90–RF-93; NFR-8)
   Hecho cuando: pruebas de SKU duplicado activo/inactivo sitúan el error junto al campo, explican que desactivar un producto no libera su SKU sin afirmar qué producto lo ocupa, y respuestas 403 en creación/edición/cambio de estado se muestran como no permitidas, nunca como éxito.
 - [ ] T26. Manejar sesión expirada, resultado incierto, respuestas inválidas y reintentos de escritura. (RF-94–RF-98; NFR-9)
   Hecho cuando: pruebas verifican reconsulta de sesión tras 401, prioridad del SessionBoundary, error de red/servidor sin afirmar el resultado, ausencia de reenvío automático y error distinguible para respuesta inválida; mensajes no exponen texto interno ni datos sensibles.

@@ -18,6 +18,11 @@ import {
   type ProductCreateFormInput,
   type ProductCreateFormValues,
 } from "../schemas/product-create.schema";
+import {
+  isDuplicateProductSkuError,
+  isProductForbiddenError,
+  productSkuConflictMessage,
+} from "../utils/product-api-errors";
 
 const categoryAssignmentErrorStatuses: Record<string, number> = {
   PRODUCT_CATEGORY_NOT_FOUND: 404,
@@ -129,6 +134,19 @@ export const ProductCreateForm = () => {
         return;
       }
 
+      if (isDuplicateProductSkuError(error)) {
+        form.setError("sku", { type: "server", message: productSkuConflictMessage });
+        return;
+      }
+
+      if (isProductForbiddenError(error)) {
+        form.setError("root.server", {
+          type: "server",
+          message: "No tienes permiso para crear productos.",
+        });
+        return;
+      }
+
       form.setError("root.server", {
         type: "server",
         message: "No se pudo crear el producto. Inténtalo de nuevo.",
@@ -187,7 +205,12 @@ export const ProductCreateForm = () => {
               disabled={operationPending}
               label="SKU (obligatorio)"
               onBlur={field.onBlur}
-              onValueChange={field.onChange}
+              onValueChange={(value) => {
+                field.onChange(value);
+                if (fieldState.error?.type === "server") {
+                  form.clearErrors("sku");
+                }
+              }}
               required
               value={field.value}
             />

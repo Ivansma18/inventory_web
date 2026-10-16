@@ -673,6 +673,78 @@ describe("product edit page", () => {
   });
 
   it.each([
+    { existingProductState: "active", privateMessage: "The SKU belongs to an active product." },
+    { existingProductState: "inactive", privateMessage: "The SKU belongs to an inactive product." },
+  ])(
+    "explains an occupied SKU without exposing whether the existing product is $existingProductState",
+    async ({ privateMessage }) => {
+      const user = userEvent.setup();
+
+      server.use(
+        http.patch(productUrl, () =>
+          HttpResponse.json(
+            { error: { code: "PRODUCT_SKU_ALREADY_EXISTS", message: privateMessage } },
+            { status: 409 },
+          ),
+        ),
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+      );
+
+      const { router } = renderProductEditRoute();
+      const sku = await screen.findByRole("textbox", { name: "SKU (obligatorio)" });
+      await user.clear(sku);
+      await user.type(sku, "SKU-DUPLICATE");
+      await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+      const error = await screen.findByText(
+        "Este SKU ya está registrado. Desactivar un producto no libera su SKU; comprueba el valor e inténtalo con otro.",
+      );
+
+      expect(sku).toHaveAttribute("aria-invalid", "true");
+      expect(sku).toHaveAccessibleDescription(error.textContent ?? "");
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText(privateMessage)).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("No se pudieron guardar los cambios. Inténtalo de nuevo."),
+      ).toBeNull();
+      expect(screen.queryByText("Producto actualizado correctamente.")).not.toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(`/products/${productUuid}/edit`);
+      expect(sku).toHaveValue("SKU-DUPLICATE");
+    },
+  );
+
+  it("shows a permission rejection when product editing returns 403", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.patch(productUrl, () =>
+        HttpResponse.json(
+          { error: { code: "FORBIDDEN", message: "private permission detail" } },
+          { status: 403 },
+        ),
+      ),
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+    );
+
+    const { router } = renderProductEditRoute();
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Nombre local conservado");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No tienes permiso para editar este producto.",
+    );
+    expect(screen.queryByText("private permission detail")).not.toBeInTheDocument();
+    await waitFor(() => expect(name).toBeEnabled());
+    expect(name).toHaveValue("Nombre local conservado");
+    expect(router.state.location.pathname).toBe(`/products/${productUuid}/edit`);
+    expect(screen.queryByText("Producto actualizado correctamente.")).not.toBeInTheDocument();
+  });
+
+  it.each([
     {
       field: "SKU (obligatorio)",
       value: "",

@@ -399,6 +399,60 @@ describe("Product list remote query", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it.each([true, false])(
+    "reports a 403 as a forbidden status change for an %s product without showing success or retry",
+    async (isActive) => {
+      const user = userEvent.setup();
+      const mutationRequests: string[] = [];
+      const forbiddenResponse = () =>
+        HttpResponse.json(
+          { error: { code: "FORBIDDEN", message: "private permission detail" } },
+          { status: 403 },
+        );
+
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(productUrl, () =>
+          HttpResponse.json({
+            data: [product(1, isActive)],
+            pagination: { total: 1, page: 1, limit: 15 },
+          }),
+        ),
+        http.delete(productStatusUrl, () => {
+          mutationRequests.push("DELETE");
+          return forbiddenResponse();
+        }),
+        http.patch(productStatusUrl, async ({ request }) => {
+          mutationRequests.push(`PATCH ${JSON.stringify(await request.json())}`);
+          return forbiddenResponse();
+        }),
+      );
+
+      renderProductRoute(isActive ? "/products" : "/products?status=inactive");
+      const row = await screen.findByRole("row", { name: /SKU-001/ });
+      await user.click(
+        within(row).getByRole("button", { name: isActive ? "Desactivar" : "Activar" }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: isActive ? "Confirmar desactivación" : "Confirmar activación",
+      });
+      await user.click(
+        within(dialog).getByRole("button", { name: isActive ? "Desactivar" : "Activar" }),
+      );
+
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+        "No tienes permiso para cambiar el estado de este producto.",
+      );
+      expect(within(dialog).queryByText("private permission detail")).not.toBeInTheDocument();
+      expect(within(dialog).queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "Cancelar" })).toBeEnabled();
+      expect(row).toHaveTextContent(isActive ? "Activo" : "Inactivo");
+      expect(screen.queryByText("Producto desactivado correctamente.")).not.toBeInTheDocument();
+      expect(screen.queryByText("Producto activado correctamente.")).not.toBeInTheDocument();
+      expect(mutationRequests).toEqual(isActive ? ["DELETE"] : ['PATCH {"isActive":true}']);
+    },
+  );
+
   it("removes the retry action when the failed product is no longer available", async () => {
     const user = userEvent.setup();
     let mutationRequests = 0;

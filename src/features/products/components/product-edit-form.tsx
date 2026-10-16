@@ -15,6 +15,11 @@ import {
   type ProductEditFormInput,
   type ProductEditFormValues,
 } from "../schemas/product-edit.schema";
+import {
+  isDuplicateProductSkuError,
+  isProductForbiddenError,
+  productSkuConflictMessage,
+} from "../utils/product-api-errors";
 import { formatProductPrice } from "../utils/product-price";
 import { buildProductUpdatePayload } from "../utils/product-update-payload";
 
@@ -54,7 +59,17 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
     setSaveError(null);
     try {
       await updateProductMutation.mutateAsync({ uuid: product.uuid, payload });
-    } catch {
+    } catch (error: unknown) {
+      if (isDuplicateProductSkuError(error)) {
+        form.setError("sku", { type: "server", message: productSkuConflictMessage });
+        return;
+      }
+
+      if (isProductForbiddenError(error)) {
+        setSaveError("No tienes permiso para editar este producto.");
+        return;
+      }
+
       setSaveError("No se pudieron guardar los cambios. Inténtalo de nuevo.");
       return;
     }
@@ -118,7 +133,12 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
               disabled={operationPending}
               label="SKU (obligatorio)"
               onBlur={field.onBlur}
-              onValueChange={field.onChange}
+              onValueChange={(value) => {
+                field.onChange(value);
+                if (fieldState.error?.type === "server") {
+                  form.clearErrors("sku");
+                }
+              }}
               required
               value={field.value}
             />

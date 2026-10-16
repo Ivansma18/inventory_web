@@ -442,6 +442,72 @@ describe("product creation form", () => {
   });
 
   it.each([
+    { existingProductState: "active", privateMessage: "The SKU belongs to an active product." },
+    { existingProductState: "inactive", privateMessage: "The SKU belongs to an inactive product." },
+  ])(
+    "explains duplicate SKUs without exposing whether the existing product is $existingProductState",
+    async ({ privateMessage }) => {
+      const user = userEvent.setup();
+
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(categoriesUrl, () => activeCategoryResponse()),
+        http.post(productsUrl, () =>
+          HttpResponse.json(
+            { error: { code: "PRODUCT_SKU_ALREADY_EXISTS", message: privateMessage } },
+            { status: 409 },
+          ),
+        ),
+      );
+
+      const { router } = renderProductCreateRoute();
+      await fillValidProductForm(user);
+      fireEvent.submit(screen.getByRole("form", { name: "Datos del producto" }));
+
+      const sku = screen.getByRole("textbox", { name: "SKU (obligatorio)" });
+      const error = await screen.findByText(
+        "Este SKU ya está registrado. Desactivar un producto no libera su SKU; comprueba el valor e inténtalo con otro.",
+      );
+
+      expect(sku).toHaveAttribute("aria-invalid", "true");
+      expect(sku).toHaveAccessibleDescription(error.textContent ?? "");
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText(privateMessage)).not.toBeInTheDocument();
+      expect(screen.queryByText("Producto creado correctamente.")).not.toBeInTheDocument();
+      expect(router.state.location.pathname).toBe("/products/new");
+      expect(screen.getByRole("button", { name: "Crear producto" })).toBeEnabled();
+    },
+  );
+
+  it("shows a permission rejection when product creation returns 403", async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(categoriesUrl, () => activeCategoryResponse()),
+      http.post(productsUrl, () =>
+        HttpResponse.json(
+          { error: { code: "FORBIDDEN", message: "private permission detail" } },
+          { status: 403 },
+        ),
+      ),
+    );
+
+    const { router } = renderProductCreateRoute();
+    await fillValidProductForm(user);
+    fireEvent.submit(screen.getByRole("form", { name: "Datos del producto" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No tienes permiso para crear productos.",
+    );
+    expect(screen.queryByText("private permission detail")).not.toBeInTheDocument();
+    expect(screen.queryByText("Producto creado correctamente.")).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/products/new");
+    expect(screen.getByRole("textbox", { name: "SKU (obligatorio)" })).toHaveValue("SKU-NEW");
+    expect(screen.getByRole("button", { name: "Crear producto" })).toBeEnabled();
+  });
+
+  it.each([
     { status: 404, code: "PRODUCT_CATEGORY_NOT_FOUND" },
     { status: 409, code: "PRODUCT_CATEGORY_INACTIVE" },
     { status: 409, code: "PRODUCT_CATEGORY_ASSIGNMENT_CONFLICT" },
@@ -530,7 +596,7 @@ describe("product creation form", () => {
       http.get(categoriesUrl, () => activeCategoryResponse()),
       http.post(productsUrl, () =>
         HttpResponse.json(
-          { error: { code: "PRODUCT_SKU_ALREADY_EXISTS", message: "private conflict detail" } },
+          { error: { code: "PRODUCT_CONFLICT", message: "private conflict detail" } },
           { status: 409 },
         ),
       ),

@@ -20,6 +20,7 @@ import {
   useChangeProductStatus,
   usePendingProductStatusUuids,
 } from "../hooks/use-change-product-status";
+import { isProductForbiddenError } from "../utils/product-api-errors";
 import { formatProductPrice } from "../utils/product-price";
 import {
   buildProductListQuery,
@@ -106,6 +107,7 @@ const isProductNotFoundError = (error: unknown) => {
 interface ProductStatusFailure {
   productUuid: string;
   isNotFound: boolean;
+  isForbidden: boolean;
 }
 
 export const ProductListPage = () => {
@@ -164,6 +166,7 @@ export const ProductListPage = () => {
   const canRetryStatusChange =
     statusFailureForConfirmation !== null &&
     !statusFailureForConfirmation.isNotFound &&
+    !statusFailureForConfirmation.isForbidden &&
     statusProductIsAvailable;
   const isConfirmationPending =
     statusConfirmationProduct !== null &&
@@ -213,6 +216,7 @@ export const ProductListPage = () => {
         setStatusFailure({
           productUuid: product.uuid,
           isNotFound: isProductNotFoundError(error),
+          isForbidden: isProductForbiddenError(error),
         });
       })
       .finally(() => statusSubmissionLock.current.delete(lockKey));
@@ -453,11 +457,13 @@ export const ProductListPage = () => {
             ) : null}
             {statusFailureForConfirmation !== null ? (
               <p className="product-list__status-error" role="alert">
-                {statusFailureForConfirmation.isNotFound
-                  ? "No se pudo confirmar el cambio de estado; el producto no está disponible para reintentar."
-                  : canRetryStatusChange
-                    ? "No se pudo cambiar el estado del producto. Puedes intentarlo de nuevo."
-                    : "No se pudo cambiar el estado del producto y ya no está disponible para esta operación."}
+                {statusFailureForConfirmation.isForbidden
+                  ? "No tienes permiso para cambiar el estado de este producto."
+                  : statusFailureForConfirmation.isNotFound
+                    ? "No se pudo confirmar el cambio de estado; el producto no está disponible para reintentar."
+                    : canRetryStatusChange
+                      ? "No se pudo cambiar el estado del producto. Puedes intentarlo de nuevo."
+                      : "No se pudo cambiar el estado del producto y ya no está disponible para esta operación."}
               </p>
             ) : null}
           </div>
