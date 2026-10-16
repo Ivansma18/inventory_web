@@ -607,6 +607,62 @@ describe("product edit page", () => {
     });
   });
 
+  it("keeps edit success when refreshing the list fails and retries only the list query", async () => {
+    const user = userEvent.setup();
+    let listRequests = 0;
+    let patchRequests = 0;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productsUrl, () => {
+        listRequests += 1;
+
+        if (listRequests === 2) {
+          return HttpResponse.json(
+            { error: { code: "INTERNAL_ERROR", message: "private list detail" } },
+            { status: 500 },
+          );
+        }
+
+        return HttpResponse.json({
+          data: [
+            { ...product(true), name: listRequests > 2 ? "Monitor actualizado" : "Monitor activo" },
+          ],
+          pagination: { total: 1, page: 1, limit: 15 },
+        });
+      }),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+      http.patch(productUrl, () => {
+        patchRequests += 1;
+        return HttpResponse.json({ data: { ...product(true), name: "Monitor actualizado" } });
+      }),
+    );
+
+    const { router } = renderProductEditRoute("/products");
+    await screen.findByRole("cell", { name: "Monitor activo" });
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Monitor actualizado");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    expect(await screen.findByText("Producto actualizado correctamente.")).toBeVisible();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
+    expect(await screen.findByText("No se pudieron cargar los productos.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Reintentar" })).toBeVisible();
+    expect(screen.getByText("Producto actualizado correctamente.")).toBeVisible();
+    expect(screen.queryByText("private list detail")).not.toBeInTheDocument();
+    expect(listRequests).toBe(2);
+    expect(patchRequests).toBe(1);
+
+    await user.click(screen.getByRole("button", { name: "Reintentar" }));
+
+    expect(await screen.findByRole("cell", { name: "Monitor actualizado" })).toBeVisible();
+    expect(listRequests).toBe(3);
+    expect(patchRequests).toBe(1);
+  });
+
   it("uses default list criteria after an edit opened without a source URL", async () => {
     const user = userEvent.setup();
     const listRequests: URL[] = [];

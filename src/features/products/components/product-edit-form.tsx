@@ -39,7 +39,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
   const session = useSession();
   const navigate = useNavigate();
   const toast = useToast();
-  const updateProductMutation = useUpdateProduct();
+  const updateProductMutation = useUpdateProduct(sessionId);
   const form = useForm<ProductEditFormInput, unknown, ProductEditFormValues>({
     defaultValues: {
       sku: product.sku,

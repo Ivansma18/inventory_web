@@ -206,7 +206,7 @@ test("offers a manual retry after a recoverable status failure while the product
   await dialog.getByRole("button", { name: "Desactivar" }).click();
 
   await expect(dialog.getByRole("alert")).toContainText(
-    "No se pudo cambiar el estado del producto.",
+    "No se pudo confirmar el resultado del cambio de estado.",
   );
   await expect(dialog.getByRole("alert")).not.toContainText("Internal server details");
   await expect(dialog.getByRole("button", { name: "Reintentar" })).toBeVisible();
