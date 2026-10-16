@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
@@ -59,6 +59,8 @@ const product = (index: number, isActive = true) => ({
   updatedAt: "2026-01-01T00:00:00.000Z",
 });
 
+const productStatusUrl = `${productUrl}/${product(1).uuid}`;
+
 const routeResources: Array<{
   queryClient: ReturnType<typeof createQueryClient>;
   router: ReturnType<typeof createMemoryRouter>;
@@ -94,6 +96,91 @@ afterEach(() => {
 });
 
 describe("Product list remote query", () => {
+  it.each(["ADMIN", "MANAGER", "OPERATOR", "VIEWER"] as const)(
+    "keeps activate and deactivate actions visible to %s",
+    async (role) => {
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () =>
+          HttpResponse.json(publicAuthResponseForRole(role)),
+        ),
+        http.get(productUrl, () =>
+          HttpResponse.json({
+            data: [product(1, true), product(2, false)],
+            pagination: { total: 2, page: 1, limit: 15 },
+          }),
+        ),
+      );
+
+      renderProductRoute();
+
+      expect(await screen.findByRole("button", { name: "Desactivar" })).toBeVisible();
+      expect(screen.getByRole("button", { name: "Activar" })).toBeVisible();
+    },
+  );
+
+  it.each([
+    {
+      isActive: true,
+      action: "Desactivar",
+      dialogTitle: "Confirmar desactivación",
+      expectedState: "Activo",
+    },
+    {
+      isActive: false,
+      action: "Activar",
+      dialogTitle: "Confirmar activación",
+      expectedState: "Inactivo",
+    },
+  ])(
+    "identifies the product before $action and cancellation preserves its state without a request",
+    async ({ isActive, action, dialogTitle, expectedState }) => {
+      const user = userEvent.setup();
+      let statusMutationRequests = 0;
+
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(productUrl, () =>
+          HttpResponse.json({
+            data: [product(1, isActive)],
+            pagination: { total: 1, page: 1, limit: 15 },
+          }),
+        ),
+        http.patch(productStatusUrl, () => {
+          statusMutationRequests += 1;
+          return HttpResponse.json({ data: product(1, false) });
+        }),
+        http.delete(productStatusUrl, () => {
+          statusMutationRequests += 1;
+          return HttpResponse.json({ data: product(1, false) });
+        }),
+      );
+
+      renderProductRoute();
+
+      const productRow = await screen.findByRole("row", { name: /SKU-001/ });
+      await user.click(within(productRow).getByRole("button", { name: action }));
+
+      const dialog = await screen.findByRole("dialog", { name: dialogTitle });
+      expect(dialog).toHaveTextContent("Producto 001");
+
+      if (isActive) {
+        expect(dialog).toHaveTextContent(
+          "El producto se conservará en el catálogo; desactivarlo no lo elimina.",
+        );
+      } else {
+        expect(dialog).not.toHaveTextContent("desactivarlo no lo elimina");
+      }
+
+      await user.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(
+        within(screen.getByRole("row", { name: /SKU-001/ })).getByText(expectedState),
+      ).toBeVisible();
+      expect(statusMutationRequests).toBe(0);
+    },
+  );
+
   it.each(["ADMIN", "MANAGER", "OPERATOR", "VIEWER"] as const)(
     "keeps the edit action available to %s and carries the current list criteria",
     async (role) => {

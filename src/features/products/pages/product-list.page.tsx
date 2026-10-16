@@ -5,7 +5,7 @@ import { useNavigate, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useSession } from "@/features/auth";
-import { Badge, Button, DataTable, Input, Select } from "@/shared/ui";
+import { Badge, Button, DataTable, Dialog, Input, Select } from "@/shared/ui";
 import type {
   DataTableColumn,
   DataTableResult,
@@ -78,10 +78,21 @@ const orderOptions: SelectOption[] = [
   { label: "Descendente", value: "desc" },
 ];
 
+const getProductListFocusFallback = () => {
+  const heading = document.getElementById("product-page-heading");
+
+  if (!heading) {
+    throw new Error("The product list heading is required to restore focus after confirmation.");
+  }
+
+  return heading;
+};
+
 export const ProductListPage = () => {
   const session = useSession();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [statusConfirmationProduct, setStatusConfirmationProduct] = useState<Product | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const serializedSearchParams = searchParams.toString();
   const urlState = useMemo(
@@ -198,17 +209,22 @@ export const ProductListPage = () => {
         key: "uuid",
         header: "Acciones",
         render: (product) => (
-          <Button
-            onClick={() => navigate(buildProductEditLocation(product.uuid, sourceListUrl))}
-            variant="secondary"
-          >
-            Editar
-          </Button>
+          <div className="product-list__row-actions">
+            <Button
+              onClick={() => navigate(buildProductEditLocation(product.uuid, sourceListUrl))}
+              variant="secondary"
+            >
+              Editar
+            </Button>
+            <Button onClick={() => setStatusConfirmationProduct(product)} variant="secondary">
+              {product.isActive ? "Desactivar" : "Activar"}
+            </Button>
+          </div>
         ),
         sortable: false,
       },
     ],
-    [navigate, sourceListUrl],
+    [navigate, setStatusConfirmationProduct, sourceListUrl],
   );
 
   return (
@@ -285,6 +301,39 @@ export const ProductListPage = () => {
         rowKey="uuid"
         sort={tableSort}
       />
+      <Dialog
+        fallbackFocusTarget={getProductListFocusFallback}
+        footer={
+          statusConfirmationProduct ? (
+            <div className="product-list__status-confirmation-actions">
+              <Button onClick={() => setStatusConfirmationProduct(null)} variant="secondary">
+                Cancelar
+              </Button>
+              <Button onClick={() => setStatusConfirmationProduct(null)}>
+                {statusConfirmationProduct.isActive ? "Desactivar" : "Activar"}
+              </Button>
+            </div>
+          ) : undefined
+        }
+        onCloseRequest={() => setStatusConfirmationProduct(null)}
+        open={statusConfirmationProduct !== null}
+        title={
+          statusConfirmationProduct?.isActive ? "Confirmar desactivación" : "Confirmar activación"
+        }
+      >
+        {statusConfirmationProduct ? (
+          <div className="product-list__status-confirmation">
+            <p>
+              ¿Quieres {statusConfirmationProduct.isActive ? "desactivar" : "activar"} el producto{" "}
+              <strong>{statusConfirmationProduct.name}</strong> (SKU{" "}
+              <strong>{statusConfirmationProduct.sku}</strong>)?
+            </p>
+            {statusConfirmationProduct.isActive ? (
+              <p>El producto se conservará en el catálogo; desactivarlo no lo elimina.</p>
+            ) : null}
+          </div>
+        ) : null}
+      </Dialog>
       {productList.isError ? (
         <div className="product-list__retry">
           <Button

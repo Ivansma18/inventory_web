@@ -42,7 +42,7 @@
   Hecho cuando: pruebas verifican retorno a los criterios de origen después del éxito, uso de criterios predeterminados cuando edición se abrió directamente sin origen y conservación editable de los valores locales después de un error ordinario; la acción de edición permanece visible para distintos roles presentados por el frontend.
 - [x] T21. Implementar estados de UUID inválido, producto inexistente y error recuperable al cargar edición. (RF-74–RF-76)
   Hecho cuando: pruebas verifican estados distintos para dirección inválida y producto 404, que un UUID inválido no genera petición, retorno al listado y retry de un error de red/servidor.
-- [ ] T22. Añadir acciones de activación/desactivación y su confirmación accesible. (RF-7, RF-77–RF-81)
+- [x] T22. Añadir acciones de activación/desactivación y su confirmación accesible. (RF-7, RF-77–RF-81)
   Hecho cuando: pruebas verifican acciones según estado, confirmación con identidad del producto, explicación de desactivación lógica y que cancelar no modifica ni envía una operación; las acciones de estado permanecen visibles para distintos roles presentados por el frontend.
 - [ ] T23. Implementar mutaciones de estado con confirmación remota y actualización de la consulta vigente. (RF-82–RF-86, RF-89)
   Hecho cuando: pruebas diferidas verifican indicador y protección contra duplicados por producto, ausencia de optimistic update, uso de PATCH para activar y DELETE lógico para desactivar, confirmación y refresco con los criterios aplicados.
