@@ -156,4 +156,49 @@ describe("product edit page", () => {
       }
     },
   );
+
+  it.each([
+    {
+      field: "SKU (obligatorio)",
+      value: "",
+      message: "El SKU es obligatorio.",
+    },
+    {
+      field: "Nombre (obligatorio)",
+      value: "   ",
+      message: "El nombre es obligatorio.",
+    },
+    {
+      field: "Precio de compra (obligatorio)",
+      value: "-1",
+      message: "El precio de compra no puede ser negativo.",
+    },
+    {
+      field: "Precio de venta (obligatorio)",
+      value: "1.234",
+      message: "El precio de venta admite como máximo dos decimales.",
+    },
+  ])("shows the creation validation for $field on blur", async ({ field, value, message }) => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+    );
+
+    renderProductEditRoute();
+
+    const input = await screen.findByRole("textbox", { name: field });
+    await user.clear(input);
+    if (value) {
+      await user.type(input, value);
+    }
+    await user.tab();
+
+    const error = await screen.findByText(message);
+
+    expect(error).toBeVisible();
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-describedby", expect.stringContaining(error.id));
+  });
 });

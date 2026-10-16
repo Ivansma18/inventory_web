@@ -30,7 +30,7 @@
   Hecho cuando: pruebas de conflicto 404/409 identifican el campo categoría y permiten refrescar opciones manteniendo intactos los otros campos del formulario.
 - [x] T15. Consultar y presentar los datos iniciales de edición para productos activos e inactivos. (RF-55–RF-58)
   Hecho cuando: pruebas verifican consulta por UUID, formulario no editable antes de la carga, inicialización con los datos recibidos y edición posible en ambos estados.
-- [ ] T16. Aplicar validaciones de creación en edición y permitir retirar una descripción existente. (RF-59–RF-60)
+- [x] T16. Aplicar validaciones de creación en edición y permitir retirar una descripción existente. (RF-59–RF-60)
   Hecho cuando: pruebas verifican las reglas de SKU/nombre/precios en edición y que borrar la descripción envía `description: null` según el contrato PATCH.
 - [ ] T17. Implementar la selección de categoría en edición, incluida la categoría original ausente. (RF-61–RF-65)
   Hecho cuando: pruebas verifican conservación sin reasignación, sustitución por categoría activa, etiqueta «Sin categoría», guardado de otros campos sin exigir categoría para productos heredados sin ella y que una selección vacía no retire una asociación existente.

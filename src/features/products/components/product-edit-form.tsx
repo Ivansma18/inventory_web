@@ -1,20 +1,18 @@
 import "./product-edit-form.css";
 
-import { useForm, Controller } from "react-hook-form";
 import type { FormEvent } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Controller, useForm } from "react-hook-form";
 
 import { Badge, Input, Textarea } from "@/shared/ui";
 
 import type { Product } from "../api/product-contract";
+import {
+  productEditSchema,
+  type ProductEditFormInput,
+  type ProductEditFormValues,
+} from "../schemas/product-edit.schema";
 import { formatProductPrice } from "../utils/product-price";
-
-interface ProductEditFormValues {
-  sku: string;
-  name: string;
-  description: string;
-  purchasePrice: string;
-  salePrice: string;
-}
 
 interface ProductEditFormProps {
   product: Product;
@@ -25,7 +23,7 @@ const preventNativeSubmit = (event: FormEvent<HTMLFormElement>) => {
 };
 
 export const ProductEditForm = ({ product }: ProductEditFormProps) => {
-  const form = useForm<ProductEditFormValues>({
+  const form = useForm<ProductEditFormInput, unknown, ProductEditFormValues>({
     defaultValues: {
       sku: product.sku,
       name: product.name,
@@ -33,6 +31,8 @@ export const ProductEditForm = ({ product }: ProductEditFormProps) => {
       purchasePrice: formatProductPrice(product.purchasePrice),
       salePrice: formatProductPrice(product.salePrice),
     },
+    mode: "onBlur",
+    resolver: zodResolver(productEditSchema),
   });
 
   return (
