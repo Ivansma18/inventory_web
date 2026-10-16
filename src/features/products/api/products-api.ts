@@ -7,10 +7,19 @@ import {
   type ProductCreatePayload,
   type Product,
   type ProductListResponse,
+  type ProductUpdatePayload,
 } from "./product-contract";
 
 export type ProductListQuery = NonNullable<paths["/products"]["get"]["parameters"]["query"]>;
 export type ProductDetailPath = NonNullable<paths["/products/{uuid}"]["get"]["parameters"]["path"]>;
+export type ProductUpdatePath = NonNullable<
+  paths["/products/{uuid}"]["patch"]["parameters"]["path"]
+>;
+
+export interface ProductUpdateVariables {
+  uuid: ProductUpdatePath["uuid"];
+  payload: ProductUpdatePayload;
+}
 
 export const listProducts = async (
   params: ProductListQuery,
@@ -43,6 +52,16 @@ export const createProduct = async (payload: ProductCreatePayload) => {
   const response = await httpClient.request<unknown, ProductCreatePayload>({
     path: "/products",
     method: "POST",
+    data: payload,
+  });
+
+  return parseProductDataResponse(response);
+};
+
+export const updateProduct = async ({ uuid, payload }: ProductUpdateVariables) => {
+  const response = await httpClient.request<unknown, ProductUpdatePayload>({
+    path: `/products/${encodeURIComponent(uuid)}`,
+    method: "PATCH",
     data: payload,
   });
 

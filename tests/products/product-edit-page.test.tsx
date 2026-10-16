@@ -323,6 +323,74 @@ describe("product edit page", () => {
     expect(getCategorySelect()).toHaveValue("Oficina");
   });
 
+  it("sends only the edited fields in a PATCH and preserves the original active state", async () => {
+    const user = userEvent.setup();
+    const patchRequests: Array<{ method: string; body: unknown }> = [];
+
+    server.use(
+      http.patch(productUrl, async ({ request }) => {
+        patchRequests.push({ method: request.method, body: await request.json() });
+        return HttpResponse.json({
+          data: {
+            ...product(true),
+            name: "Monitor actualizado",
+            description: null,
+            purchasePrice: 130.75,
+          },
+        });
+      }),
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+    );
+
+    renderProductEditRoute();
+
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
+    const purchasePrice = screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Monitor actualizado");
+    await user.clear(description);
+    await user.clear(purchasePrice);
+    await user.type(purchasePrice, "130,75");
+
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() => expect(patchRequests).toHaveLength(1));
+    expect(patchRequests).toEqual([
+      {
+        method: "PATCH",
+        body: {
+          name: "Monitor actualizado",
+          description: null,
+          purchasePrice: 130.75,
+        },
+      },
+    ]);
+  });
+
+  it("does not send PATCH when the edit form matches the original snapshot", async () => {
+    const user = userEvent.setup();
+    const patchRequests: URL[] = [];
+
+    server.use(
+      http.patch(productUrl, ({ request }) => {
+        patchRequests.push(new URL(request.url));
+        return HttpResponse.json({ data: product(true) });
+      }),
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+    );
+
+    renderProductEditRoute();
+
+    await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(patchRequests).toHaveLength(0);
+  });
+
   it.each([
     {
       field: "SKU (obligatorio)",

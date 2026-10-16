@@ -34,7 +34,7 @@
   Hecho cuando: pruebas verifican las reglas de SKU/nombre/precios en edición y que borrar la descripción envía `description: null` según el contrato PATCH.
 - [x] T17. Implementar la selección de categoría en edición, incluida la categoría original ausente. (RF-61–RF-65)
   Hecho cuando: pruebas verifican conservación sin reasignación, sustitución por categoría activa, etiqueta «Sin categoría», guardado de otros campos sin exigir categoría para productos heredados sin ella y que una selección vacía no retire una asociación existente.
-- [ ] T18. Construir PATCH parcial y evitar actualizaciones sin cambios o cambios de estado accidentales. (RF-66–RF-67)
+- [x] T18. Construir PATCH parcial y evitar actualizaciones sin cambios o cambios de estado accidentales. (RF-66–RF-67)
   Hecho cuando: pruebas comparan el payload con el snapshot original; campos no modificados y `isActive` no se envían, y un formulario limpio no dispara PATCH.
 - [ ] T19. Implementar los estados pendiente y confirmado de la actualización de producto. (RF-68–RF-70)
   Hecho cuando: pruebas con respuesta diferida verifican indicador de operación, bloqueo de envíos duplicados y confirmación de éxito únicamente tras respuesta válida.

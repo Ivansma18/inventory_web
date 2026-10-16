@@ -4,27 +4,26 @@ import type { FormEvent } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 
-import { Badge, Input, Textarea } from "@/shared/ui";
+import { Badge, Button, Input, Textarea } from "@/shared/ui";
 
 import type { Product } from "../api/product-contract";
 import { ProductEditCategoryField } from "./product-edit-category-field";
+import { useUpdateProduct } from "../hooks/use-update-product";
 import {
   productEditSchema,
   type ProductEditFormInput,
   type ProductEditFormValues,
 } from "../schemas/product-edit.schema";
 import { formatProductPrice } from "../utils/product-price";
+import { buildProductUpdatePayload } from "../utils/product-update-payload";
 
 interface ProductEditFormProps {
   product: Product;
   sessionId: string | null;
 }
 
-const preventNativeSubmit = (event: FormEvent<HTMLFormElement>) => {
-  event.preventDefault();
-};
-
 export const ProductEditForm = ({ product, sessionId }: ProductEditFormProps) => {
+  const updateProductMutation = useUpdateProduct();
   const form = useForm<ProductEditFormInput, unknown, ProductEditFormValues>({
     defaultValues: {
       sku: product.sku,
@@ -37,6 +36,21 @@ export const ProductEditForm = ({ product, sessionId }: ProductEditFormProps) =>
     mode: "onBlur",
     resolver: zodResolver(productEditSchema),
   });
+
+  const submitProduct = (values: ProductEditFormValues) => {
+    const payload = buildProductUpdatePayload(product, values);
+
+    if (Object.keys(payload).length === 0) {
+      return;
+    }
+
+    updateProductMutation.mutate({ uuid: product.uuid, payload });
+  };
+
+  const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void form.handleSubmit(submitProduct)(event);
+  };
 
   return (
     <section aria-labelledby="product-edit-form-heading" className="product-edit-form">
@@ -57,7 +71,7 @@ export const ProductEditForm = ({ product, sessionId }: ProductEditFormProps) =>
         aria-labelledby="product-edit-form-heading"
         className="product-edit-form__fields"
         noValidate
-        onSubmit={preventNativeSubmit}
+        onSubmit={handleFormSubmit}
       >
         <Controller
           control={form.control}
@@ -150,6 +164,10 @@ export const ProductEditForm = ({ product, sessionId }: ProductEditFormProps) =>
             />
           )}
         />
+
+        <div className="product-edit-form__actions">
+          <Button type="submit">Guardar cambios</Button>
+        </div>
       </form>
     </section>
   );

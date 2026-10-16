@@ -5,6 +5,7 @@ import type { components } from "@/shared/api/generated/product-contracts";
 export type Product = components["schemas"]["Product"];
 export type ProductListResponse = components["schemas"]["ProductListResponse"];
 export type ProductCreatePayload = components["schemas"]["CreateProduct"];
+export type ProductUpdatePayload = components["schemas"]["UpdateProduct"];
 
 const priceSchema = z
   .number()
