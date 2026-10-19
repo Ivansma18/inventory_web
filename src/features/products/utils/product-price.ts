@@ -31,6 +31,18 @@ const minorUnitsFromFixedPrice = (value: number): bigint | null => {
   return BigInt(whole) * 100n + BigInt(fraction);
 };
 
+const minorUnitsFromSerializedPrice = (value: number): bigint | null => {
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(value.toString());
+  const wholePart = match?.[1];
+  const fractionPart = match?.[2] ?? "";
+
+  if (wholePart === undefined || fractionPart.length > 2) {
+    return null;
+  }
+
+  return BigInt(wholePart) * 100n + BigInt(fractionPart.padEnd(2, "0") || "0");
+};
+
 export const parseProductPrice = (rawValue: string): ProductPriceParseResult => {
   const value = rawValue.trim();
 
@@ -84,7 +96,11 @@ export const parseProductPrice = (rawValue: string): ProductPriceParseResult => 
 
   const amount = Number(minorUnits) / 100;
 
-  if (!Number.isFinite(amount) || minorUnitsFromFixedPrice(amount) !== minorUnits) {
+  if (
+    !Number.isFinite(amount) ||
+    minorUnitsFromFixedPrice(amount) !== minorUnits ||
+    minorUnitsFromSerializedPrice(amount) !== minorUnits
+  ) {
     return unsafePrecision();
   }
 

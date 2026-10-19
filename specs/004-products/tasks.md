@@ -85,8 +85,9 @@
 - [ ] T41. Verificar los flujos E2E con APIs y Auth simulados, sin credenciales privadas. (RF-5, RF-40, RF-71, RF-85; NFR-11)
   Hecho cuando: la suite predeterminada cubre al menos listado, creación, retorno de edición y cambio de estado con MSW; preview-smoke no incluye harnesses/demo ni llama al backend de negocio real.
   Evidencia parcial (T41 sigue abierta): Playwright usa un worker MSW de navegador para recorrer listado, creación y payload, retorno de edición al listado filtrado y cambio de estado (1/1); las pruebas existentes también cubren listado/cambio de estado. `preview-smoke` verifica bundle sin harnesses/demo/worker, destino de backend aislado y listado con Auth/Productos simulados (3/3). Lint, typecheck y formato focalizado pasan. La suite predeterminada completa queda en 70/72 por dos fallos ajenos a Productos en `navigation-keyboard.bootstrap-smoke.spec.ts` (foco al volver al enlace Inicio a 360 y 768 px); no se marca la tarea hasta que la suite pase.
-- [ ] T42. Verificar integridad de campos largos y precios sin truncamiento silencioso. (RF-32, RF-36; NFR-12)
+- [x] T42. Verificar integridad de campos largos y precios sin truncamiento silencioso. (RF-32, RF-36; NFR-12)
   Hecho cuando: pruebas con SKU, nombres, descripciones y precios largos verifican valores introducidos y payload exacto sin recortes, redondeo ni transformación silenciosa.
+  Evidencia: pruebas MSW de creación y edición conservan SKU, nombres y descripciones extensos y contrastan el payload completo, incluidos precios de 9999999999999.99 y 1234567890123.45. La prueba del parser confirma que la serialización JSON conserva ambos importes y que 90071992547409.91 se rechaza como precisión no segura en vez de enviarse redondeado. Vitest 480/480, lint, typecheck, build y formato focalizado pasan; el build mantiene el aviso de bundle superior a 500 kB.
 
 ## Orden y dependencias
 

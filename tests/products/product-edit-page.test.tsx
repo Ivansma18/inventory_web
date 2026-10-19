@@ -821,6 +821,64 @@ describe("product edit page", () => {
     ]);
   });
 
+  it("preserves long edited fields and sends long prices without truncation or rounding", async () => {
+    const user = userEvent.setup();
+    const longSku = `SKU-${"B4".repeat(48)}`;
+    const longName = `Nombre actualizado ${"con detalle ".repeat(24).trimEnd()}`;
+    const longDescription = `Descripción actualizada ${"para el catálogo. ".repeat(80)}`;
+    const purchasePriceText = "9999999999999.99";
+    const salePriceText = "1234567890123.45";
+    const updatedProduct = {
+      ...product(true),
+      sku: longSku,
+      name: longName,
+      description: longDescription,
+      purchasePrice: Number(purchasePriceText),
+      salePrice: Number(salePriceText),
+    };
+    let submittedBody: unknown;
+
+    server.use(
+      http.patch(productUrl, async ({ request }) => {
+        submittedBody = await request.json();
+        return HttpResponse.json({ data: updatedProduct });
+      }),
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+    );
+
+    renderProductEditRoute();
+
+    const sku = await screen.findByRole("textbox", { name: "SKU (obligatorio)" });
+    const name = screen.getByRole("textbox", { name: "Nombre (obligatorio)" });
+    const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
+    const purchasePrice = screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" });
+    const salePrice = screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" });
+
+    fireEvent.change(sku, { target: { value: longSku } });
+    fireEvent.change(name, { target: { value: longName } });
+    fireEvent.change(description, { target: { value: longDescription } });
+    fireEvent.change(purchasePrice, { target: { value: purchasePriceText } });
+    fireEvent.change(salePrice, { target: { value: salePriceText } });
+
+    expect(sku).toHaveValue(longSku);
+    expect(name).toHaveValue(longName);
+    expect(description).toHaveValue(longDescription);
+    expect(purchasePrice).toHaveValue(purchasePriceText);
+    expect(salePrice).toHaveValue(salePriceText);
+
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    expect(await screen.findByText("Producto actualizado correctamente.")).toBeVisible();
+    expect(submittedBody).toEqual({
+      sku: longSku,
+      name: longName,
+      description: longDescription,
+      purchasePrice: Number(purchasePriceText),
+      salePrice: Number(salePriceText),
+    });
+  });
+
   it("does not send PATCH when the edit form matches the original snapshot", async () => {
     const user = userEvent.setup();
     const patchRequests: URL[] = [];

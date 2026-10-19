@@ -14,6 +14,18 @@ describe("product price parsing", () => {
     expect(parseProductPrice(input)).toEqual({ success: true, value });
   });
 
+  it.each(["1234567890123.45", "9999999999999.99"])(
+    "preserves every cent when serializing the long price %s",
+    (input) => {
+      const result = parseProductPrice(input);
+
+      expect(result).toMatchObject({ success: true, value: Number(input) });
+      if (result.success) {
+        expect(JSON.stringify(result.value)).toBe(input);
+      }
+    },
+  );
+
   it.each([
     ["", "required"],
     ["   ", "required"],
@@ -26,6 +38,7 @@ describe("product price parsing", () => {
     ["1,234", "too-many-decimals"],
     ["1.234,56", "mixed-separators"],
     ["1,234.56", "mixed-separators"],
+    ["90071992547409.91", "unsafe-precision"],
     ["90071992547409.92", "unsafe-precision"],
   ] as const)("rejects %j with reason %s", (input, reason) => {
     expect(parseProductPrice(input)).toEqual({ success: false, reason });

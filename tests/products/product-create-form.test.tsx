@@ -710,6 +710,72 @@ describe("product creation form", () => {
     expect(afterSaveUnloadEvent.defaultPrevented).toBe(false);
   });
 
+  it("preserves long text fields and sends long prices without truncation or rounding", async () => {
+    const user = userEvent.setup();
+    const longSku = `SKU-${"A7".repeat(48)}`;
+    const longName = `Nombre de producto ${"con detalle ".repeat(24).trimEnd()}`;
+    const longDescription = `Descripción extendida ${"para el catálogo. ".repeat(80)}`;
+    const purchasePriceText = "9999999999999.99";
+    const salePriceText = "1234567890123.45";
+    const savedProduct = {
+      ...createdProduct,
+      sku: longSku,
+      name: longName,
+      description: longDescription,
+      purchasePrice: Number(purchasePriceText),
+      salePrice: Number(salePriceText),
+    };
+    let submittedBody: unknown;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(categoriesUrl, () => activeCategoryResponse()),
+      http.post(productsUrl, async ({ request }) => {
+        submittedBody = await request.json();
+        return HttpResponse.json({ data: savedProduct }, { status: 201 });
+      }),
+      http.get(productsUrl, () =>
+        HttpResponse.json({ data: [savedProduct], pagination: { total: 1, page: 1, limit: 15 } }),
+      ),
+    );
+
+    renderProductCreateRoute();
+
+    const sku = await screen.findByRole("textbox", { name: "SKU (obligatorio)" });
+    const name = screen.getByRole("textbox", { name: "Nombre (obligatorio)" });
+    const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
+    const purchasePrice = screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" });
+    const salePrice = screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" });
+
+    fireEvent.change(sku, { target: { value: longSku } });
+    fireEvent.change(name, { target: { value: longName } });
+    fireEvent.change(description, { target: { value: longDescription } });
+    fireEvent.change(purchasePrice, { target: { value: purchasePriceText } });
+    fireEvent.change(salePrice, { target: { value: salePriceText } });
+    const categorySelect = screen.getByRole("textbox", { name: "Categoría (obligatorio)" });
+    await waitFor(() => expect(categorySelect).toBeEnabled());
+    categorySelect.focus();
+    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+
+    expect(sku).toHaveValue(longSku);
+    expect(name).toHaveValue(longName);
+    expect(description).toHaveValue(longDescription);
+    expect(purchasePrice).toHaveValue(purchasePriceText);
+    expect(salePrice).toHaveValue(salePriceText);
+
+    await user.click(screen.getByRole("button", { name: "Crear producto" }));
+
+    expect(await screen.findByText("Producto creado correctamente.")).toBeVisible();
+    expect(submittedBody).toEqual({
+      sku: longSku,
+      name: longName,
+      description: longDescription,
+      purchasePrice: Number(purchasePriceText),
+      salePrice: Number(salePriceText),
+      categoryUuid: category(1, "Oficina").uuid,
+    });
+  });
+
   it.each(["network", "server"] as const)(
     "preserves entered values and communicates an uncertain outcome after a creation %s failure",
     async (failureKind) => {
