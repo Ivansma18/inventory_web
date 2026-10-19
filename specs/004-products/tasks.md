@@ -62,7 +62,7 @@
   Hecho cuando: pruebas de UI cubren teclado en filtros/tabla/formularios/confirmaciones, asociación y foco del primer error, anuncio no basado solo en color, foco al encabezado de la nueva página y retorno al control relacionado al cerrar un diálogo.
 - [x] T31. Bloquear edición y navegación interna durante guardados pendientes sin encolar salidas. (RF-113–RF-117)
   Hecho cuando: pruebas diferidas verifican campos bloqueados, aviso de espera para navegación interna y Atrás/Adelante, ausencia de descarte o navegación encolada, edición tras fallo y prioridad de sesión durante el guardado.
-- [ ] T32. Permitir salir durante una mutación de estado y conservar página y foco al recibir la respuesta tardía. (RF-118–RF-120)
+- [x] T32. Permitir salir durante una mutación de estado y conservar página y foco al recibir la respuesta tardía. (RF-118–RF-120)
   Hecho cuando: una prueba navega fuera del listado mientras la mutación sigue pendiente y verifica que la respuesta no cambia la ruta ni mueve el foco.
 - [ ] T33. Preservar la consulta de origen en Cancelar, retornos de error y recarga. (RF-121–RF-124)
   Hecho cuando: pruebas verifican Cancelar al listado de origen, retorno desde producto no encontrado/dirección inválida con criterios de origen, descarte a otro destino hacia ese destino, origen conservado al recargar y fallback predeterminado seguro si falta o es inválido.

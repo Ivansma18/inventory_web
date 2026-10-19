@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
@@ -358,6 +358,70 @@ describe("Product list remote query", () => {
       expect(
         await screen.findByText("No se encontraron productos con esta búsqueda."),
       ).toBeVisible();
+    },
+  );
+
+  it.each([
+    { isActive: true, action: "Desactivar", successMessage: "Producto desactivado correctamente." },
+    { isActive: false, action: "Activar", successMessage: "Producto activado correctamente." },
+  ])(
+    "keeps the current route and focus when a pending $action response arrives after leaving the list",
+    async ({ isActive, action, successMessage }) => {
+      const user = userEvent.setup();
+      let resolveMutation!: (response: Response) => void;
+      const pendingMutation = new Promise<Response>((resolve) => {
+        resolveMutation = resolve;
+      });
+      let mutationRequests = 0;
+
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(productUrl, () =>
+          HttpResponse.json({
+            data: [product(1, isActive)],
+            pagination: { total: 1, page: 1, limit: 15 },
+          }),
+        ),
+        http.patch(productStatusUrl, () => {
+          mutationRequests += 1;
+          return pendingMutation;
+        }),
+        http.delete(productStatusUrl, () => {
+          mutationRequests += 1;
+          return pendingMutation;
+        }),
+      );
+
+      const { router } = renderProductRoute();
+      const row = await screen.findByRole("row", { name: /SKU-001/ });
+      await user.click(within(row).getByRole("button", { name: action }));
+      const dialog = await screen.findByRole("dialog");
+      await user.click(within(dialog).getByRole("button", { name: action }));
+      await waitFor(() => expect(mutationRequests).toBe(1));
+
+      await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      await act(async () => {
+        await router.navigate("/");
+      });
+
+      const homeHeading = await screen.findByRole("heading", {
+        level: 1,
+        name: "Bienvenido a Inventory",
+      });
+      homeHeading.focus();
+      expect(homeHeading).toHaveFocus();
+      expect(router.state.location.pathname).toBe("/");
+
+      resolveMutation(
+        isActive
+          ? HttpResponse.json({ data: { uuid: product(1).uuid, isActive: false } })
+          : HttpResponse.json({ data: product(1, true) }),
+      );
+
+      expect(await screen.findByText(successMessage)).toBeVisible();
+      expect(router.state.location.pathname).toBe("/");
+      expect(homeHeading).toHaveFocus();
     },
   );
 
