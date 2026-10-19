@@ -10,3 +10,6 @@ export const authClient = createAuthClient({
   fetchOptions: createAuthFetchOptions(),
   plugins: [createInventoryAuthPlugin()],
 });
+
+export const isCurrentSession = (sessionId: string): boolean =>
+  authClient.isInventorySessionCurrent(sessionId);

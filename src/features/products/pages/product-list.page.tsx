@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { useNavigate, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { useSession } from "@/features/auth";
+import { isCurrentSession, useSession } from "@/features/auth";
 import { Badge, Button, DataTable, Dialog, Input, Select, useToast } from "@/shared/ui";
 import type {
   DataTableColumn,
@@ -117,6 +117,13 @@ export const ProductListPage = () => {
   const [statusConfirmationProduct, setStatusConfirmationProduct] = useState<Product | null>(null);
   const [statusFailure, setStatusFailure] = useState<ProductStatusFailure | null>(null);
   const statusSubmissionLock = useRef(new Set<string>());
+  const isPageMounted = useRef(true);
+  useEffect(() => {
+    isPageMounted.current = true;
+    return () => {
+      isPageMounted.current = false;
+    };
+  }, []);
   const requestStatusChange = useCallback((product: Product) => {
     setStatusFailure(null);
     setStatusConfirmationProduct(product);
@@ -239,11 +246,23 @@ export const ProductListPage = () => {
                 ? "uncertain"
                 : "other";
 
-        if (reason === "not-found" && sessionId !== null) {
+        if (reason === "not-found") {
+          if (sessionId === null || !isCurrentSession(sessionId)) {
+            return;
+          }
+
           void queryClient.invalidateQueries({
             queryKey: productListQueryPrefix(sessionId),
             refetchType: "none",
           });
+
+          if (!isPageMounted.current) {
+            toast.show({
+              kind: "error",
+              message: "No se encontró el producto. El listado se actualizará al volver.",
+            });
+            return;
+          }
         }
 
         setStatusFailure({

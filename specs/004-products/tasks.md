@@ -72,7 +72,7 @@
   Hecho cuando: pruebas 404 verifican estado de producto no encontrado al editar o cambiar estado, ausencia de retry de mutación, valores de edición visibles en solo lectura y refetch del listado al retornar.
 - [x] T36. Preservar datos locales y dirty state cuando se reconsulta el producto. (RF-135–RF-136)
   Hecho cuando: una prueba cambia campos, provoca una respuesta nueva del detalle y confirma que formulario y estado dirty no se reinicializan.
-- [ ] T37. Comunicar un 404 tardío de cambio de estado solo en la sesión vigente y refrescar al volver. (RF-137–RF-138; NFR-10)
+- [x] T37. Comunicar un 404 tardío de cambio de estado solo en la sesión vigente y refrescar al volver. (RF-137–RF-138; NFR-10)
   Hecho cuando: pruebas diferidas verifican aviso accesible sin navegación ni robo de foco, descarte del resultado al cambiar sesión y refetch del listado al regresar en la sesión original.
 - [ ] T38. Verificar y ajustar el uso responsive del listado y los formularios, incluido zoom nativo. (RF-8, RF-32, RF-55; NFR-1, NFR-3)
   Hecho cuando: Playwright y revisión manual a 360/768/1280 px no detectan overflow horizontal del documento, la tabla desplaza su propia región y las acciones siguen disponibles con zoom nativo al 200 %.

@@ -1,5 +1,6 @@
 export { useAuth } from "./hooks/use-auth";
 export { useSession } from "./hooks/use-session";
+export { isCurrentSession } from "./api/auth-client";
 
 export type {
   AuthActionError,

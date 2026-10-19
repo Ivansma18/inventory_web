@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { appRoutes } from "@/app/router/router";
 import { UiProvider } from "@/app/providers/ui.provider";
+import { useSession } from "@/features/auth";
 import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
@@ -16,7 +17,9 @@ const productUrl = "https://inventory.test/api/products";
 const categoryUuid = "550e8400-e29b-41d4-a716-446655440000";
 const categoriesUrl = "https://inventory.test/api/categories";
 
-const publicAuthResponse = (): components["schemas"]["PublicAuthResponse"] => ({
+const publicAuthResponse = (
+  sessionId = "product-list-session",
+): components["schemas"]["PublicAuthResponse"] => ({
   data: {
     user: {
       id: "product-list-user",
@@ -24,7 +27,7 @@ const publicAuthResponse = (): components["schemas"]["PublicAuthResponse"] => ({
       role: "OPERATOR",
     },
     session: {
-      id: "product-list-session",
+      id: sessionId,
       createdAt: "2026-01-01T00:00:00.000Z",
     },
   },
@@ -86,6 +89,19 @@ const renderProductRoute = (
   );
 
   return { queryClient, router };
+};
+
+const SessionRefetchControl = () => {
+  const session = useSession();
+
+  return (
+    <div>
+      <p role="status">
+        {session.status === "authenticated" ? session.session.id : session.status}
+      </p>
+      <button onClick={() => void session.refetch()}>Refresh test session</button>
+    </div>
+  );
 };
 
 afterEach(() => {
@@ -180,6 +196,151 @@ describe("Product list remote query", () => {
       expect(statusMutationRequests).toBe(0);
     },
   );
+
+  it("announces a late not-found response without moving focus and refreshes on return", async () => {
+    const user = userEvent.setup();
+    let resolveMutation!: (response: Response) => void;
+    const pendingMutation = new Promise<Response>((resolve) => {
+      resolveMutation = resolve;
+    });
+    let mutationRequests = 0;
+    let listRequests = 0;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => {
+        listRequests += 1;
+        return HttpResponse.json({
+          data: listRequests === 1 ? [product(1)] : [],
+          pagination: { total: listRequests === 1 ? 1 : 0, page: 1, limit: 15 },
+        });
+      }),
+      http.delete(productStatusUrl, () => {
+        mutationRequests += 1;
+        return pendingMutation;
+      }),
+    );
+
+    const { router } = renderProductRoute();
+    const row = await screen.findByRole("row", { name: /SKU-001/ });
+    await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+    await waitFor(() => expect(mutationRequests).toBe(1));
+    await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
+
+    await act(async () => {
+      await router.navigate("/");
+    });
+    const homeHeading = await screen.findByRole("heading", {
+      level: 1,
+      name: "Bienvenido a Inventory",
+    });
+    homeHeading.focus();
+    expect(homeHeading).toHaveFocus();
+
+    resolveMutation(
+      HttpResponse.json(
+        { error: { code: "PRODUCT_NOT_FOUND", message: "private missing product" } },
+        { status: 404 },
+      ),
+    );
+
+    const notFoundAlert = await screen.findByRole("alert");
+    expect(notFoundAlert).toHaveTextContent("No se encontró el producto.");
+    expect(notFoundAlert).not.toHaveTextContent("private missing product");
+    expect(router.state.location.pathname).toBe("/");
+    expect(homeHeading).toHaveFocus();
+    expect(mutationRequests).toBe(1);
+    expect(listRequests).toBe(1);
+
+    await act(async () => {
+      await router.navigate("/products");
+    });
+
+    await waitFor(() => expect(listRequests).toBe(2));
+    expect(await screen.findByText("No hay productos activos para mostrar.")).toBeVisible();
+  });
+
+  it("discards a late not-found response after the session changes", async () => {
+    const user = userEvent.setup();
+    let currentSessionId = "product-list-session";
+    let resolveMutation!: (response: Response) => void;
+    const pendingMutation = new Promise<Response>((resolve) => {
+      resolveMutation = resolve;
+    });
+    let mutationRequests = 0;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () =>
+        HttpResponse.json(publicAuthResponse(currentSessionId)),
+      ),
+      http.get(productUrl, () =>
+        HttpResponse.json({
+          data: [product(1)],
+          pagination: { total: 1, page: 1, limit: 15 },
+        }),
+      ),
+      http.delete(productStatusUrl, () => {
+        mutationRequests += 1;
+        return pendingMutation;
+      }),
+    );
+
+    const queryClient = createQueryClient();
+    const router = createMemoryRouter(appRoutes, { initialEntries: ["/products"] });
+    routeResources.push({ queryClient, router });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <UiProvider>
+          <SessionRefetchControl />
+          <RouterProvider router={router} />
+        </UiProvider>
+      </QueryClientProvider>,
+    );
+
+    const row = await screen.findByRole("row", { name: /SKU-001/ });
+    await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+    await waitFor(() => expect(mutationRequests).toBe(1));
+    await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
+
+    await act(async () => {
+      await router.navigate("/");
+    });
+    await screen.findByRole("heading", { level: 1, name: "Bienvenido a Inventory" });
+    currentSessionId = "replacement-product-list-session";
+    await user.click(screen.getByRole("button", { name: "Refresh test session" }));
+    expect(
+      await screen.findByText(currentSessionId, { selector: "p[role='status']" }),
+    ).toBeVisible();
+
+    resolveMutation(
+      HttpResponse.json(
+        { error: { code: "PRODUCT_NOT_FOUND", message: "private missing product" } },
+        { status: 404 },
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        queryClient
+          .getMutationCache()
+          .getAll()
+          .some((mutation) => mutation.state.status === "error"),
+      ).toBe(true),
+    );
+
+    expect(screen.queryByText(/No se encontró el producto/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/");
+
+    currentSessionId = "product-list-session";
+    await user.click(screen.getByRole("button", { name: "Refresh test session" }));
+    expect(
+      await screen.findByText(currentSessionId, { selector: "p[role='status']" }),
+    ).toBeVisible();
+  });
 
   it("opens and closes the status confirmation from the keyboard and restores focus", async () => {
     const user = userEvent.setup();
