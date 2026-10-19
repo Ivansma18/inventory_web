@@ -76,8 +76,9 @@
   Hecho cuando: pruebas diferidas verifican aviso accesible sin navegación ni robo de foco, descarte del resultado al cambiar sesión y refetch del listado al regresar en la sesión original.
 - [ ] T38. Verificar y ajustar el uso responsive del listado y los formularios, incluido zoom nativo. (RF-8, RF-32, RF-55; NFR-1, NFR-3)
   Hecho cuando: Playwright y revisión manual a 360/768/1280 px no detectan overflow horizontal del documento, la tabla desplaza su propia región y las acciones siguen disponibles con zoom nativo al 200 %.
-- [ ] T39. Revisar movimiento reducido, idioma y consistencia visual de Productos. (RF-13, RF-40, RF-50; NFR-4–NFR-6)
+- [x] T39. Revisar movimiento reducido, idioma y consistencia visual de Productos. (RF-13, RF-40, RF-50; NFR-4–NFR-6)
   Hecho cuando: la vista respeta `prefers-reduced-motion`, los mensajes de aplicación están en español, la advertencia nativa de salida conserva el idioma del navegador y la revisión Impeccable confirma tokens compartidos, estilos co-localizados y patrones del Design System; se registran hallazgos y correcciones.
+  Evidencia: Playwright verifica movimiento reducido, continuidad del diálogo y tipo nativo `beforeunload` (3/3); la aplicación no aporta texto a la advertencia, que queda en manos del navegador. `impeccable detect --json src/features/products` no reporta hallazgos. La revisión manual confirma mensajes de interfaz en español, estilos co-localizados, tokens y componentes del Design System; no se requieren correcciones visuales. Se añadió la prueba de movimiento reducido. La CLI instalada no ofrece el subcomando `audit`; se usaron `context`, `detect` y revisión de código.
 - [ ] T40. Completar revisión manual de accesibilidad WCAG aplicable a las vistas de Productos. (RF-107–RF-112; NFR-2)
   Hecho cuando: queda evidencia de revisión con lector de pantalla y teclado, contraste contextual, foco y zoom; cualquier barrera detectada se corrige y se repite la comprobación.
 - [ ] T41. Verificar los flujos E2E con APIs y Auth simulados, sin credenciales privadas. (RF-5, RF-40, RF-71, RF-85; NFR-11)
