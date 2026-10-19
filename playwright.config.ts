@@ -23,6 +23,7 @@ const webServerEnv: NodeJS.ProcessEnv = {
         : (process.env.API_PROXY_TARGET ?? "http://localhost:3000"),
   INVENTORY_AUTH_E2E_HARNESS: process.env.INVENTORY_AUTH_E2E_HARNESS ?? "0",
   INVENTORY_HEALTH_E2E_HARNESS: healthRealWasSelected ? "1" : "0",
+  INVENTORY_E2E_PRODUCT_MSW: "1",
 };
 
 for (const key of Object.keys(webServerEnv)) {
