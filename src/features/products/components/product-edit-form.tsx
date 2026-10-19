@@ -284,9 +284,19 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
               Guardando cambios del producto…
             </p>
           ) : null}
-          <Button disabled={operationPending} loading={operationPending} type="submit">
-            {operationPending ? "Guardando cambios…" : "Guardar cambios"}
-          </Button>
+          <div className="product-edit-form__buttons">
+            <Button
+              disabled={operationPending}
+              onClick={() => navigate(returnTo)}
+              type="button"
+              variant="secondary"
+            >
+              Cancelar
+            </Button>
+            <Button disabled={operationPending} loading={operationPending} type="submit">
+              {operationPending ? "Guardando cambios…" : "Guardar cambios"}
+            </Button>
+          </div>
         </div>
       </form>
       <ProductUnsavedChangesDialog

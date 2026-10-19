@@ -64,7 +64,7 @@
   Hecho cuando: pruebas diferidas verifican campos bloqueados, aviso de espera para navegación interna y Atrás/Adelante, ausencia de descarte o navegación encolada, edición tras fallo y prioridad de sesión durante el guardado.
 - [x] T32. Permitir salir durante una mutación de estado y conservar página y foco al recibir la respuesta tardía. (RF-118–RF-120)
   Hecho cuando: una prueba navega fuera del listado mientras la mutación sigue pendiente y verifica que la respuesta no cambia la ruta ni mueve el foco.
-- [ ] T33. Preservar la consulta de origen en Cancelar, retornos de error y recarga. (RF-121–RF-124)
+- [x] T33. Preservar la consulta de origen en Cancelar, retornos de error y recarga. (RF-121–RF-124)
   Hecho cuando: pruebas verifican Cancelar al listado de origen, retorno desde producto no encontrado/dirección inválida con criterios de origen, descarte a otro destino hacia ese destino, origen conservado al recargar y fallback predeterminado seguro si falta o es inválido.
 - [ ] T34. Invalidar una categoría rechazada y permitir guardar sin reasignar la original si falla su consulta. (RF-127–RF-130)
   Hecho cuando: pruebas verifican que una nueva asignación rechazada no se reenvía hasta seleccionar una categoría activa nuevamente y que, ante fallo de opciones, otros cambios se guardan conservando la categoría original o la ausencia temporal de categoría.

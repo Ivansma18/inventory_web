@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
@@ -138,13 +138,14 @@ afterEach(() => {
 describe("product edit page", () => {
   it("confirms internal navigation for a dirty edit and preserves its values when staying", async () => {
     const user = userEvent.setup();
+    const sourceListUrl = "/products?page=3&search=monitor&status=inactive&sort=sku&order=desc";
 
     server.use(
       http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
       http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
     );
 
-    const { router } = renderProductEditRoute();
+    const { router } = renderProductEditRoute(buildProductEditLocation(productUuid, sourceListUrl));
     const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
     await user.clear(name);
     await user.type(name, "Nombre pendiente");
@@ -154,8 +155,8 @@ describe("product edit page", () => {
     expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
 
     const navigation = within(screen.getByRole("navigation", { name: "Navegación principal" }));
-    const productsLink = navigation.getByRole("link", { name: "Productos" });
-    await user.click(productsLink);
+    const homeLink = navigation.getByRole("link", { name: "Inicio" });
+    await user.click(homeLink);
 
     const prompt = await screen.findByRole("dialog");
     await user.click(within(prompt).getByRole("button", { name: "Continuar editando" }));
@@ -164,12 +165,15 @@ describe("product edit page", () => {
     expect(router.state.location.pathname).toBe(`/products/${productUuid}/edit`);
     expect(name).toHaveValue("Nombre pendiente");
 
-    await user.click(productsLink);
+    await user.click(homeLink);
     const discardPrompt = await screen.findByRole("dialog");
     await user.click(within(discardPrompt).getByRole("button", { name: "Descartar cambios" }));
 
-    expect(await screen.findByRole("heading", { level: 1, name: "Productos" })).toBeVisible();
-    await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+    ).toBeVisible();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    expect(router.state.location.search).toBe("");
 
     const afterDiscardUnloadEvent = new Event("beforeunload", { cancelable: true });
     fireEvent(window, afterDiscardUnloadEvent);
@@ -179,6 +183,7 @@ describe("product edit page", () => {
   it("shows an invalid-address state without requesting a malformed UUID and returns to the list", async () => {
     const user = userEvent.setup();
     const productRequests: string[] = [];
+    const sourceListUrl = "/products?page=2&search=keyboard&status=inactive&sort=sku&order=desc";
 
     server.use(
       http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
@@ -186,10 +191,16 @@ describe("product edit page", () => {
         productRequests.push(request.url);
         return HttpResponse.json({ data: product(true) });
       }),
+      http.get(productsUrl, () =>
+        HttpResponse.json({
+          data: [product(false)],
+          pagination: { total: 31, page: 2, limit: 15 },
+        }),
+      ),
     );
 
     const { router } = renderProductEditRoute(
-      buildProductEditLocation("not-a-uuid", DEFAULT_PRODUCT_LIST_RETURN_TO),
+      buildProductEditLocation("not-a-uuid", sourceListUrl),
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -200,13 +211,13 @@ describe("product edit page", () => {
     await user.click(screen.getByRole("button", { name: "Volver al listado" }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
-    expect(router.state.location.search).toBe(
-      DEFAULT_PRODUCT_LIST_RETURN_TO.slice("/products".length),
-    );
+    expect(router.state.location.search).toBe(sourceListUrl.slice("/products".length));
   });
 
   it("shows a distinct not-found state for a 404 and returns to the list", async () => {
     const user = userEvent.setup();
+    const sourceListUrl =
+      "/products?page=4&search=monitor&status=inactive&sort=updatedAt&order=asc";
 
     server.use(
       http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
@@ -216,14 +227,38 @@ describe("product edit page", () => {
           { status: 404 },
         ),
       ),
+      http.get(productsUrl, () =>
+        HttpResponse.json({
+          data: [product(false)],
+          pagination: { total: 46, page: 4, limit: 15 },
+        }),
+      ),
     );
 
-    const { router } = renderProductEditRoute(
-      buildProductEditLocation(productUuid, DEFAULT_PRODUCT_LIST_RETURN_TO),
-    );
+    const { router } = renderProductEditRoute(buildProductEditLocation(productUuid, sourceListUrl));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("No se encontró el producto.");
     expect(screen.queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Volver al listado" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
+    expect(router.state.location.search).toBe(sourceListUrl.slice("/products".length));
+  });
+
+  it.each([
+    { description: "is absent", location: "/products/not-a-uuid/edit" },
+    {
+      description: "is invalid",
+      location: "/products/not-a-uuid/edit?returnTo=%2Fsettings",
+    },
+  ])("uses safe default list criteria when the return URL $description", async ({ location }) => {
+    const user = userEvent.setup();
+
+    server.use(http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())));
+
+    const { router } = renderProductEditRoute(location);
+    await screen.findByText("La dirección del producto no es válida.");
 
     await user.click(screen.getByRole("button", { name: "Volver al listado" }));
 
@@ -571,6 +606,7 @@ describe("product edit page", () => {
     expect(name).toBeDisabled();
     expect(screen.getByRole("textbox", { name: "Categoría" })).toBeDisabled();
     expect(screen.getByRole("searchbox", { name: "Buscar categorías activas" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Guardando cambios…" })).toBeDisabled();
     expect(screen.queryByText("Producto actualizado correctamente.")).not.toBeInTheDocument();
 
@@ -732,6 +768,113 @@ describe("product edit page", () => {
     const afterSaveUnloadEvent = new Event("beforeunload", { cancelable: true });
     fireEvent(window, afterSaveUnloadEvent);
     expect(afterSaveUnloadEvent.defaultPrevented).toBe(false);
+  });
+
+  it("cancels a clean edit directly to its originating list criteria", async () => {
+    const user = userEvent.setup();
+    const sourceListUrl = "/products?page=2&search=keyboard&status=inactive&sort=sku&order=desc";
+    const listRequests: URL[] = [];
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(false) })),
+      http.get(productsUrl, ({ request }) => {
+        listRequests.push(new URL(request.url));
+        return HttpResponse.json({
+          data: [product(false)],
+          pagination: { total: 16, page: 2, limit: 15 },
+        });
+      }),
+    );
+
+    const { router } = renderProductEditRoute(buildProductEditLocation(productUuid, sourceListUrl));
+    await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
+    expect(router.state.location.search).toBe(sourceListUrl.slice("/products".length));
+    await waitFor(() => expect(listRequests).toHaveLength(1));
+    expect(Object.fromEntries(listRequests[0]!.searchParams)).toMatchObject({
+      page: "2",
+      search: "keyboard",
+      isActive: "false",
+      sort: "sku",
+      order: "desc",
+    });
+  });
+
+  it("asks before cancelling a dirty edit and returns to its originating list on discard", async () => {
+    const user = userEvent.setup();
+    const sourceListUrl = "/products?page=2&search=keyboard&status=inactive&sort=sku&order=desc";
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(false) })),
+      http.get(productsUrl, () =>
+        HttpResponse.json({
+          data: [product(false)],
+          pagination: { total: 16, page: 2, limit: 15 },
+        }),
+      ),
+    );
+
+    const { router } = renderProductEditRoute(buildProductEditLocation(productUuid, sourceListUrl));
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Nombre sin guardar");
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    const discardDialog = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    expect(router.state.location.pathname).toBe(`/products/${productUuid}/edit`);
+    await user.click(within(discardDialog).getByRole("button", { name: "Continuar editando" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(name).toHaveValue("Nombre sin guardar");
+    expect(router.state.location.pathname).toBe(`/products/${productUuid}/edit`);
+
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    const confirmDiscardDialog = await screen.findByRole("dialog", {
+      name: "¿Descartar los cambios?",
+    });
+    await user.click(
+      within(confirmDiscardDialog).getByRole("button", { name: "Descartar cambios" }),
+    );
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
+    expect(router.state.location.search).toBe(sourceListUrl.slice("/products".length));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("retains the source query in the edit URL across a reload", async () => {
+    const user = userEvent.setup();
+    const sourceListUrl = "/products?page=3&search=monitor&status=inactive&sort=sku&order=desc";
+    const originalEditLocation = buildProductEditLocation(productUuid, sourceListUrl);
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(false) })),
+      http.get(productsUrl, () =>
+        HttpResponse.json({
+          data: [product(false)],
+          pagination: { total: 31, page: 3, limit: 15 },
+        }),
+      ),
+    );
+
+    const { router: originalRouter } = renderProductEditRoute(originalEditLocation);
+    await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    const reloadLocation =
+      originalRouter.state.location.pathname + originalRouter.state.location.search;
+
+    cleanup();
+    const { router: reloadedRouter } = renderProductEditRoute(reloadLocation);
+    await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    await waitFor(() => expect(reloadedRouter.state.location.pathname).toBe("/products"));
+    expect(reloadedRouter.state.location.search).toBe(sourceListUrl.slice("/products".length));
   });
 
   it("keeps edit success when refreshing the list fails and retries only the list query", async () => {
