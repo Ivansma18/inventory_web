@@ -70,7 +70,7 @@
   Hecho cuando: pruebas verifican que una nueva asignación rechazada no se reenvía hasta seleccionar una categoría activa nuevamente y que, ante fallo de opciones, otros cambios se guardan conservando la categoría original o la ausencia temporal de categoría.
 - [x] T35. Tratar producto desaparecido durante una modificación iniciada en la página actual. (RF-131–RF-134)
   Hecho cuando: pruebas 404 verifican estado de producto no encontrado al editar o cambiar estado, ausencia de retry de mutación, valores de edición visibles en solo lectura y refetch del listado al retornar.
-- [ ] T36. Preservar datos locales y dirty state cuando se reconsulta el producto. (RF-135–RF-136)
+- [x] T36. Preservar datos locales y dirty state cuando se reconsulta el producto. (RF-135–RF-136)
   Hecho cuando: una prueba cambia campos, provoca una respuesta nueva del detalle y confirma que formulario y estado dirty no se reinicializan.
 - [ ] T37. Comunicar un 404 tardío de cambio de estado solo en la sesión vigente y refrescar al volver. (RF-137–RF-138; NFR-10)
   Hecho cuando: pruebas diferidas verifican aviso accesible sin navegación ni robo de foco, descarte del resultado al cambiar sesión y refetch del listado al regresar en la sesión original.

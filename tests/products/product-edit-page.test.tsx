@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { appRoutes } from "@/app/router/router";
 import { UiProvider } from "@/app/providers/ui.provider";
 import { createQueryClient } from "@/shared/api/query-client";
+import { productDetailQueryKey } from "@/features/products/hooks/use-product";
 import { server } from "../mocks/server";
 import {
   buildProductEditLocation,
@@ -137,6 +138,51 @@ afterEach(() => {
 });
 
 describe("product edit page", () => {
+  it("preserves local values and dirty state when the product detail is refetched", async () => {
+    const user = userEvent.setup();
+    let detailRequests = 0;
+    const refreshedProduct = {
+      ...product(true),
+      name: "Nombre actualizado en el servidor",
+      description: "Descripción actualizada en el servidor",
+    };
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => {
+        detailRequests += 1;
+        return HttpResponse.json({
+          data: detailRequests === 1 ? product(true) : refreshedProduct,
+        });
+      }),
+    );
+
+    const { queryClient } = renderProductEditRoute();
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
+    await user.clear(name);
+    await user.type(name, "Nombre local pendiente");
+    await user.clear(description);
+    await user.type(description, "Descripción local pendiente");
+
+    const detailQueryKey = productDetailQueryKey("product-edit-session", productUuid);
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: detailQueryKey, exact: true });
+    });
+
+    await waitFor(() => expect(detailRequests).toBe(2));
+    expect(queryClient.getQueryData(detailQueryKey)).toMatchObject({
+      name: "Nombre actualizado en el servidor",
+      description: "Descripción actualizada en el servidor",
+    });
+    expect(name).toHaveValue("Nombre local pendiente");
+    expect(description).toHaveValue("Descripción local pendiente");
+
+    const dirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, dirtyUnloadEvent);
+    expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
+  });
+
   it("confirms internal navigation for a dirty edit and preserves its values when staying", async () => {
     const user = userEvent.setup();
     const sourceListUrl = "/products?page=3&search=monitor&status=inactive&sort=sku&order=desc";
