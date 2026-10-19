@@ -59,7 +59,14 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
   });
   useFocusFirstInvalidField(formElementRef, invalidSubmitCount);
   const operationPending = updateProductMutation.isPending || form.formState.isSubmitting;
-  const { blocker, dismissProtection } = useProductFormNavigationGuard(form.formState.isDirty);
+  const {
+    blocker,
+    clearPendingNavigationNotice,
+    dismissProtection,
+    isNavigationBlockedDuringOperation,
+    resetBlockedNavigation,
+    showWaitingNotice,
+  } = useProductFormNavigationGuard(form.formState.isDirty, operationPending);
 
   const submitProduct = async (values: ProductEditFormValues) => {
     const payload = buildProductUpdatePayload(product, values);
@@ -113,6 +120,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
     }
 
     dismissProtection();
+    resetBlockedNavigation();
     toast.show({ kind: "success", message: "Producto actualizado correctamente." });
     navigate(returnTo);
   };
@@ -125,6 +133,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
     }
 
     submitLock.current = true;
+    clearPendingNavigationNotice();
     void form
       .handleSubmit(submitProduct, () => setInvalidSubmitCount((count) => count + 1))(event)
       .finally(() => {
@@ -265,6 +274,11 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
         />
 
         <div className="product-edit-form__actions">
+          {showWaitingNotice ? (
+            <p className="product-edit-form__status" role="status">
+              Espera a que termine el guardado antes de salir de esta página.
+            </p>
+          ) : null}
           {operationPending ? (
             <p className="product-edit-form__status" role="status">
               Guardando cambios del producto…
@@ -287,7 +301,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
             blocker.proceed();
           }
         }}
-        open={blocker.state === "blocked"}
+        open={blocker.state === "blocked" && !isNavigationBlockedDuringOperation}
       />
     </section>
   );

@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
@@ -106,10 +106,14 @@ beforeEach(() => {
   );
 });
 
-const renderProductEditRoute = (initialEntry = `/products/${productUuid}/edit`) => {
+const renderProductEditRoute = (
+  initialEntry = `/products/${productUuid}/edit`,
+  initialEntries = [initialEntry],
+) => {
   const queryClient = createQueryClient();
   const router = createMemoryRouter(appRoutes, {
-    initialEntries: [initialEntry],
+    initialEntries,
+    initialIndex: initialEntries.indexOf(initialEntry),
   });
   routeResources.push({ queryClient, router });
 
@@ -578,6 +582,75 @@ describe("product edit page", () => {
 
     expect(await screen.findByText("Producto actualizado correctamente.")).toBeVisible();
     expect(patchRequests).toEqual([{ name: "Monitor actualizado" }]);
+  });
+
+  it("cancels Back and Forward while saving, then permits editing and requires a new exit attempt after failure", async () => {
+    const user = userEvent.setup();
+    const editPath = `/products/${productUuid}/edit`;
+    const patchResponse = deferred<Response>();
+
+    server.use(
+      http.patch(productUrl, () => patchResponse.promise),
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(/\/api\/categories/, () => HttpResponse.json(categoryListResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+    );
+
+    const { router } = renderProductEditRoute(editPath, ["/", editPath, "/products"]);
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Nombre guardado pendiente");
+    fireEvent.submit(screen.getByRole("form", { name: "Datos del producto" }));
+
+    expect(await screen.findByText("Guardando cambios del producto…")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "SKU (obligatorio)" })).toBeDisabled();
+    expect(name).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Descripción (opcional)" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Categoría" })).toBeDisabled();
+    expect(screen.getByRole("searchbox", { name: "Buscar categorías activas" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Guardando cambios…" })).toBeDisabled();
+
+    await act(async () => {
+      await router.navigate(-1);
+    });
+    expect(router.state.location.pathname).toBe(editPath);
+    expect(
+      await screen.findByText("Espera a que termine el guardado antes de salir de esta página."),
+    ).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await act(async () => {
+      await router.navigate(1);
+    });
+    expect(router.state.location.pathname).toBe(editPath);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    patchResponse.resolve(
+      HttpResponse.json(
+        { error: { code: "INTERNAL_ERROR", message: "private backend detail" } },
+        { status: 500 },
+      ),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No se pudo confirmar el resultado de la actualización. Revisa el producto antes de volver a intentarlo.",
+    );
+    await waitFor(() => expect(name).toBeEnabled());
+    expect(name).toHaveValue("Nombre guardado pendiente");
+    expect(router.state.location.pathname).toBe(editPath);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await act(async () => {
+      await router.navigate(1);
+    });
+    const discardPrompt = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    await user.click(within(discardPrompt).getByRole("button", { name: "Continuar editando" }));
+
+    await user.type(name, " revisado");
+    expect(name).toHaveValue("Nombre guardado pendiente revisado");
+    expect(router.state.location.pathname).toBe(editPath);
   });
 
   it("does not confirm success when the PATCH response violates the product contract", async () => {

@@ -112,6 +112,132 @@ afterEach(() => {
 });
 
 describe("product creation form", () => {
+  it("locks every create control and cancels navigation attempts until the save resolves", async () => {
+    const user = userEvent.setup();
+    let resolveCreate!: (response: Response) => void;
+    const deferredCreate = new Promise<Response>((resolve) => {
+      resolveCreate = resolve;
+    });
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(/\/api\/categories/, () => activeCategoryResponse()),
+      http.post(productsUrl, () => deferredCreate),
+    );
+
+    const { router } = renderProductCreateRoute();
+    await screen.findByRole("heading", { level: 1, name: "Crear producto" });
+    await fillValidProductForm(user);
+    fireEvent.submit(screen.getByRole("form", { name: "Datos del producto" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Creando producto…");
+    const sku = screen.getByRole("textbox", { name: "SKU (obligatorio)" });
+    expect(sku).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Nombre (obligatorio)" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Descripción (opcional)" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Categoría (obligatorio)" })).toBeDisabled();
+    expect(screen.getByRole("searchbox", { name: "Buscar categorías activas" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Buscar categorías" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Creando producto…" })).toBeDisabled();
+
+    const pendingUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, pendingUnloadEvent);
+    expect(pendingUnloadEvent.defaultPrevented).toBe(true);
+
+    await act(async () => {
+      await router.navigate("/");
+    });
+
+    const waitNotice = await screen.findByText(
+      "Espera a que termine el guardado antes de salir de esta página.",
+    );
+    expect(waitNotice.closest('[role="status"]')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/products/new");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    resolveCreate(HttpResponse.json({ data: createdProduct }, { status: 201 }));
+
+    expect(await screen.findByText("Producto creado correctamente.")).toBeVisible();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
+    expect(router.state.location.pathname).not.toBe("/");
+  });
+
+  it("gives the session boundary priority while creation is pending", async () => {
+    let refetchSession: UseSessionResult["refetch"] | undefined;
+    let sessionRefreshStarted!: () => void;
+    let resolveSessionRefresh!: (response: Response) => void;
+    let resolveCreate!: (response: Response) => void;
+    let shouldHoldSessionRefresh = false;
+    const sessionRefreshRequested = new Promise<void>((resolve) => {
+      sessionRefreshStarted = resolve;
+    });
+    const sessionRefresh = new Promise<Response>((resolve) => {
+      resolveSessionRefresh = resolve;
+    });
+    const deferredCreate = new Promise<Response>((resolve) => {
+      resolveCreate = resolve;
+    });
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => {
+        if (shouldHoldSessionRefresh) {
+          sessionRefreshStarted();
+          return sessionRefresh;
+        }
+        return HttpResponse.json(publicAuthResponse());
+      }),
+      http.get(/\/api\/categories/, () => activeCategoryResponse()),
+      http.post(productsUrl, () => deferredCreate),
+    );
+
+    const { router } = renderProductCreateRoute((refetch) => {
+      refetchSession = refetch;
+    });
+    await screen.findByRole("heading", { level: 1, name: "Crear producto" });
+    await fillValidProductForm(userEvent.setup());
+    fireEvent.submit(screen.getByRole("form", { name: "Datos del producto" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Creando producto…");
+
+    await act(async () => {
+      await router.navigate("/");
+    });
+    expect(
+      await screen.findByText("Espera a que termine el guardado antes de salir de esta página."),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe("/products/new");
+
+    shouldHoldSessionRefresh = true;
+    if (!refetchSession) {
+      throw new Error("The session refresh driver did not expose refetch.");
+    }
+    let refreshResult!: ReturnType<UseSessionResult["refetch"]>;
+    act(() => {
+      refreshResult = refetchSession!();
+    });
+    await sessionRefreshRequested;
+
+    expect(await screen.findByRole("heading", { name: "Comprobando tu sesión" })).toBeVisible();
+    expect(screen.queryByRole("form", { name: "Datos del producto" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Espera a que termine el guardado antes de salir de esta página."),
+    ).not.toBeInTheDocument();
+
+    resolveCreate(
+      HttpResponse.json(
+        { error: { code: "INTERNAL_ERROR", message: "private details" } },
+        { status: 500 },
+      ),
+    );
+    resolveSessionRefresh(HttpResponse.json(publicAuthResponse()));
+    await act(async () => refreshResult);
+
+    expect(await screen.findByRole("form", { name: "Datos del producto" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("moves focus to the first invalid field after a keyboard submission", async () => {
     const user = userEvent.setup();
 

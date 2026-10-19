@@ -79,7 +79,14 @@ export const ProductCreateForm = () => {
   useFocusFirstInvalidField(formElementRef, invalidSubmitCount);
   const createProductMutation = useCreateProduct(sessionId);
   const operationPending = createProductMutation.isPending || form.formState.isSubmitting;
-  const { blocker, dismissProtection } = useProductFormNavigationGuard(form.formState.isDirty);
+  const {
+    blocker,
+    clearPendingNavigationNotice,
+    dismissProtection,
+    isNavigationBlockedDuringOperation,
+    resetBlockedNavigation,
+    showWaitingNotice,
+  } = useProductFormNavigationGuard(form.formState.isDirty, operationPending);
   const visibleCategories = categories.data?.data ?? [];
   const categoryOptions: SelectOption[] = visibleCategories.map((category) => ({
     label: category.name,
@@ -195,6 +202,7 @@ export const ProductCreateForm = () => {
     }
 
     dismissProtection();
+    resetBlockedNavigation();
     toast.show({ kind: "success", message: "Producto creado correctamente." });
     void navigate("/products?page=1&status=active&sort=name&order=asc", { replace: true });
   };
@@ -207,6 +215,7 @@ export const ProductCreateForm = () => {
     }
 
     submitLock.current = true;
+    clearPendingNavigationNotice();
     form.clearErrors("root.server");
 
     void form
@@ -352,6 +361,7 @@ export const ProductCreateForm = () => {
             <div className="product-create-form__category-error" role="alert">
               <p>No se pudieron cargar las categorías activas.</p>
               <Button
+                disabled={operationPending}
                 loading={categories.isFetching}
                 onClick={() => void categories.refetch()}
                 type="button"
@@ -439,6 +449,11 @@ export const ProductCreateForm = () => {
               {form.formState.errors.root.server.message}
             </p>
           ) : null}
+          {showWaitingNotice ? (
+            <p className="product-create-form__submit-status" role="status">
+              Espera a que termine el guardado antes de salir de esta página.
+            </p>
+          ) : null}
           {operationPending ? (
             <p className="product-create-form__submit-status" role="status">
               Creando producto…
@@ -461,7 +476,7 @@ export const ProductCreateForm = () => {
             blocker.proceed();
           }
         }}
-        open={blocker.state === "blocked"}
+        open={blocker.state === "blocked" && !isNavigationBlockedDuringOperation}
       />
     </section>
   );
