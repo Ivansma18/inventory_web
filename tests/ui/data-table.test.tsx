@@ -59,6 +59,7 @@ const missingResult: DataTableProps<InventoryRow> = {
 void missingResult;
 
 interface RenderInventoryTableOptions {
+  allowHorizontalScroll?: boolean;
   onPageChange?: (page: number) => void;
   onSortChange?: (sort: DataTableSort<InventoryRow> | null) => void;
   pageSize?: number;
@@ -68,6 +69,7 @@ interface RenderInventoryTableOptions {
 const createInventoryTable = (
   result: DataTableResult<InventoryRow>,
   {
+    allowHorizontalScroll,
     onPageChange = () => undefined,
     onSortChange = () => undefined,
     pageSize = 2,
@@ -75,6 +77,7 @@ const createInventoryTable = (
   }: RenderInventoryTableOptions = {},
 ) => (
   <DataTable
+    allowHorizontalScroll={allowHorizontalScroll}
     columns={inventoryColumns}
     onPageChange={onPageChange}
     onSortChange={onSortChange}
@@ -99,6 +102,17 @@ const getSortedHeaderNames = () =>
     .map((header) => header.textContent);
 
 describe("DataTable", () => {
+  it("opts into a table width that can scroll inside its own region", () => {
+    renderInventoryTable(
+      { ...inventorySnapshot, status: "ready" },
+      { allowHorizontalScroll: true },
+    );
+
+    expect(
+      document.querySelector(".ui-data-table__content--horizontal-scroll table"),
+    ).toBeInTheDocument();
+  });
+
   it("renders typed row values under its own column headers", () => {
     const result: DataTableResult<InventoryRow> = {
       ...inventorySnapshot,

@@ -38,6 +38,7 @@ export interface DataTableProps<Row extends object> {
   columns: DataTableColumn<Row>[];
   emptyAction?: ReactNode;
   emptyMessage?: string;
+  allowHorizontalScroll?: boolean;
   onPageChange: (page: number) => void;
   onPageCorrection?: (page: number) => void;
   onSortChange: (sort: DataTableSort<Row> | null) => void;
@@ -49,6 +50,7 @@ export interface DataTableProps<Row extends object> {
 
 export const DataTable = <Row extends object>({
   columns,
+  allowHorizontalScroll = false,
   emptyAction,
   emptyMessage = "No hay datos para mostrar.",
   onPageChange,
@@ -173,7 +175,10 @@ export const DataTable = <Row extends object>({
         </div>
       ) : null}
       {shouldShowRows ? (
-        <div aria-busy={isLoading || isCorrectingPage} className="ui-data-table__content">
+        <div
+          aria-busy={isLoading || isCorrectingPage}
+          className={`ui-data-table__content${allowHorizontalScroll ? " ui-data-table__content--horizontal-scroll" : ""}`}
+        >
           <PrimeDataTable
             alwaysShowPaginator
             className="ui-data-table"

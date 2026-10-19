@@ -63,10 +63,12 @@ const productColumns: DataTableColumn<Product>[] = [
     key: "isActive",
     header: "Estado",
     render: (product) => (
-      <Badge
-        label={product.isActive ? "Activo" : "Inactivo"}
-        tone={product.isActive ? "success" : "neutral"}
-      />
+      <span className="product-list__status">
+        <Badge
+          label={product.isActive ? "Activo" : "Inactivo"}
+          tone={product.isActive ? "success" : "neutral"}
+        />
+      </span>
     ),
     sortable: false,
   },
@@ -439,6 +441,7 @@ export const ProductListPage = () => {
         </p>
       ) : null}
       <DataTable
+        allowHorizontalScroll
         columns={columns}
         emptyAction={
           hasEmptyResult && hasAppliedSearch ? (

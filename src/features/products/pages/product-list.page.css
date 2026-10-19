@@ -21,6 +21,12 @@
   font-weight: var(--ui-font-weight-medium);
 }
 
+.product-list__status {
+  display: inline-flex;
+  min-inline-size: max-content;
+  white-space: nowrap;
+}
+
 .product-list__retry {
   display: flex;
   justify-content: center;

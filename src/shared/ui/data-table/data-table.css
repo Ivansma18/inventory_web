@@ -45,6 +45,11 @@
     min-inline-size: 0;
   }
 
+  .ui-data-table__content--horizontal-scroll table {
+    inline-size: 100%;
+    min-inline-size: 52rem;
+  }
+
   .ui-data-table .p-paginator,
   .ui-data-table__paginator {
     background-color: transparent;
