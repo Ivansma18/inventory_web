@@ -22,6 +22,7 @@ import {
 } from "../schemas/product-create.schema";
 import {
   isDuplicateProductSkuError,
+  isProductCategoryAssignmentRejection,
   isProductForbiddenError,
   isProductResponseContractError,
   isProductUnauthorizedError,
@@ -30,32 +31,9 @@ import {
 } from "../utils/product-api-errors";
 import { ProductUnsavedChangesDialog } from "./product-unsaved-changes-dialog";
 
-const categoryAssignmentErrorStatuses: Record<string, number> = {
-  PRODUCT_CATEGORY_NOT_FOUND: 404,
-  PRODUCT_CATEGORY_INACTIVE: 409,
-  PRODUCT_CATEGORY_ASSIGNMENT_CONFLICT: 409,
-};
-
 const rejectedCategoryMessage =
   "No se pudo asignar esta categoría. Actualiza las opciones y selecciona una categoría activa.";
 const categoryReselectionMessage = "Selecciona una categoría activa.";
-
-const isCategoryAssignmentRejection = (error: unknown): boolean => {
-  if (
-    typeof error !== "object" ||
-    error === null ||
-    !("kind" in error) ||
-    error.kind !== "http" ||
-    !("status" in error) ||
-    typeof error.status !== "number" ||
-    !("code" in error) ||
-    typeof error.code !== "string"
-  ) {
-    return false;
-  }
-
-  return categoryAssignmentErrorStatuses[error.code] === error.status;
-};
 
 export const ProductCreateForm = () => {
   const session = useSession();
@@ -155,7 +133,7 @@ export const ProductCreateForm = () => {
         return;
       }
 
-      if (isCategoryAssignmentRejection(error)) {
+      if (isProductCategoryAssignmentRejection(error)) {
         form.setValue("categoryUuid", "", { shouldDirty: true });
         setSelectedCategory(null);
         setCategoryRefreshRequired(true);

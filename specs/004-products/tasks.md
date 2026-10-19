@@ -66,7 +66,7 @@
   Hecho cuando: una prueba navega fuera del listado mientras la mutación sigue pendiente y verifica que la respuesta no cambia la ruta ni mueve el foco.
 - [x] T33. Preservar la consulta de origen en Cancelar, retornos de error y recarga. (RF-121–RF-124)
   Hecho cuando: pruebas verifican Cancelar al listado de origen, retorno desde producto no encontrado/dirección inválida con criterios de origen, descarte a otro destino hacia ese destino, origen conservado al recargar y fallback predeterminado seguro si falta o es inválido.
-- [ ] T34. Invalidar una categoría rechazada y permitir guardar sin reasignar la original si falla su consulta. (RF-127–RF-130)
+- [x] T34. Invalidar una categoría rechazada y permitir guardar sin reasignar la original si falla su consulta. (RF-127–RF-130)
   Hecho cuando: pruebas verifican que una nueva asignación rechazada no se reenvía hasta seleccionar una categoría activa nuevamente y que, ante fallo de opciones, otros cambios se guardan conservando la categoría original o la ausencia temporal de categoría.
 - [ ] T35. Tratar producto desaparecido durante una modificación iniciada en la página actual. (RF-131–RF-134)
   Hecho cuando: pruebas 404 verifican estado de producto no encontrado al editar o cambiar estado, ausencia de retry de mutación, valores de edición visibles en solo lectura y refetch del listado al retornar.

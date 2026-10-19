@@ -12,8 +12,12 @@ import { Button, Input, Select } from "@/shared/ui";
 import type { SelectOption } from "@/shared/ui";
 
 interface ProductEditCategoryFieldProps {
+  categoryAssignmentRejected: boolean;
+  categoryRefreshRequired: boolean;
   disabled?: boolean;
   error?: string;
+  onActiveCategorySelected: () => void;
+  onCategoryOptionsRefreshed: () => void;
   onBlur: () => void;
   onValueChange: (value: string | null) => void;
   originalCategoryUuid: string | null;
@@ -22,8 +26,12 @@ interface ProductEditCategoryFieldProps {
 }
 
 export const ProductEditCategoryField = ({
+  categoryAssignmentRejected,
+  categoryRefreshRequired,
   disabled = false,
   error,
+  onActiveCategorySelected,
+  onCategoryOptionsRefreshed,
   onBlur,
   onValueChange,
   originalCategoryUuid,
@@ -49,6 +57,10 @@ export const ProductEditCategoryField = ({
   const originalCategory =
     visibleCategories.find((category) => category.uuid === originalCategoryUuid) ??
     (originalCategoryQuery.data?.uuid === originalCategoryUuid ? originalCategoryQuery.data : null);
+  const retainedCategoryMessage =
+    originalCategoryUuid === null
+      ? "El producto seguirá sin categoría."
+      : "Se conserva la categoría original.";
 
   const categoryOptions: SelectOption[] = visibleCategories.map((category) => ({
     label: category.name,
@@ -56,7 +68,7 @@ export const ProductEditCategoryField = ({
   }));
 
   if (
-    selectedCategory &&
+    selectedCategory?.uuid === value &&
     !categoryOptions.some((option) => option.value === selectedCategory.uuid)
   ) {
     categoryOptions.push({
@@ -102,10 +114,24 @@ export const ProductEditCategoryField = ({
       return;
     }
 
-    setSelectedCategory(
-      visibleCategories.find((category) => category.uuid === nextCategoryUuid) ??
-        (originalCategory?.uuid === nextCategoryUuid ? originalCategory : null),
+    const nextActiveCategory = visibleCategories.find(
+      (category) => category.uuid === nextCategoryUuid,
     );
+    setSelectedCategory(
+      nextActiveCategory ?? (originalCategory?.uuid === nextCategoryUuid ? originalCategory : null),
+    );
+
+    if (nextActiveCategory) {
+      onActiveCategorySelected();
+    }
+  };
+
+  const refreshCategories = async () => {
+    const result = await categories.refetch();
+
+    if (result.isSuccess && categoryRefreshRequired) {
+      onCategoryOptionsRefreshed();
+    }
   };
 
   const emptyCategoryMessage = categories.isPending
@@ -120,14 +146,19 @@ export const ProductEditCategoryField = ({
     <div className="product-edit-category-field">
       <div className="product-edit-category-field__search">
         <Input
-          disabled={disabled}
+          disabled={disabled || categoryRefreshRequired}
           helpText="Busca por nombre entre categorías activas."
           label="Buscar categorías activas"
           onValueChange={setCategorySearchDraft}
           type="search"
           value={categorySearchDraft}
         />
-        <Button disabled={disabled} onClick={applyCategorySearch} type="button" variant="secondary">
+        <Button
+          disabled={disabled || categoryRefreshRequired}
+          onClick={applyCategorySearch}
+          type="button"
+          variant="secondary"
+        >
           Buscar categorías
         </Button>
       </div>
@@ -152,17 +183,46 @@ export const ProductEditCategoryField = ({
 
       {categories.isError ? (
         <div className="product-edit-category-field__error" role="alert">
-          <p>No se pudieron cargar las categorías activas.</p>
+          <p>
+            {categoryAssignmentRejected
+              ? `No se pudieron actualizar las categorías activas. ${retainedCategoryMessage} Vuelve a intentarlo para elegir otra.`
+              : "No se pudieron cargar las categorías activas."}
+          </p>
           <Button
             disabled={disabled}
             loading={categories.isFetching}
-            onClick={() => void categories.refetch()}
+            onClick={() => void refreshCategories()}
             type="button"
             variant="secondary"
           >
-            Reintentar categorías
+            {categoryRefreshRequired ? "Actualizar categorías activas" : "Reintentar categorías"}
           </Button>
         </div>
+      ) : null}
+
+      {categoryAssignmentRejected && !categories.isError ? (
+        categoryRefreshRequired ? (
+          <div className="product-edit-category-field__error" role="alert">
+            <p>
+              El backend rechazó la categoría seleccionada. {retainedCategoryMessage} Actualiza las
+              opciones antes de elegir otra.
+            </p>
+            <Button
+              disabled={disabled || categories.isFetching}
+              loading={categories.isFetching}
+              onClick={() => void refreshCategories()}
+              type="button"
+              variant="secondary"
+            >
+              Actualizar categorías activas
+            </Button>
+          </div>
+        ) : (
+          <p className="product-edit-category-field__status" role="status">
+            La asignación rechazada se retiró. {retainedCategoryMessage} Elige una categoría activa
+            para asignarla de nuevo.
+          </p>
+        )
       ) : null}
 
       {originalCategoryQuery.isFetching ? (
@@ -198,7 +258,7 @@ export const ProductEditCategoryField = ({
 
       <Select
         allowEmptySelection={originalCategoryUuid === null}
-        disabled={disabled || categories.isPending || categories.isError}
+        disabled={disabled || categoryRefreshRequired || categories.isPending || categories.isError}
         emptyMessage={emptyCategoryMessage}
         error={error}
         key={`${value ?? "empty"}:${categoryOptions.find((option) => option.value === value)?.label ?? ""}`}
@@ -214,7 +274,7 @@ export const ProductEditCategoryField = ({
       {categories.data && categories.data.pagination.total > categories.data.pagination.limit ? (
         <div className="product-edit-category-field__pagination">
           <Button
-            disabled={disabled || categoryPage <= 1}
+            disabled={disabled || categoryRefreshRequired || categoryPage <= 1}
             onClick={() => setCategoryPage((page) => Math.max(1, page - 1))}
             type="button"
             variant="secondary"
@@ -225,7 +285,7 @@ export const ProductEditCategoryField = ({
             Página {categories.data.pagination.page} de {totalPages}
           </span>
           <Button
-            disabled={disabled || categoryPage >= totalPages}
+            disabled={disabled || categoryRefreshRequired || categoryPage >= totalPages}
             onClick={() => setCategoryPage((page) => Math.min(totalPages, page + 1))}
             type="button"
             variant="secondary"

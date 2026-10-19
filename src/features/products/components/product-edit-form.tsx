@@ -20,6 +20,7 @@ import {
 } from "../schemas/product-edit.schema";
 import {
   isDuplicateProductSkuError,
+  isProductCategoryAssignmentRejection,
   isProductForbiddenError,
   isProductResponseContractError,
   isProductUnauthorizedError,
@@ -41,6 +42,8 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
   const formElementRef = useRef<HTMLFormElement>(null);
   const [invalidSubmitCount, setInvalidSubmitCount] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [categoryAssignmentRejected, setCategoryAssignmentRejected] = useState(false);
+  const [categoryRefreshRequired, setCategoryRefreshRequired] = useState(false);
   const session = useSession();
   const navigate = useNavigate();
   const toast = useToast();
@@ -93,6 +96,13 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
 
       if (isDuplicateProductSkuError(error)) {
         form.setError("sku", { type: "server", message: productSkuConflictMessage });
+        return;
+      }
+
+      if (isProductCategoryAssignmentRejection(error)) {
+        form.setValue("categoryUuid", product.categoryUuid, { shouldDirty: true });
+        setCategoryAssignmentRejected(true);
+        setCategoryRefreshRequired(true);
         return;
       }
 
@@ -262,8 +272,15 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
           name="categoryUuid"
           render={({ field, fieldState }) => (
             <ProductEditCategoryField
+              categoryAssignmentRejected={categoryAssignmentRejected}
+              categoryRefreshRequired={categoryRefreshRequired}
               error={fieldState.error?.message}
               disabled={operationPending}
+              onActiveCategorySelected={() => {
+                setCategoryAssignmentRejected(false);
+                setCategoryRefreshRequired(false);
+              }}
+              onCategoryOptionsRefreshed={() => setCategoryRefreshRequired(false)}
               onBlur={field.onBlur}
               onValueChange={field.onChange}
               originalCategoryUuid={product.categoryUuid}

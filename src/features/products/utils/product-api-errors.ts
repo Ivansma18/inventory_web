@@ -5,6 +5,12 @@ interface ProductHttpError {
   code?: string;
 }
 
+const categoryAssignmentErrorStatuses: Record<string, number> = {
+  PRODUCT_CATEGORY_NOT_FOUND: 404,
+  PRODUCT_CATEGORY_INACTIVE: 409,
+  PRODUCT_CATEGORY_ASSIGNMENT_CONFLICT: 409,
+};
+
 const getProductHttpError = (error: unknown): ProductHttpError | undefined => {
   if (
     typeof error !== "object" ||
@@ -21,6 +27,14 @@ const getProductHttpError = (error: unknown): ProductHttpError | undefined => {
     status: error.status,
     ...("code" in error && typeof error.code === "string" ? { code: error.code } : {}),
   };
+};
+
+export const isProductCategoryAssignmentRejection = (error: unknown): boolean => {
+  const httpError = getProductHttpError(error);
+  return (
+    httpError?.code !== undefined &&
+    categoryAssignmentErrorStatuses[httpError.code] === httpError.status
+  );
 };
 
 export const isDuplicateProductSkuError = (error: unknown): boolean => {

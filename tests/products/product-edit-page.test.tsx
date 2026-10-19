@@ -22,6 +22,7 @@ const productsUrl = "https://inventory.test/api/products";
 const productUuid = "650e8400-e29b-41d4-a716-446655440000";
 const categoryUuid = "550e8400-e29b-41d4-a716-446655440000";
 const alternativeCategoryUuid = "550e8400-e29b-41d4-a716-446655440001";
+const refreshedCategoryUuid = "550e8400-e29b-41d4-a716-446655440002";
 const categoriesUrl = "https://inventory.test/api/categories";
 const categoryUrl = `https://inventory.test/api/categories/${categoryUuid}`;
 const productUrl = `https://inventory.test/api/products/${productUuid}`;
@@ -506,6 +507,156 @@ describe("product edit page", () => {
     ).toBeInTheDocument();
     expect(getCategorySelect()).toHaveValue("Oficina");
   });
+
+  it("removes a rejected new category assignment until refreshed options are selected again", async () => {
+    const user = userEvent.setup();
+    const patchBodies: unknown[] = [];
+    let categoryRequests = 0;
+
+    server.use(
+      http.get(categoriesUrl, () => {
+        categoryRequests += 1;
+        return HttpResponse.json(
+          categoryListResponse(
+            categoryRequests === 1
+              ? [category("Oficina"), category("Repuestos", alternativeCategoryUuid)]
+              : [category("Oficina"), category("Papelería", refreshedCategoryUuid)],
+          ),
+        );
+      }),
+      http.patch(productUrl, async ({ request }) => {
+        patchBodies.push(await request.json());
+
+        if (patchBodies.length === 1) {
+          return HttpResponse.json(
+            { error: { code: "PRODUCT_CATEGORY_INACTIVE", message: "private category detail" } },
+            { status: 409 },
+          );
+        }
+
+        if (patchBodies.length === 2) {
+          return HttpResponse.json(
+            { error: { code: "PRODUCT_SKU_ALREADY_EXISTS", message: "private SKU detail" } },
+            { status: 409 },
+          );
+        }
+
+        return HttpResponse.json({
+          data: {
+            ...product(true, refreshedCategoryUuid),
+            name: "Monitor actualizado",
+          },
+        });
+      }),
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+    );
+
+    renderProductEditRoute();
+
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await screen.findByRole("textbox", { name: "Categoría" });
+    const getCategorySelect = () => screen.getByRole("textbox", { name: "Categoría" });
+    await waitFor(() => expect(categoryRequests).toBe(1));
+    await waitFor(() => expect(getCategorySelect()).toHaveValue("Oficina"));
+    await user.clear(name);
+    await user.type(name, "Monitor actualizado");
+    getCategorySelect().focus();
+    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+    expect(getCategorySelect()).toHaveValue("Repuestos");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "El backend rechazó la categoría seleccionada.",
+    );
+    expect(getCategorySelect()).toHaveValue("Oficina");
+    expect(getCategorySelect()).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Actualizar categorías activas" })).toBeVisible();
+    expect(patchBodies).toEqual([
+      { name: "Monitor actualizado", categoryUuid: alternativeCategoryUuid },
+    ]);
+
+    await user.click(screen.getByRole("button", { name: "Actualizar categorías activas" }));
+    await waitFor(() => expect(categoryRequests).toBe(2));
+    expect(getCategorySelect()).toBeEnabled();
+    expect(getCategorySelect()).toHaveValue("Oficina");
+
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    expect(
+      await screen.findByText(
+        "Este SKU ya está registrado. Desactivar un producto no libera su SKU; comprueba el valor e inténtalo con otro.",
+      ),
+    ).toBeVisible();
+    expect(patchBodies[1]).toEqual({ name: "Monitor actualizado" });
+
+    getCategorySelect().focus();
+    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+    expect(getCategorySelect()).toHaveValue("Papelería");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() => expect(patchBodies).toHaveLength(3));
+    expect(patchBodies[2]).toEqual({
+      name: "Monitor actualizado",
+      categoryUuid: refreshedCategoryUuid,
+    });
+    expect(await screen.findByText("Producto actualizado correctamente.")).toBeVisible();
+    expect(await screen.findByRole("row", { name: /SKU-EDIT-01/ })).toBeVisible();
+  });
+
+  it.each([
+    { description: "an original category", originalCategoryUuid: categoryUuid },
+    { description: "no original category", originalCategoryUuid: null },
+  ])(
+    "allows saving other fields while the category options query fails with $description",
+    async ({ originalCategoryUuid }) => {
+      const user = userEvent.setup();
+      const patchBodies: unknown[] = [];
+
+      server.use(
+        http.get(categoriesUrl, () =>
+          HttpResponse.json(
+            { error: { code: "CATEGORY_SERVICE_UNAVAILABLE", message: "private category detail" } },
+            { status: 503 },
+          ),
+        ),
+        http.patch(productUrl, async ({ request }) => {
+          patchBodies.push(await request.json());
+          return HttpResponse.json({
+            data: { ...product(true, originalCategoryUuid), name: "Monitor actualizado" },
+          });
+        }),
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(productUrl, () =>
+          HttpResponse.json({ data: product(true, originalCategoryUuid) }),
+        ),
+        http.get(categoryUrl, () => HttpResponse.json({ data: category("Oficina") })),
+      );
+
+      renderProductEditRoute();
+
+      const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+      await screen.findByRole("textbox", { name: "Categoría" });
+      const getCategorySelect = () => screen.getByRole("textbox", { name: "Categoría" });
+      expect(
+        await screen.findByText("No se pudieron cargar las categorías activas.", { selector: "p" }),
+      ).toBeVisible();
+      expect(getCategorySelect()).toBeDisabled();
+      if (originalCategoryUuid === null) {
+        expect(screen.getByText("Sin categoría", { selector: "p" })).toBeVisible();
+      } else {
+        await waitFor(() => expect(getCategorySelect()).toHaveValue("Oficina"));
+      }
+
+      await user.clear(name);
+      await user.type(name, "Monitor actualizado");
+      await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+      await waitFor(() => expect(patchBodies).toHaveLength(1));
+      expect(patchBodies).toEqual([{ name: "Monitor actualizado" }]);
+      expect(await screen.findByText("Producto actualizado correctamente.")).toBeVisible();
+      expect(await screen.findByRole("row", { name: /SKU-EDIT-01/ })).toBeVisible();
+    },
+  );
 
   it("sends only the edited fields in a PATCH and preserves the original active state", async () => {
     const user = userEvent.setup();
