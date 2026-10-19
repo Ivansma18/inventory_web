@@ -65,7 +65,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
     mode: "onBlur",
     resolver: zodResolver(productEditSchema),
   });
-  useFocusFirstInvalidField(formElementRef, invalidSubmitCount);
+  useFocusFirstInvalidField(formElementRef, invalidSubmitCount, form.formState.errors);
   const operationPending = updateProductMutation.isPending || form.formState.isSubmitting;
   const {
     blocker,

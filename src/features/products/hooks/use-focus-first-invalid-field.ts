@@ -4,7 +4,11 @@ interface FormElementRef {
   current: HTMLFormElement | null;
 }
 
-export const useFocusFirstInvalidField = (formRef: FormElementRef, focusRequest: number) => {
+export const useFocusFirstInvalidField = (
+  formRef: FormElementRef,
+  focusRequest: number,
+  validationState: unknown,
+) => {
   const handledRequest = useRef(0);
 
   useLayoutEffect(() => {
@@ -12,7 +16,6 @@ export const useFocusFirstInvalidField = (formRef: FormElementRef, focusRequest:
       return;
     }
 
-    handledRequest.current = focusRequest;
     const firstInvalidField = Array.from(
       formRef.current?.querySelectorAll<HTMLElement>('[aria-invalid="true"]') ?? [],
     ).find(
@@ -22,6 +25,11 @@ export const useFocusFirstInvalidField = (formRef: FormElementRef, focusRequest:
         field.getAttribute("aria-disabled") !== "true",
     );
 
-    firstInvalidField?.focus({ preventScroll: true });
-  }, [focusRequest, formRef]);
+    if (!firstInvalidField) {
+      return;
+    }
+
+    handledRequest.current = focusRequest;
+    firstInvalidField.focus({ preventScroll: true });
+  }, [focusRequest, formRef, validationState]);
 };

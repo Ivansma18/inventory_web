@@ -54,7 +54,7 @@ export const ProductCreateForm = () => {
     mode: "onBlur",
     resolver: zodResolver(productCreateSchema),
   });
-  useFocusFirstInvalidField(formElementRef, invalidSubmitCount);
+  useFocusFirstInvalidField(formElementRef, invalidSubmitCount, form.formState.errors);
   const createProductMutation = useCreateProduct(sessionId);
   const operationPending = createProductMutation.isPending || form.formState.isSubmitting;
   const {
