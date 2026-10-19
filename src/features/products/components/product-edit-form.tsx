@@ -1,6 +1,7 @@
 import "./product-edit-form.css";
 
 import { useRef, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router";
@@ -11,6 +12,7 @@ import { Badge, Button, Input, Textarea, useToast } from "@/shared/ui";
 import type { Product } from "../api/product-contract";
 import { ProductEditCategoryField } from "./product-edit-category-field";
 import { useUpdateProduct } from "../hooks/use-update-product";
+import { productListQueryPrefix } from "../hooks/use-product-list";
 import { useFocusFirstInvalidField } from "../hooks/use-focus-first-invalid-field";
 import { useProductFormNavigationGuard } from "../hooks/use-product-form-navigation-guard";
 import {
@@ -22,6 +24,7 @@ import {
   isDuplicateProductSkuError,
   isProductCategoryAssignmentRejection,
   isProductForbiddenError,
+  isProductNotFoundError,
   isProductResponseContractError,
   isProductUnauthorizedError,
   isUncertainProductMutationError,
@@ -42,10 +45,12 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
   const formElementRef = useRef<HTMLFormElement>(null);
   const [invalidSubmitCount, setInvalidSubmitCount] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [productNotFound, setProductNotFound] = useState(false);
   const [categoryAssignmentRejected, setCategoryAssignmentRejected] = useState(false);
   const [categoryRefreshRequired, setCategoryRefreshRequired] = useState(false);
   const session = useSession();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const toast = useToast();
   const updateProductMutation = useUpdateProduct(sessionId);
   const form = useForm<ProductEditFormInput, unknown, ProductEditFormValues>({
@@ -72,6 +77,10 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
   } = useProductFormNavigationGuard(form.formState.isDirty, operationPending);
 
   const submitProduct = async (values: ProductEditFormValues) => {
+    if (productNotFound) {
+      return;
+    }
+
     const payload = buildProductUpdatePayload(product, values);
 
     if (Object.keys(payload).length === 0) {
@@ -103,6 +112,22 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
         form.setValue("categoryUuid", product.categoryUuid, { shouldDirty: true });
         setCategoryAssignmentRejected(true);
         setCategoryRefreshRequired(true);
+        return;
+      }
+
+      if (isProductNotFoundError(error)) {
+        if (sessionId !== null) {
+          void queryClient.invalidateQueries({
+            queryKey: productListQueryPrefix(sessionId),
+            refetchType: "none",
+          });
+        }
+        setCategoryAssignmentRejected(false);
+        setCategoryRefreshRequired(false);
+        setProductNotFound(true);
+        setSaveError(
+          "No se encontró el producto. Los datos introducidos quedan en solo lectura y no se pueden guardar.",
+        );
         return;
       }
 
@@ -138,7 +163,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (submitLock.current || updateProductMutation.isPending) {
+    if (submitLock.current || updateProductMutation.isPending || productNotFound) {
       return;
     }
 
@@ -187,6 +212,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
             <Input
               error={fieldState.error?.message}
               disabled={operationPending}
+              readOnly={productNotFound}
               label="SKU (obligatorio)"
               onBlur={field.onBlur}
               onValueChange={(value) => {
@@ -208,6 +234,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
             <Input
               error={fieldState.error?.message}
               disabled={operationPending}
+              readOnly={productNotFound}
               label="Nombre (obligatorio)"
               onBlur={field.onBlur}
               onValueChange={field.onChange}
@@ -224,6 +251,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
             <Input
               error={fieldState.error?.message}
               disabled={operationPending}
+              readOnly={productNotFound}
               helpText="Usa coma o punto decimal; máximo dos decimales."
               inputMode="decimal"
               label="Precio de compra (obligatorio)"
@@ -242,6 +270,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
             <Input
               error={fieldState.error?.message}
               disabled={operationPending}
+              readOnly={productNotFound}
               helpText="Usa coma o punto decimal; máximo dos decimales."
               inputMode="decimal"
               label="Precio de venta (obligatorio)"
@@ -259,6 +288,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
           render={({ field }) => (
             <Textarea
               disabled={operationPending}
+              readOnly={productNotFound}
               label="Descripción (opcional)"
               onValueChange={field.onChange}
               rows={4}
@@ -275,7 +305,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
               categoryAssignmentRejected={categoryAssignmentRejected}
               categoryRefreshRequired={categoryRefreshRequired}
               error={fieldState.error?.message}
-              disabled={operationPending}
+              disabled={operationPending || productNotFound}
               onActiveCategorySelected={() => {
                 setCategoryAssignmentRejected(false);
                 setCategoryRefreshRequired(false);
@@ -308,11 +338,13 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
               type="button"
               variant="secondary"
             >
-              Cancelar
+              {productNotFound ? "Volver al listado" : "Cancelar"}
             </Button>
-            <Button disabled={operationPending} loading={operationPending} type="submit">
-              {operationPending ? "Guardando cambios…" : "Guardar cambios"}
-            </Button>
+            {productNotFound ? null : (
+              <Button disabled={operationPending} loading={operationPending} type="submit">
+                {operationPending ? "Guardando cambios…" : "Guardar cambios"}
+              </Button>
+            )}
           </div>
         </div>
       </form>

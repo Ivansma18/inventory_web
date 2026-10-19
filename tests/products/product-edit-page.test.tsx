@@ -247,6 +247,77 @@ describe("product edit page", () => {
     expect(router.state.location.search).toBe(sourceListUrl.slice("/products".length));
   });
 
+  it("keeps failed edits visible as read-only and refreshes the source list when returning", async () => {
+    const user = userEvent.setup();
+    const sourceListUrl = "/products?page=2&search=monitor&status=inactive&sort=sku&order=desc";
+    const listRequests: URL[] = [];
+    let patchRequests = 0;
+
+    server.use(
+      http.patch(productUrl, () => {
+        patchRequests += 1;
+        return HttpResponse.json(
+          { error: { code: "PRODUCT_NOT_FOUND", message: "private missing product detail" } },
+          { status: 404 },
+        );
+      }),
+      http.get(productsUrl, ({ request }) => {
+        listRequests.push(new URL(request.url));
+        return HttpResponse.json({
+          data: [product(false)],
+          pagination: { total: 1, page: 2, limit: 15 },
+        });
+      }),
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+      http.get(categoriesUrl, () => HttpResponse.json(categoryListResponse())),
+    );
+
+    const { router } = renderProductEditRoute(buildProductEditLocation(productUuid, sourceListUrl));
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Nombre local sin guardar");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    const notFoundAlert = await screen.findByRole("alert");
+    expect(notFoundAlert).toHaveTextContent("No se encontró el producto.");
+    expect(notFoundAlert).not.toHaveTextContent("private missing product detail");
+    expect(name).toHaveValue("Nombre local sin guardar");
+    expect(name).toHaveAttribute("readonly");
+    expect(screen.getByRole("textbox", { name: "SKU (obligatorio)" })).toHaveAttribute("readonly");
+    expect(screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" })).toHaveAttribute(
+      "readonly",
+    );
+    expect(screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" })).toHaveAttribute(
+      "readonly",
+    );
+    expect(screen.getByRole("textbox", { name: "Descripción (opcional)" })).toHaveAttribute(
+      "readonly",
+    );
+    expect(screen.getByRole("textbox", { name: "Categoría" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Guardar cambios" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
+    expect(patchRequests).toBe(1);
+
+    fireEvent.submit(screen.getByRole("form", { name: "Datos del producto" }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(patchRequests).toBe(1);
+
+    await user.click(screen.getByRole("button", { name: "Volver al listado" }));
+    const discardDialog = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    await user.click(within(discardDialog).getByRole("button", { name: "Descartar cambios" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
+    await waitFor(() => expect(listRequests).toHaveLength(1));
+    expect(Object.fromEntries(listRequests[0]!.searchParams)).toMatchObject({
+      page: "2",
+      search: "monitor",
+      isActive: "false",
+      sort: "sku",
+      order: "desc",
+    });
+  });
+
   it.each([
     { description: "is absent", location: "/products/not-a-uuid/edit" },
     {

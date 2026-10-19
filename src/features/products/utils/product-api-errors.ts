@@ -37,6 +37,11 @@ export const isProductCategoryAssignmentRejection = (error: unknown): boolean =>
   );
 };
 
+export const isProductNotFoundError = (error: unknown): boolean => {
+  const httpError = getProductHttpError(error);
+  return httpError?.status === 404 || httpError?.code === "PRODUCT_NOT_FOUND";
+};
+
 export const isDuplicateProductSkuError = (error: unknown): boolean => {
   const httpError = getProductHttpError(error);
   return httpError?.status === 409 && httpError.code === "PRODUCT_SKU_ALREADY_EXISTS";

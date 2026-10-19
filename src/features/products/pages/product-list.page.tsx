@@ -22,6 +22,7 @@ import {
 } from "../hooks/use-change-product-status";
 import {
   isProductForbiddenError,
+  isProductNotFoundError,
   isProductResponseContractError,
   isProductUnauthorizedError,
   isUncertainProductMutationError,
@@ -32,6 +33,7 @@ import {
   isProductListSortField,
   PRODUCT_LIST_PAGE_SIZE,
   productListQueryKey,
+  productListQueryPrefix,
   useProductList,
   type ProductListCriteria,
 } from "../hooks/use-product-list";
@@ -99,16 +101,6 @@ const getProductListFocusFallback = () => {
   return heading;
 };
 
-const isProductNotFoundError = (error: unknown) => {
-  if (typeof error !== "object" || error === null) {
-    return false;
-  }
-
-  const status = "status" in error ? error.status : undefined;
-  const code = "code" in error ? error.code : undefined;
-  return status === 404 || code === "PRODUCT_NOT_FOUND";
-};
-
 type ProductStatusFailureReason =
   "not-found" | "forbidden" | "uncertain" | "invalid-response" | "other";
 
@@ -128,10 +120,6 @@ export const ProductListPage = () => {
   const requestStatusChange = useCallback((product: Product) => {
     setStatusFailure(null);
     setStatusConfirmationProduct(product);
-  }, []);
-  const closeStatusConfirmation = useCallback(() => {
-    setStatusFailure(null);
-    setStatusConfirmationProduct(null);
   }, []);
   const [searchParams, setSearchParams] = useSearchParams();
   const serializedSearchParams = searchParams.toString();
@@ -162,6 +150,15 @@ export const ProductListPage = () => {
     statusFailure?.productUuid === statusConfirmationProduct.uuid
       ? statusFailure
       : null;
+  const closeStatusConfirmation = useCallback(() => {
+    const productWasNotFound = statusFailureForConfirmation?.reason === "not-found";
+    setStatusFailure(null);
+    setStatusConfirmationProduct(null);
+
+    if (productWasNotFound && sessionId !== null) {
+      void queryClient.invalidateQueries({ queryKey: productListQueryPrefix(sessionId) });
+    }
+  }, [queryClient, sessionId, statusFailureForConfirmation]);
   const statusProductIsAvailable =
     statusConfirmationProduct !== null &&
     (productList.data?.data.some(
@@ -232,17 +229,26 @@ export const ProductListPage = () => {
           return;
         }
 
+        const reason = isProductNotFoundError(error)
+          ? "not-found"
+          : isProductForbiddenError(error)
+            ? "forbidden"
+            : isProductResponseContractError(error)
+              ? "invalid-response"
+              : isUncertainProductMutationError(error)
+                ? "uncertain"
+                : "other";
+
+        if (reason === "not-found" && sessionId !== null) {
+          void queryClient.invalidateQueries({
+            queryKey: productListQueryPrefix(sessionId),
+            refetchType: "none",
+          });
+        }
+
         setStatusFailure({
           productUuid: product.uuid,
-          reason: isProductNotFoundError(error)
-            ? "not-found"
-            : isProductForbiddenError(error)
-              ? "forbidden"
-              : isProductResponseContractError(error)
-                ? "invalid-response"
-                : isUncertainProductMutationError(error)
-                  ? "uncertain"
-                  : "other",
+          reason,
         });
       })
       .finally(() => statusSubmissionLock.current.delete(lockKey));
@@ -441,7 +447,11 @@ export const ProductListPage = () => {
           statusConfirmationProduct ? (
             <div className="product-list__status-confirmation-actions">
               <Button onClick={closeStatusConfirmation} variant="secondary">
-                {isConfirmationPending ? "Cerrar" : "Cancelar"}
+                {isConfirmationPending
+                  ? "Cerrar"
+                  : statusFailureForConfirmation?.reason === "not-found"
+                    ? "Volver al listado"
+                    : "Cancelar"}
               </Button>
               {statusFailureForConfirmation === null || canRetryStatusChange ? (
                 <Button loading={isConfirmationPending} onClick={confirmStatusChange}>
@@ -462,19 +472,27 @@ export const ProductListPage = () => {
         onCloseRequest={closeStatusConfirmation}
         open={statusConfirmationProduct !== null}
         title={
-          statusConfirmationProduct?.isActive ? "Confirmar desactivación" : "Confirmar activación"
+          statusFailureForConfirmation?.reason === "not-found"
+            ? "Producto no encontrado"
+            : statusConfirmationProduct?.isActive
+              ? "Confirmar desactivación"
+              : "Confirmar activación"
         }
       >
         {statusConfirmationProduct ? (
           <div className="product-list__status-confirmation">
-            <p>
-              ¿Quieres {statusConfirmationProduct.isActive ? "desactivar" : "activar"} el producto{" "}
-              <strong>{statusConfirmationProduct.name}</strong> (SKU{" "}
-              <strong>{statusConfirmationProduct.sku}</strong>)?
-            </p>
-            {statusConfirmationProduct.isActive ? (
-              <p>El producto se conservará en el catálogo; desactivarlo no lo elimina.</p>
-            ) : null}
+            {statusFailureForConfirmation?.reason === "not-found" ? null : (
+              <>
+                <p>
+                  ¿Quieres {statusConfirmationProduct.isActive ? "desactivar" : "activar"} el
+                  producto <strong>{statusConfirmationProduct.name}</strong> (SKU{" "}
+                  <strong>{statusConfirmationProduct.sku}</strong>)?
+                </p>
+                {statusConfirmationProduct.isActive ? (
+                  <p>El producto se conservará en el catálogo; desactivarlo no lo elimina.</p>
+                ) : null}
+              </>
+            )}
             {isConfirmationPending ? (
               <p aria-atomic="true" className="product-list__status-pending" role="status">
                 {statusConfirmationProduct.isActive ? "Desactivando" : "Activando"} producto{" "}
@@ -486,7 +504,7 @@ export const ProductListPage = () => {
                 {statusFailureForConfirmation.reason === "forbidden"
                   ? "No tienes permiso para cambiar el estado de este producto."
                   : statusFailureForConfirmation.reason === "not-found"
-                    ? "No se pudo confirmar el cambio de estado; el producto no está disponible para reintentar."
+                    ? "No se encontró el producto. El listado se actualizará al volver."
                     : statusFailureForConfirmation.reason === "invalid-response"
                       ? "La respuesta del cambio de estado no se pudo validar. Comprueba el estado del producto antes de volver a intentarlo."
                       : statusFailureForConfirmation.reason === "uncertain"

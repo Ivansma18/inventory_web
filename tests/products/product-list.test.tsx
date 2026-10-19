@@ -713,15 +713,20 @@ describe("Product list remote query", () => {
     expect(mutationRequests).toBe(1);
   });
 
-  it("does not offer a status retry after the backend reports the product missing", async () => {
+  it("shows a not-found state without retrying and refreshes the list when returning", async () => {
     const user = userEvent.setup();
     let mutationRequests = 0;
+    let listRequests = 0;
 
     server.use(
       http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
-      http.get(productUrl, () =>
-        HttpResponse.json({ data: [product(1)], pagination: { total: 1, page: 1, limit: 15 } }),
-      ),
+      http.get(productUrl, () => {
+        listRequests += 1;
+        return HttpResponse.json({
+          data: listRequests === 1 ? [product(1)] : [],
+          pagination: { total: listRequests === 1 ? 1 : 0, page: 1, limit: 15 },
+        });
+      }),
       http.delete(productStatusUrl, () => {
         mutationRequests += 1;
         return HttpResponse.json(
@@ -737,8 +742,20 @@ describe("Product list remote query", () => {
     const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
     await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
 
-    expect(await within(dialog).findByRole("alert")).toBeVisible();
-    expect(within(dialog).queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
+    const notFoundDialog = await screen.findByRole("dialog", { name: "Producto no encontrado" });
+    expect(await within(notFoundDialog).findByRole("alert")).toHaveTextContent(
+      "No se encontró el producto.",
+    );
+    expect(within(notFoundDialog).getByRole("button", { name: "Volver al listado" })).toBeVisible();
+    expect(
+      within(notFoundDialog).queryByRole("button", { name: "Reintentar" }),
+    ).not.toBeInTheDocument();
+    expect(mutationRequests).toBe(1);
+
+    await user.click(within(notFoundDialog).getByRole("button", { name: "Volver al listado" }));
+
+    await waitFor(() => expect(listRequests).toBe(2));
+    expect(await screen.findByText("No hay productos activos para mostrar.")).toBeVisible();
     expect(mutationRequests).toBe(1);
   });
 
