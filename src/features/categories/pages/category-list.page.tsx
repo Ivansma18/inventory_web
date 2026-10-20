@@ -3,37 +3,23 @@ import "./category-list.page.css";
 import { useState } from "react";
 
 import { useSession } from "@/features/auth";
-import { Badge, DataTable } from "@/shared/ui";
-import type { DataTableColumn, DataTableResult, DataTableSnapshot } from "@/shared/ui";
+import type { DataTableResult, DataTableSnapshot } from "@/shared/ui";
 
-import { CATEGORY_LIST_PAGE_SIZE } from "../api/categories-api";
 import type { Category } from "../api/category-contract";
+import { CategoryListTable } from "../components/category-list-table";
 import { CategoryPageShell } from "../components/category-page-shell";
 import { useCategoryList } from "../hooks/use-category-list";
-import { DEFAULT_CATEGORY_LIST_CRITERIA } from "../utils/category-list-url-state";
-
-const categoryColumns: DataTableColumn<Category>[] = [
-  { key: "name", header: "Nombre", sortable: false },
-  {
-    key: "isActive",
-    header: "Estado",
-    render: (category) => (
-      <span className="category-list__status">
-        <Badge
-          label={category.isActive ? "Activa" : "Inactiva"}
-          tone={category.isActive ? "success" : "neutral"}
-        />
-      </span>
-    ),
-    sortable: false,
-  },
-];
+import {
+  DEFAULT_CATEGORY_LIST_CRITERIA,
+  type CategoryListCriteria,
+} from "../utils/category-list-url-state";
 
 export const CategoryListPage = () => {
   const session = useSession();
   const [page, setPage] = useState(1);
+  const [criteria, setCriteria] = useState<CategoryListCriteria>(DEFAULT_CATEGORY_LIST_CRITERIA);
   const sessionId = session.status === "authenticated" ? session.session.id : null;
-  const categoryList = useCategoryList(sessionId, page, DEFAULT_CATEGORY_LIST_CRITERIA);
+  const categoryList = useCategoryList(sessionId, page, criteria);
   const snapshot: DataTableSnapshot<Category> | undefined = categoryList.data
     ? {
         rows: categoryList.data.data,
@@ -54,6 +40,10 @@ export const CategoryListPage = () => {
         : snapshot
           ? { status: "ready", ...snapshot }
           : { status: "loading" };
+  const clearSearch = () => {
+    setCriteria((current) => ({ ...current, search: "" }));
+    setPage(1);
+  };
 
   return (
     <CategoryPageShell
@@ -66,15 +56,12 @@ export const CategoryListPage = () => {
           {categoryList.data.pagination.total === 1 ? "" : "s"}
         </p>
       ) : null}
-      <DataTable
-        allowHorizontalScroll
-        columns={categoryColumns}
+      <CategoryListTable
+        criteria={criteria}
+        onClearSearch={clearSearch}
         onPageChange={setPage}
-        onSortChange={() => {}}
-        pageSize={CATEGORY_LIST_PAGE_SIZE}
+        onRetry={() => void categoryList.refetch()}
         result={result}
-        rowKey="uuid"
-        sort={null}
       />
     </CategoryPageShell>
   );

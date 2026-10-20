@@ -4,9 +4,3 @@
   font-size: var(--ui-font-size-sm);
   font-weight: var(--ui-font-weight-medium);
 }
-
-.category-list__status {
-  display: inline-flex;
-  min-inline-size: max-content;
-  white-space: nowrap;
-}

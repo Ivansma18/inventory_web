@@ -19,8 +19,9 @@ Cada tarea funcional incluye escribir o actualizar primero la prueba que demuest
 - [x] T5. Integrar consulta remota de gestión, filas, total y paginación controlada. (RF-8–RF-13)
   Hecho cuando: una prueba MSW verifica nombre, estado, total y quince elementos por página con parámetros predeterminados; otra cambia de página y comprueba la petición y filas remotas sin afectar `useActiveCategories`.
 - Evidencia: `tests/app-shell/categories-route.test.tsx` verifica petición predeterminada, 15 filas, nombre, estado, total y cambio a la segunda página con datos remotos; `tests/categories/categories-api.test.tsx` verifica que la consulta administrativa no contamina `useActiveCategories`. `pnpm test:run` (57 archivos, 508 pruebas), `pnpm test:e2e --workers=1` (72 pruebas), lint, typecheck, formato y build pasaron. Detector Impeccable: `[]`. Build conserva aviso no bloqueante de chunk superior a 500 kB.
-- [ ] T6. Mostrar carga, error con reintento y estados vacíos del listado. (RF-14–RF-17)
+- [x] T6. Mostrar carga, error con reintento y estados vacíos del listado. (RF-14–RF-17)
   Hecho cuando: pruebas diferidas y fallidas verifican feedback identificable, retry de lectura, vacío general y búsqueda sin resultados con acción de limpieza.
+- Evidencia: `tests/app-shell/categories-route.test.tsx` comprueba carga diferida, error accesible, reintento manual sin reenvío automático y vacío general con paginación inicial; `tests/categories/category-list-table.test.tsx` verifica el mensaje para búsqueda sin resultados y la acción `Limpiar búsqueda`. Se preconectó el criterio local sin añadir controles ni estado URL. `pnpm test:run` (58 archivos, 513 pruebas), `pnpm test:e2e --workers=1` (72 pruebas), lint, typecheck, formato y build pasaron. Detector Impeccable: `[]`. Build conserva aviso no bloqueante de chunk superior a 500 kB.
 - [ ] T7. Corregir páginas fuera de rango sin añadir historial. (RF-18–RF-19, RF-28, RF-30)
   Hecho cuando: pruebas verifican última página con resultados o página 1 si el total es cero; la corrección reemplaza la entrada actual y no produce ciclos de historial.
 - [ ] T8. Incorporar búsqueda, filtro de estado y ordenación del listado. (RF-20–RF-27)
@@ -274,4 +275,4 @@ La tabla vincula implementación y evidencia principal. T58 consolida resultados
 - Si no hay escritorio gráfico, lector de pantalla u otra condición necesaria, registrar bloqueo; no sustituir zoom nativo por viewport equivalente ni revisión humana por pruebas automáticas.
 - No modificar reglas del backend, scope aprobado ni contratos de Productos por inferencia. Toda discrepancia vuelve a `change-manager`.
 
-T1–T5 están completadas; T6 sigue pendiente y no se ha iniciado.
+T1–T6 están completadas; T7 sigue pendiente y no se ha iniciado.

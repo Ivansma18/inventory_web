@@ -1,0 +1,11 @@
+.category-list-table__status {
+  display: inline-flex;
+  min-inline-size: max-content;
+  white-space: nowrap;
+}
+
+.category-list-table__retry {
+  display: flex;
+  justify-content: center;
+  margin-block-start: var(--ui-space-3);
+}

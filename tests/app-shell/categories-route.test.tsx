@@ -1,6 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
@@ -47,6 +48,45 @@ const unauthenticatedResponse = () =>
     { error: { code: "UNAUTHORIZED", message: "No active session." } },
     { status: 401 },
   );
+
+interface SessionRefreshCaptureProps {
+  onRefetch: (refetch: UseSessionResult["refetch"]) => void;
+}
+
+const SessionRefreshCapture = ({ onRefetch }: SessionRefreshCaptureProps) => {
+  onRefetch(useSession().refetch);
+  return null;
+};
+
+const renderAuthenticatedCategoriesRoute = async (
+  queryClient: ReturnType<typeof createQueryClient>,
+  router: ReturnType<typeof createMemoryRouter>,
+) => {
+  let refetch: UseSessionResult["refetch"] | undefined;
+  const createTree = (children: ReactNode) => (
+    <QueryClientProvider client={queryClient}>
+      <UiProvider>{children}</UiProvider>
+    </QueryClientProvider>
+  );
+  const rendered = render(
+    createTree(
+      <SessionRefreshCapture
+        onRefetch={(refresh) => {
+          refetch = refresh;
+        }}
+      />,
+    ),
+  );
+
+  let sessionRefresh!: Promise<AuthSessionQueryResult>;
+  act(() => {
+    sessionRefresh = refetch!();
+  });
+  await act(async () => sessionRefresh);
+  rendered.rerender(createTree(<RouterProvider router={router} />));
+
+  return rendered;
+};
 
 describe("Categories route", () => {
   it("holds a direct URL behind session verification and focuses the page heading", async () => {
@@ -178,6 +218,110 @@ describe("Categories route", () => {
     ).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Categorías" })).not.toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/categories");
+
+    router.dispose();
+    queryClient.clear();
+  });
+
+  it("announces a pending category list query and renders its result", async () => {
+    const pendingList = deferred<Response>();
+    const listRequestStarted = deferred<void>();
+    const queryClient = createQueryClient();
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get("https://inventory.test/api/categories", () => {
+        listRequestStarted.resolve();
+        return pendingList.promise;
+      }),
+    );
+
+    const router = createMemoryRouter(appRoutes, { initialEntries: ["/categories"] });
+    await renderAuthenticatedCategoriesRoute(queryClient, router);
+    await listRequestStarted.promise;
+    expect(screen.getByRole("status")).toHaveTextContent("Cargando datos...");
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+
+    pendingList.resolve(
+      HttpResponse.json({
+        data: [
+          {
+            uuid: "550e8400-e29b-41d4-a716-446655440000",
+            name: "Oficina",
+            description: null,
+            isActive: true,
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+        pagination: { total: 1, page: 1, limit: 15 },
+      }),
+    );
+    expect(await screen.findByRole("row", { name: /Oficina/ })).toBeVisible();
+
+    router.dispose();
+    queryClient.clear();
+  });
+
+  it("shows a list error and retries only after an explicit action", async () => {
+    const user = userEvent.setup();
+    const queryClient = createQueryClient();
+    let categoryRequestCount = 0;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get("https://inventory.test/api/categories", () => {
+        categoryRequestCount += 1;
+        if (categoryRequestCount === 1) {
+          return HttpResponse.json({ error: "Unavailable" }, { status: 503 });
+        }
+
+        return HttpResponse.json({
+          data: [
+            {
+              uuid: "550e8400-e29b-41d4-a716-446655440000",
+              name: "Oficina",
+              description: null,
+              isActive: true,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+          pagination: { total: 1, page: 1, limit: 15 },
+        });
+      }),
+    );
+
+    const router = createMemoryRouter(appRoutes, { initialEntries: ["/categories"] });
+    await renderAuthenticatedCategoriesRoute(queryClient, router);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No se pudieron cargar las categorías.",
+    );
+    expect(categoryRequestCount).toBe(1);
+
+    await user.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByRole("row", { name: /Oficina/ })).toBeVisible();
+    expect(categoryRequestCount).toBe(2);
+
+    router.dispose();
+    queryClient.clear();
+  });
+
+  it("shows the general empty state and its first-page paginator", async () => {
+    const queryClient = createQueryClient();
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get("https://inventory.test/api/categories", () =>
+        HttpResponse.json({ data: [], pagination: { total: 0, page: 1, limit: 15 } }),
+      ),
+    );
+
+    const router = createMemoryRouter(appRoutes, { initialEntries: ["/categories"] });
+    await renderAuthenticatedCategoriesRoute(queryClient, router);
+    expect(await screen.findByText("No hay categorías para mostrar.")).toBeVisible();
+    expect(screen.getByText("Página 1 de 1")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Limpiar búsqueda" })).not.toBeInTheDocument();
 
     router.dispose();
     queryClient.clear();
