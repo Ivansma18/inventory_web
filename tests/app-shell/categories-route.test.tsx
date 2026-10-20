@@ -362,7 +362,9 @@ describe("Categories route", () => {
     await renderAuthenticatedCategoriesRoute(queryClient, router);
 
     expect(await screen.findByRole("row", { name: /Última categoría/ })).toBeVisible();
-    await waitFor(() => expect(router.state.location.search).toBe("?page=2"));
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?page=2&status=active&sort=name&order=asc"),
+    );
     expect(requestedPages).toEqual([3, 2]);
     expect(screen.getByText("Página 2 de 2")).toBeVisible();
 
@@ -370,7 +372,7 @@ describe("Categories route", () => {
     expect(router.state.location.pathname + router.state.location.search).toBe("/");
     await router.navigate(1);
     expect(router.state.location.pathname + router.state.location.search).toBe(
-      "/categories?page=2",
+      "/categories?page=2&status=active&sort=name&order=asc",
     );
     expect(await screen.findByRole("row", { name: /Última categoría/ })).toBeVisible();
     expect(requestedPages).toEqual([3, 2]);
@@ -402,7 +404,9 @@ describe("Categories route", () => {
     await renderAuthenticatedCategoriesRoute(queryClient, router);
 
     expect(await screen.findByText("No hay categorías para mostrar.")).toBeVisible();
-    await waitFor(() => expect(router.state.location.search).toBe("?page=1"));
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?page=1&status=active&sort=name&order=asc"),
+    );
     expect(requestedPages).toEqual([4, 1]);
     expect(screen.getByText("Página 1 de 1")).toBeVisible();
 
@@ -410,7 +414,7 @@ describe("Categories route", () => {
     expect(router.state.location.pathname + router.state.location.search).toBe("/");
     await router.navigate(1);
     expect(router.state.location.pathname + router.state.location.search).toBe(
-      "/categories?page=1",
+      "/categories?page=1&status=active&sort=name&order=asc",
     );
     expect(requestedPages).toEqual([4, 1]);
 
@@ -513,7 +517,9 @@ describe("Categories route", () => {
     expect(await screen.findByRole("row", { name: /Oficina activa 01/ })).toBeVisible();
     expect(searchInput).toHaveValue("fIC");
     await expectRequest(3, 1, "active", "name", "asc", "fIC");
-    expect(router.state.location.search).toBe("?page=1");
+    expect(router.state.location.search).toBe(
+      "?page=1&search=fIC&status=active&sort=name&order=asc",
+    );
 
     await user.click(screen.getByRole("button", { name: "Página siguiente" }));
     expect(await screen.findByRole("row", { name: /Oficina activa 16/ })).toBeVisible();
@@ -522,7 +528,9 @@ describe("Categories route", () => {
     await selectOptionByIndex("Estado de categoría", 1);
     expect(await screen.findByRole("row", { name: /Oficina inactiva 01/ })).toBeVisible();
     await expectRequest(5, 1, "inactive", "name", "asc", "fIC");
-    expect(router.state.location.search).toBe("?page=1");
+    expect(router.state.location.search).toBe(
+      "?page=1&search=fIC&status=inactive&sort=name&order=asc",
+    );
 
     await user.click(screen.getByRole("button", { name: "Página siguiente" }));
     expect(await screen.findByRole("row", { name: /Oficina inactiva 16/ })).toBeVisible();
@@ -534,7 +542,7 @@ describe("Categories route", () => {
     expect(await screen.findByRole("row", { name: /Oficina inactiva 01/ })).toBeVisible();
     expect(searchInput).toHaveValue("");
     await expectRequest(7, 1, "inactive", "name", "asc");
-    expect(router.state.location.search).toBe("?page=1");
+    expect(router.state.location.search).toBe("?page=1&status=inactive&sort=name&order=asc");
 
     for (const [sort, optionIndex] of [
       ["createdAt", 1],
@@ -547,7 +555,7 @@ describe("Categories route", () => {
       await selectOptionByIndex("Ordenar por", optionIndex);
       expect(await screen.findByRole("row", { name: /Oficina inactiva 01/ })).toBeVisible();
       await expectRequest(previousRequestCount + 1, 1, "inactive", sort, "asc");
-      expect(router.state.location.search).toBe("?page=1");
+      expect(router.state.location.search).toBe(`?page=1&status=inactive&sort=${sort}&order=asc`);
     }
 
     for (const [order, optionIndex] of [
@@ -560,12 +568,97 @@ describe("Categories route", () => {
       await selectOptionByIndex("Dirección del orden", optionIndex);
       expect(await screen.findByRole("row", { name: /Oficina inactiva 01/ })).toBeVisible();
       await expectRequest(previousRequestCount + 1, 1, "inactive", "name", order);
-      expect(router.state.location.search).toBe("?page=1");
+      expect(router.state.location.search).toBe(`?page=1&status=inactive&sort=name&order=${order}`);
     }
 
     router.dispose();
     queryClient.clear();
   }, 30_000);
+
+  it("restores category list controls and results from URL state and router history", async () => {
+    const requests: URL[] = [];
+    const queryClient = createQueryClient();
+    queryClient.setDefaultOptions({
+      ...queryClient.getDefaultOptions(),
+      queries: { ...queryClient.getDefaultOptions().queries, staleTime: 0 },
+    });
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get("https://inventory.test/api/categories", ({ request }) => {
+        const url = new URL(request.url);
+        requests.push(url);
+        const search = url.searchParams.get("search");
+        const isChangedSearch = search === "changed";
+
+        return HttpResponse.json({
+          data: [
+            {
+              uuid: isChangedSearch
+                ? "550e8400-e29b-41d4-a716-446655440017"
+                : "550e8400-e29b-41d4-a716-446655440016",
+              name: isChangedSearch ? "Categoría changed" : "Oficina en página dos",
+              description: null,
+              isActive: false,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-02-01T00:00:00.000Z",
+            },
+          ],
+          pagination: {
+            total: isChangedSearch ? 1 : 16,
+            page: Number(url.searchParams.get("page")),
+            limit: 15,
+          },
+        });
+      }),
+    );
+
+    const initialUrl =
+      "/categories?page=2&search=oficina&status=inactive&sort=updatedAt&order=desc";
+    const router = createMemoryRouter(appRoutes, { initialEntries: ["/", initialUrl] });
+    const user = userEvent.setup();
+    await renderAuthenticatedCategoriesRoute(queryClient, router);
+
+    expect(await screen.findByRole("row", { name: /Oficina en página dos/ })).toBeVisible();
+    expect(screen.getByRole("searchbox", { name: "Buscar categorías" })).toHaveValue("oficina");
+    expect(screen.getByRole("textbox", { name: "Estado de categoría" })).toHaveValue("Inactivas");
+    expect(screen.getByRole("textbox", { name: "Ordenar por" })).toHaveValue(
+      "Fecha de actualización",
+    );
+    expect(screen.getByRole("textbox", { name: "Dirección del orden" })).toHaveValue("Descendente");
+    expect(Object.fromEntries(requests[0]!.searchParams)).toEqual({
+      page: "2",
+      limit: "15",
+      search: "oficina",
+      isActive: "false",
+      sort: "updatedAt",
+      order: "desc",
+    });
+
+    await user.clear(screen.getByRole("searchbox", { name: "Buscar categorías" }));
+    await user.type(screen.getByRole("searchbox", { name: "Buscar categorías" }), " changed ");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+    expect(await screen.findByRole("row", { name: /Categoría changed/ })).toBeVisible();
+    expect(router.state.location.search).toBe(
+      "?page=1&search=changed&status=inactive&sort=updatedAt&order=desc",
+    );
+
+    await router.navigate(-1);
+    expect(router.state.location.pathname + router.state.location.search).toBe(initialUrl);
+    expect(await screen.findByRole("row", { name: /Oficina en página dos/ })).toBeVisible();
+    expect(screen.getByRole("searchbox", { name: "Buscar categorías" })).toHaveValue("oficina");
+    expect(screen.getByRole("textbox", { name: "Estado de categoría" })).toHaveValue("Inactivas");
+
+    await router.navigate(1);
+    expect(router.state.location.search).toBe(
+      "?page=1&search=changed&status=inactive&sort=updatedAt&order=desc",
+    );
+    expect(await screen.findByRole("row", { name: /Categoría changed/ })).toBeVisible();
+    expect(screen.getByRole("searchbox", { name: "Buscar categorías" })).toHaveValue("changed");
+
+    router.dispose();
+    queryClient.clear();
+  });
 
   it.each([
     { path: "/categories/new", heading: "Crear categoría" },

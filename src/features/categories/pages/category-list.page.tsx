@@ -1,6 +1,6 @@
 import "./category-list.page.css";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router";
 
 import { useSession } from "@/features/auth";
@@ -12,10 +12,11 @@ import { CategoryListTable } from "../components/category-list-table";
 import { CategoryPageShell } from "../components/category-page-shell";
 import { useCategoryList } from "../hooks/use-category-list";
 import {
-  DEFAULT_CATEGORY_LIST_CRITERIA,
   isCategoryListSortField,
   parseCategoryListUrlState,
+  serializeCategoryListUrlState,
   type CategoryListCriteria,
+  type CategoryListUrlState,
 } from "../utils/category-list-url-state";
 
 const categoryStatusOptions: SelectOption[] = [
@@ -34,29 +35,29 @@ const categoryOrderOptions: SelectOption[] = [
   { label: "Descendente", value: "desc" },
 ];
 
-interface CategoryListPageState {
+interface CategoryListSearchDraftState {
   serializedSearchParams: string;
-  page: number;
-  criteria: CategoryListCriteria;
+  value: string;
 }
 
 export const CategoryListPage = () => {
   const session = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
   const serializedSearchParams = searchParams.toString();
-  const parsedUrlState = parseCategoryListUrlState(searchParams);
-  const [listState, setListState] = useState<CategoryListPageState>(() => ({
+  const urlState = useMemo(
+    () => parseCategoryListUrlState(new URLSearchParams(serializedSearchParams)),
+    [serializedSearchParams],
+  );
+  const { page, criteria, needsNormalization } = urlState;
+  const [searchDraftState, setSearchDraftState] = useState<CategoryListSearchDraftState>(() => ({
     serializedSearchParams,
-    page: parsedUrlState.page,
-    criteria: DEFAULT_CATEGORY_LIST_CRITERIA,
+    value: criteria.search,
   }));
-  let page = listState.page;
-  const criteria = listState.criteria;
-  if (listState.serializedSearchParams !== serializedSearchParams) {
-    page = parsedUrlState.page;
-    setListState({ ...listState, serializedSearchParams, page });
+  let searchDraft = searchDraftState.value;
+  if (searchDraftState.serializedSearchParams !== serializedSearchParams) {
+    searchDraft = criteria.search;
+    setSearchDraftState({ serializedSearchParams, value: criteria.search });
   }
-  const [searchDraft, setSearchDraft] = useState<string>(DEFAULT_CATEGORY_LIST_CRITERIA.search);
   const pendingPageCorrection = useRef<number | null>(null);
   const sessionId = session.status === "authenticated" ? session.session.id : null;
   const categoryList = useCategoryList(sessionId, page, criteria);
@@ -80,14 +81,19 @@ export const CategoryListPage = () => {
         : snapshot
           ? { status: "ready", ...snapshot }
           : { status: "loading" };
-  const navigateToPage = (nextPage: number, replace = false) => {
-    if (nextPage === page) {
-      return;
+  useEffect(() => {
+    if (needsNormalization) {
+      setSearchParams(serializeCategoryListUrlState(urlState), { replace: true });
     }
-
-    const nextSearchParams = new URLSearchParams(searchParams);
-    nextSearchParams.set("page", String(nextPage));
-    setSearchParams(nextSearchParams, { replace });
+  }, [needsNormalization, setSearchParams, urlState]);
+  const navigateToListState = (nextState: CategoryListUrlState, replace = false) => {
+    const nextSearchParams = serializeCategoryListUrlState(nextState);
+    if (nextSearchParams.toString() !== serializedSearchParams) {
+      setSearchParams(nextSearchParams, { replace });
+    }
+  };
+  const navigateToPage = (nextPage: number, replace = false) => {
+    navigateToListState({ page: nextPage, criteria }, replace);
   };
   const changePage = (nextPage: number) => {
     if (pendingPageCorrection.current === nextPage) {
@@ -113,18 +119,20 @@ export const CategoryListPage = () => {
       return;
     }
 
-    setListState((current) => ({ ...current, page: 1, criteria: nextCriteria }));
-    navigateToPage(1);
+    navigateToListState({ page: 1, criteria: nextCriteria });
   };
   const applySearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const search = searchDraft.trim();
-    setSearchDraft(search);
+    setSearchDraftState({ serializedSearchParams, value: search });
     updateCriteria({ search });
   };
   const clearSearch = () => {
-    setSearchDraft("");
+    setSearchDraftState({ serializedSearchParams, value: "" });
     updateCriteria({ search: "" });
+  };
+  const updateSearchDraft = (value: string) => {
+    setSearchDraftState({ serializedSearchParams, value });
   };
 
   return (
@@ -142,7 +150,7 @@ export const CategoryListPage = () => {
           <Input
             helpText="Busca por parte del nombre; no distingue mayúsculas."
             label="Buscar categorías"
-            onValueChange={setSearchDraft}
+            onValueChange={updateSearchDraft}
             type="search"
             value={searchDraft}
           />
