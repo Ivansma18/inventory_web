@@ -22,8 +22,9 @@ Cada tarea funcional incluye escribir o actualizar primero la prueba que demuest
 - [x] T6. Mostrar carga, error con reintento y estados vacíos del listado. (RF-14–RF-17)
   Hecho cuando: pruebas diferidas y fallidas verifican feedback identificable, retry de lectura, vacío general y búsqueda sin resultados con acción de limpieza.
 - Evidencia: `tests/app-shell/categories-route.test.tsx` comprueba carga diferida, error accesible, reintento manual sin reenvío automático y vacío general con paginación inicial; `tests/categories/category-list-table.test.tsx` verifica el mensaje para búsqueda sin resultados y la acción `Limpiar búsqueda`. Se preconectó el criterio local sin añadir controles ni estado URL. `pnpm test:run` (58 archivos, 513 pruebas), `pnpm test:e2e --workers=1` (72 pruebas), lint, typecheck, formato y build pasaron. Detector Impeccable: `[]`. Build conserva aviso no bloqueante de chunk superior a 500 kB.
-- [ ] T7. Corregir páginas fuera de rango sin añadir historial. (RF-18–RF-19, RF-28, RF-30)
+- [x] T7. Corregir páginas fuera de rango sin añadir historial. (RF-18–RF-19, RF-28, RF-30)
   Hecho cuando: pruebas verifican última página con resultados o página 1 si el total es cero; la corrección reemplaza la entrada actual y no produce ciclos de historial.
+- Evidencia: `tests/app-shell/categories-route.test.tsx` verifica `page=3` → última página disponible, `page=4` → página 1 con total cero y Atrás/Adelante sin restaurar la página inválida. `pnpm test:run --maxWorkers=1` (58 archivos, 515 pruebas), lint, typecheck, formato y build pasaron. El E2E predeterminado se ejecutó dos veces y ambas ejecuciones tuvieron 71/72 por fallos intermitentes no relacionados en Productos; los dos casos fallidos pasaron al repetirse de forma aislada con Playwright. El build conserva el aviso no bloqueante de chunk superior a 500 kB.
 - [ ] T8. Incorporar búsqueda, filtro de estado y ordenación del listado. (RF-20–RF-27)
   Hecho cuando: pruebas de UI verifican parámetros de búsqueda parcial sin distinción de mayúsculas, trim/blancos, búsqueda acumulada con estado, tres campos sort y ambas direcciones; cambiar criterios reinicia página, paginar no.
 - [ ] T9. Conectar criterios con URL compartible, recarga e historial. (RF-28–RF-31)
@@ -275,4 +276,4 @@ La tabla vincula implementación y evidencia principal. T58 consolida resultados
 - Si no hay escritorio gráfico, lector de pantalla u otra condición necesaria, registrar bloqueo; no sustituir zoom nativo por viewport equivalente ni revisión humana por pruebas automáticas.
 - No modificar reglas del backend, scope aprobado ni contratos de Productos por inferencia. Toda discrepancia vuelve a `change-manager`.
 
-T1–T6 están completadas; T7 sigue pendiente y no se ha iniciado.
+T1–T7 están completadas; T8 sigue pendiente y no se ha iniciado.

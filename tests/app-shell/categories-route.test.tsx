@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
@@ -322,6 +322,97 @@ describe("Categories route", () => {
     expect(await screen.findByText("No hay categorías para mostrar.")).toBeVisible();
     expect(screen.getByText("Página 1 de 1")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Limpiar búsqueda" })).not.toBeInTheDocument();
+
+    router.dispose();
+    queryClient.clear();
+  });
+
+  it("replaces an out-of-range page with the last result page without a history loop", async () => {
+    const requestedPages: number[] = [];
+    const queryClient = createQueryClient();
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get("https://inventory.test/api/categories", ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get("page"));
+        requestedPages.push(page);
+
+        return HttpResponse.json({
+          data:
+            page === 2
+              ? [
+                  {
+                    uuid: "550e8400-e29b-41d4-a716-446655440016",
+                    name: "Última categoría",
+                    description: null,
+                    isActive: true,
+                    createdAt: "2026-01-01T00:00:00.000Z",
+                    updatedAt: "2026-01-01T00:00:00.000Z",
+                  },
+                ]
+              : [],
+          pagination: { total: 16, page, limit: 15 },
+        });
+      }),
+    );
+
+    const router = createMemoryRouter(appRoutes, {
+      initialEntries: ["/", "/categories?page=3"],
+    });
+    await renderAuthenticatedCategoriesRoute(queryClient, router);
+
+    expect(await screen.findByRole("row", { name: /Última categoría/ })).toBeVisible();
+    await waitFor(() => expect(router.state.location.search).toBe("?page=2"));
+    expect(requestedPages).toEqual([3, 2]);
+    expect(screen.getByText("Página 2 de 2")).toBeVisible();
+
+    await router.navigate(-1);
+    expect(router.state.location.pathname + router.state.location.search).toBe("/");
+    await router.navigate(1);
+    expect(router.state.location.pathname + router.state.location.search).toBe(
+      "/categories?page=2",
+    );
+    expect(await screen.findByRole("row", { name: /Última categoría/ })).toBeVisible();
+    expect(requestedPages).toEqual([3, 2]);
+
+    router.dispose();
+    queryClient.clear();
+  });
+
+  it("replaces an out-of-range page with page one when the total is zero", async () => {
+    const requestedPages: number[] = [];
+    const queryClient = createQueryClient();
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get("https://inventory.test/api/categories", ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get("page"));
+        requestedPages.push(page);
+
+        return HttpResponse.json({
+          data: [],
+          pagination: { total: 0, page: 1, limit: 15 },
+        });
+      }),
+    );
+
+    const router = createMemoryRouter(appRoutes, {
+      initialEntries: ["/", "/categories?page=4"],
+    });
+    await renderAuthenticatedCategoriesRoute(queryClient, router);
+
+    expect(await screen.findByText("No hay categorías para mostrar.")).toBeVisible();
+    await waitFor(() => expect(router.state.location.search).toBe("?page=1"));
+    expect(requestedPages).toEqual([4, 1]);
+    expect(screen.getByText("Página 1 de 1")).toBeVisible();
+
+    await router.navigate(-1);
+    expect(router.state.location.pathname + router.state.location.search).toBe("/");
+    await router.navigate(1);
+    expect(router.state.location.pathname + router.state.location.search).toBe(
+      "/categories?page=1",
+    );
+    expect(requestedPages).toEqual([4, 1]);
 
     router.dispose();
     queryClient.clear();

@@ -28,6 +28,7 @@ export interface CategoryListTableProps {
   criteria: CategoryListCriteria;
   onClearSearch: () => void;
   onPageChange: (page: number) => void;
+  onPageCorrection: (page: number) => void;
   onRetry: () => void;
   result: DataTableResult<Category>;
 }
@@ -36,6 +37,7 @@ export const CategoryListTable = ({
   criteria,
   onClearSearch,
   onPageChange,
+  onPageCorrection,
   onRetry,
   result,
 }: CategoryListTableProps) => {
@@ -59,6 +61,7 @@ export const CategoryListTable = ({
             : "No hay categorías para mostrar."
         }
         onPageChange={onPageChange}
+        onPageCorrection={onPageCorrection}
         onSortChange={() => {}}
         pageSize={CATEGORY_LIST_PAGE_SIZE}
         result={result}
