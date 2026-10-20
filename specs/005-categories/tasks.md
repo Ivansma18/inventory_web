@@ -16,8 +16,9 @@ Cada tarea funcional incluye escribir o actualizar primero la prueba que demuest
 - [x] T4. Definir parser, serializador y traducción contractual de criterios del listado. (RF-10–RF-11, RF-20–RF-31)
   Hecho cuando: pruebas unitarias verifican defaults, página positiva, tamaño 15, búsqueda recortada/omitida si vacía, ambos estados, tres campos de orden, ambas direcciones y normalización de criterios inválidos.
 - Evidencia: `tests/categories/category-list-url-state.test.ts` cubre defaults, página positiva, trim/omisión de búsqueda, estados, campos/direcciones de orden, duplicados e inválidos; contrasta `buildCategoryListQuery` con tipos OpenAPI y `limit=15`. `pnpm test:run` (57 archivos, 507 pruebas), lint, typecheck, formato y build pasaron. Build conserva aviso no bloqueante de chunk superior a 500 kB.
-- [ ] T5. Integrar consulta remota de gestión, filas, total y paginación controlada. (RF-8–RF-13)
+- [x] T5. Integrar consulta remota de gestión, filas, total y paginación controlada. (RF-8–RF-13)
   Hecho cuando: una prueba MSW verifica nombre, estado, total y quince elementos por página con parámetros predeterminados; otra cambia de página y comprueba la petición y filas remotas sin afectar `useActiveCategories`.
+- Evidencia: `tests/app-shell/categories-route.test.tsx` verifica petición predeterminada, 15 filas, nombre, estado, total y cambio a la segunda página con datos remotos; `tests/categories/categories-api.test.tsx` verifica que la consulta administrativa no contamina `useActiveCategories`. `pnpm test:run` (57 archivos, 508 pruebas), `pnpm test:e2e --workers=1` (72 pruebas), lint, typecheck, formato y build pasaron. Detector Impeccable: `[]`. Build conserva aviso no bloqueante de chunk superior a 500 kB.
 - [ ] T6. Mostrar carga, error con reintento y estados vacíos del listado. (RF-14–RF-17)
   Hecho cuando: pruebas diferidas y fallidas verifican feedback identificable, retry de lectura, vacío general y búsqueda sin resultados con acción de limpieza.
 - [ ] T7. Corregir páginas fuera de rango sin añadir historial. (RF-18–RF-19, RF-28, RF-30)
@@ -273,4 +274,4 @@ La tabla vincula implementación y evidencia principal. T58 consolida resultados
 - Si no hay escritorio gráfico, lector de pantalla u otra condición necesaria, registrar bloqueo; no sustituir zoom nativo por viewport equivalente ni revisión humana por pruebas automáticas.
 - No modificar reglas del backend, scope aprobado ni contratos de Productos por inferencia. Toda discrepancia vuelve a `change-manager`.
 
-T1–T4 están completadas; T5 sigue pendiente y no se ha iniciado.
+T1–T5 están completadas; T6 sigue pendiente y no se ha iniciado.

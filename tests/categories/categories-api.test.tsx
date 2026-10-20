@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { useActiveCategories, useCategory } from "@/features/categories";
 import { CategoryResponseContractError } from "@/features/categories/api/category-contract";
+import { useCategoryList } from "@/features/categories/hooks/use-category-list";
 import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
@@ -39,6 +40,58 @@ afterEach(() => {
 });
 
 describe("public active categories query", () => {
+  it("keeps management list results isolated from the active category selector query", async () => {
+    const requests: URL[] = [];
+    const queryClient = createQueryClient();
+    queryClients.push(queryClient);
+
+    server.use(
+      http.get(categoriesUrl, ({ request }) => {
+        const url = new URL(request.url);
+        requests.push(url);
+        const isActive = url.searchParams.get("isActive") === "true";
+
+        return HttpResponse.json({
+          data: [{ ...category(isActive ? "Selector activa" : "Gestión inactiva"), isActive }],
+          pagination: { total: 1, page: 1, limit: 15 },
+        });
+      }),
+    );
+
+    const activeQuery = renderHook(() => useActiveCategories(sessionId, { page: 1, search: "" }), {
+      wrapper: createWrapper(queryClient),
+    });
+    const managementQuery = renderHook(
+      () =>
+        useCategoryList(sessionId, 1, {
+          search: "",
+          status: "inactive",
+          sort: "name",
+          order: "asc",
+        }),
+      { wrapper: createWrapper(queryClient) },
+    );
+
+    await waitFor(() => {
+      expect(activeQuery.result.current.isSuccess).toBe(true);
+      expect(managementQuery.result.current.isSuccess).toBe(true);
+    });
+
+    expect(activeQuery.result.current.data?.data[0]).toMatchObject({
+      name: "Selector activa",
+      isActive: true,
+    });
+    expect(managementQuery.result.current.data?.data[0]).toMatchObject({
+      name: "Gestión inactiva",
+      isActive: false,
+    });
+    expect(requests).toHaveLength(2);
+    expect(requests.map((url) => url.searchParams.get("isActive")).sort()).toEqual([
+      "false",
+      "true",
+    ]);
+  });
+
   it("searches and requests active categories from pages beyond the first", async () => {
     const requests: URL[] = [];
     const queryClient = createQueryClient();

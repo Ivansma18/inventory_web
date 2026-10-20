@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
@@ -57,7 +57,16 @@ describe("Categories route", () => {
     const queryClient = createQueryClient();
     let requestCount = 0;
     let categoryRequestCount = 0;
+    const categoryRequests: URL[] = [];
     let refetch: UseSessionResult["refetch"] | undefined;
+    const categoryFor = (page: number, index: number) => ({
+      uuid: `550e8400-e29b-41d4-a716-${String(page * 100 + index).padStart(12, "0")}`,
+      name: page === 1 && index === 1 ? "Oficina" : `Categoría ${page}-${index}`,
+      description: null,
+      isActive: true,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
 
     server.use(
       http.get(/\/api\/auth\/get-session/, () => {
@@ -70,9 +79,20 @@ describe("Categories route", () => {
         absenceRequestStarted.resolve();
         return pendingAbsence.promise;
       }),
-      http.get("https://inventory.test/api/categories", () => {
+      http.get("https://inventory.test/api/categories", ({ request }) => {
         categoryRequestCount += 1;
-        return HttpResponse.json({ data: [], pagination: { total: 0, page: 1, limit: 15 } });
+        const url = new URL(request.url);
+        categoryRequests.push(url);
+        const page = Number(url.searchParams.get("page"));
+        const data =
+          page === 1
+            ? Array.from({ length: 15 }, (_, index) => categoryFor(page, index + 1))
+            : [categoryFor(page, 1)];
+
+        return HttpResponse.json({
+          data,
+          pagination: { total: 31, page, limit: 15 },
+        });
       }),
     );
 
@@ -82,6 +102,7 @@ describe("Categories route", () => {
       return null;
     };
 
+    const user = userEvent.setup();
     render(
       <QueryClientProvider client={queryClient}>
         <UiProvider>
@@ -113,9 +134,34 @@ describe("Categories route", () => {
     expect(
       screen.getByText("Organiza las categorías que utilizas para clasificar tus productos."),
     ).toBeVisible();
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
-    expect(categoryRequestCount).toBe(0);
+    expect(screen.getByRole("table")).toBeVisible();
+    const firstCategoryRow = screen.getByRole("row", { name: /Oficina/ });
+    expect(firstCategoryRow).toBeVisible();
+    expect(within(firstCategoryRow).getByText("Activa")).toBeVisible();
+    expect(screen.getAllByRole("row")).toHaveLength(16);
+    expect(screen.getByRole("status")).toHaveTextContent("31 categorías");
+    expect(categoryRequestCount).toBe(1);
+    expect(Object.fromEntries(categoryRequests[0]!.searchParams)).toEqual({
+      page: "1",
+      limit: "15",
+      isActive: "true",
+      sort: "name",
+      order: "asc",
+    });
     expect(router.state.location.pathname).toBe("/categories");
+
+    await user.click(screen.getByRole("button", { name: "Página siguiente" }));
+
+    expect(await screen.findByRole("row", { name: /Categoría 2-1/ })).toBeVisible();
+    expect(screen.getByText("Página 2 de 3")).toBeVisible();
+    expect(categoryRequestCount).toBe(2);
+    expect(Object.fromEntries(categoryRequests[1]!.searchParams)).toEqual({
+      page: "2",
+      limit: "15",
+      isActive: "true",
+      sort: "name",
+      order: "asc",
+    });
 
     let refetchResult!: Promise<AuthSessionQueryResult>;
     act(() => {

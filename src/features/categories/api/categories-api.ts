@@ -52,7 +52,7 @@ export const buildActiveCategoryListQuery = (
   };
 };
 
-export const listActiveCategories = async (
+export const listCategories = async (
   params: CategoryListQuery,
   signal?: AbortSignal,
 ): Promise<CategoryListResponse> => {
@@ -65,6 +65,8 @@ export const listActiveCategories = async (
 
   return parseCategoryListResponse(response);
 };
+
+export const listActiveCategories = listCategories;
 
 export const getCategory = async (
   { uuid }: CategoryDetailPath,
