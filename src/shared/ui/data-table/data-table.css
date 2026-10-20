@@ -30,6 +30,12 @@
     text-align: center;
   }
 
+  .ui-data-table__empty-action {
+    display: flex;
+    justify-content: center;
+    margin-block-start: var(--ui-space-3);
+  }
+
   .ui-data-table__feedback--error {
     background-color: var(--ui-color-error-surface);
     color: var(--ui-color-on-error);
@@ -37,6 +43,11 @@
 
   .ui-data-table__content {
     min-inline-size: 0;
+  }
+
+  .ui-data-table__content--horizontal-scroll table {
+    inline-size: 100%;
+    min-inline-size: 52rem;
   }
 
   .ui-data-table .p-paginator,

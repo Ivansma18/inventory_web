@@ -128,6 +128,35 @@ describe("Select", () => {
     expect(screen.getByLabelText("Estado")).toHaveValue("Selecciona una opción");
   });
 
+  it("omits the empty option when the selection cannot be cleared", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <Select
+        allowEmptySelection={false}
+        label="Categoría"
+        options={options}
+        value="draft"
+        onValueChange={() => undefined}
+      />,
+    );
+
+    const select = screen.getByRole("textbox", { name: "Categoría" });
+    select.focus();
+    await user.keyboard("{ArrowDown}");
+
+    const listbox = screen.getByRole("listbox", { hidden: true });
+    expect(
+      within(listbox).queryByRole("option", {
+        hidden: true,
+        name: "Selecciona una opción",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(listbox).getByRole("option", { hidden: true, name: "Borrador" }),
+    ).toBeInTheDocument();
+  });
+
   it("reports null once when the selected option is removed", () => {
     const onValueChange = vi.fn();
     const selectedOptions: SelectOption[] = [{ label: "Borrador", value: "draft" }];
@@ -211,6 +240,28 @@ describe("Select", () => {
     expect(select).toHaveAttribute("aria-invalid", "true");
     expect(select).toHaveAttribute("aria-describedby", error.id);
     expect(select).toHaveAccessibleDescription("Selecciona un estado.");
+  });
+
+  it("forwards required semantics and blur to the select", async () => {
+    const user = userEvent.setup();
+    const onBlur = vi.fn();
+
+    render(
+      <Select
+        label="Categoría"
+        onBlur={onBlur}
+        options={options}
+        required
+        value={null}
+        onValueChange={() => undefined}
+      />,
+    );
+
+    const select = screen.getByLabelText("Categoría");
+    expect(select).toHaveAttribute("aria-required", "true");
+    select.focus();
+    await user.tab();
+    expect(onBlur).toHaveBeenCalledOnce();
   });
 
   it("disables itself and announces when no options are available", () => {

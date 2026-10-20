@@ -384,6 +384,10 @@ export const createInventoryAuthPlugin = () => {
       };
     },
     getActions: ($fetch) => ({
+      isInventorySessionCurrent: (sessionId: string) => {
+        const currentSession = inventorySession.get();
+        return currentSession.status === "authenticated" && currentSession.session.id === sessionId;
+      },
       signInWithEmail: (credentials: AuthCredentials) =>
         performSignInWithEmail(credentials, () =>
           $fetch<unknown>("/sign-in/email", {

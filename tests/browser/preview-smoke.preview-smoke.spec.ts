@@ -29,6 +29,10 @@ const forbiddenBundleMarkers = [
   "Inventory Session Focus Harness",
   "session-focus-harness.tsx",
   "inventory:test:refetch-session",
+  "/__products-msw",
+  "Inventory Product MSW E2E Harness",
+  "product-msw-api.ts",
+  "/mockServiceWorker.js",
   ...forbiddenDesignSystemMarkers,
   "INVENTORY_HEALTH_E2E_HARNESS",
   "AUTH_TEST_EMAIL",
@@ -124,6 +128,13 @@ test("serves the built app without development harnesses, demo, or backend acces
   expect(sessionFocusHarnessFallback).not.toContain("session-focus-harness.tsx");
   expect(sessionFocusHarnessFallback).not.toContain("/src/main.tsx");
 
+  const productMswHarnessResponse = await page.request.get("/__products-msw");
+  expect(productMswHarnessResponse.status()).toBe(200);
+  const productMswHarnessFallback = await productMswHarnessResponse.text();
+  expect(productMswHarnessFallback).not.toContain("Inventory Product MSW E2E Harness");
+  expect(productMswHarnessFallback).not.toContain("product-msw-app.tsx");
+  expect(productMswHarnessFallback).not.toContain("/mockServiceWorker.js");
+
   const designSystemFallback = await page.request.get("/__design-system");
   expect([200, 404]).toContain(designSystemFallback.status());
   const designSystemFallbackHtml = await designSystemFallback.text();
@@ -179,4 +190,57 @@ test("renders Home from a mocked Auth session without business API requests", as
   expect(sessionRequests).toBe(1);
   expect(businessRequests).toBe(0);
   expect(apiRequests).toEqual(["/api/auth/get-session"]);
+});
+
+test("serves the product list in preview with mocked Auth and Products APIs", async ({ page }) => {
+  const apiRequests: string[] = [];
+  const businessRequests: string[] = [];
+  const product = {
+    uuid: "550e8400-e29b-41d4-a716-446655440051",
+    sku: "SKU-PREVIEW-001",
+    name: "Producto simulado en preview",
+    description: null,
+    purchasePrice: 25.5,
+    salePrice: 31.25,
+    categoryUuid: null,
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+
+  page.on("request", (request) => {
+    const requestUrl = new URL(request.url());
+    if (requestUrl.pathname.startsWith("/api/")) {
+      apiRequests.push(requestUrl.pathname);
+    }
+  });
+
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          user: { id: "preview-products-user", email: "operator@example.com", role: "OPERATOR" },
+          session: { id: "preview-products-session", createdAt: "2026-01-01T00:00:00.000Z" },
+        },
+      }),
+    });
+  });
+
+  await page.route("**/api/backend/products**", async (route) => {
+    businessRequests.push(route.request().method());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: [product], pagination: { total: 1, page: 1, limit: 15 } }),
+    });
+  });
+
+  const previewResponse = await page.goto("/products");
+  expect(previewResponse?.status()).toBe(200);
+  await expect(page.getByRole("heading", { level: 1, name: "Productos" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: product.sku })).toBeVisible();
+  expect(apiRequests).toEqual(["/api/auth/get-session", "/api/backend/products"]);
+  expect(businessRequests).toEqual(["GET"]);
 });

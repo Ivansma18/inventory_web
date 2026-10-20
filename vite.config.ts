@@ -8,6 +8,7 @@ import { createViteAliases } from "./scripts/vite-aliases.ts";
 import { createAuthTestHarnessPlugin } from "./scripts/vite-auth-test-harness.ts";
 import { createDesignSystemDemoPlugin } from "./scripts/vite-design-system-demo.ts";
 import { createHealthTestHarnessPlugin } from "./scripts/vite-health-test-harness.ts";
+import { createProductMswTestHarnessPlugin } from "./scripts/vite-product-msw-test-harness.ts";
 import { createApiProxy } from "./scripts/vite-proxy.ts";
 import { publicEnvSchema, toolEnvSchema } from "./src/shared/config/env.schema.ts";
 
@@ -50,6 +51,8 @@ export default defineConfig(({ mode, command }) => {
     command === "serve" && process.env.INVENTORY_AUTH_E2E_HARNESS === "1";
   const healthTestHarnessEnabled =
     command === "serve" && process.env.INVENTORY_HEALTH_E2E_HARNESS === "1";
+  const productMswTestHarnessEnabled =
+    command === "serve" && process.env.INVENTORY_E2E_PRODUCT_MSW === "1";
 
   return {
     root: projectRoot,
@@ -63,8 +66,10 @@ export default defineConfig(({ mode, command }) => {
       tailwindcss(),
       ...(authTestHarnessEnabled ? [createAuthTestHarnessPlugin(projectRoot)] : []),
       ...(healthTestHarnessEnabled ? [createHealthTestHarnessPlugin(projectRoot)] : []),
+      ...(productMswTestHarnessEnabled ? [createProductMswTestHarnessPlugin(projectRoot)] : []),
       createDesignSystemDemoPlugin(),
     ],
+    ...(productMswTestHarnessEnabled ? { optimizeDeps: { include: ["msw/browser"] } } : {}),
     resolve: {
       alias: createViteAliases(projectRoot),
     },

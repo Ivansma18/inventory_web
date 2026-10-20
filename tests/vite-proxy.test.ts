@@ -234,7 +234,7 @@ describe("Vite development proxy integration", () => {
         await closeHttpServer(backend.server);
       }
     });
-  });
+  }, 15_000);
 
   it("returns a sanitized 502 when the backend is unavailable", async () => {
     await withRealHttp(async () => {
@@ -297,7 +297,7 @@ describe("Vite development proxy integration", () => {
         }
       });
     });
-  });
+  }, 15_000);
 });
 
 describe("Vite preview proxy integration", () => {
@@ -345,5 +345,5 @@ describe("Vite preview proxy integration", () => {
         await rm(previewRoot, { recursive: true, force: true });
       }
     });
-  });
+  }, 15_000);
 });

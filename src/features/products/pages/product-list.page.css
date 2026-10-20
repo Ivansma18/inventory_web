@@ -1,0 +1,93 @@
+.product-list__filters {
+  align-items: end;
+  display: grid;
+  gap: var(--ui-space-4);
+  grid-template-columns: minmax(18rem, 1.6fr) repeat(3, minmax(9rem, 1fr));
+  margin-block: var(--ui-space-5) var(--ui-space-4);
+}
+
+.product-list__search {
+  align-items: end;
+  display: grid;
+  gap: var(--ui-space-2);
+  grid-column: auto;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.product-list__summary {
+  margin-block: var(--ui-space-4) var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-font-size-sm);
+  font-weight: var(--ui-font-weight-medium);
+}
+
+.product-list__status {
+  display: inline-flex;
+  min-inline-size: max-content;
+  white-space: nowrap;
+}
+
+.product-list__retry {
+  display: flex;
+  justify-content: center;
+  margin-block-start: var(--ui-space-3);
+}
+
+.product-list__row-actions,
+.product-list__status-confirmation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+
+.product-list__status-confirmation {
+  display: grid;
+  gap: var(--ui-space-3);
+  min-inline-size: 0;
+}
+
+.product-list__status-confirmation > p {
+  margin: 0;
+  color: var(--ui-color-text);
+  font-size: var(--ui-font-size-sm);
+  line-height: var(--ui-line-height-relaxed);
+}
+
+.product-list__status-confirmation > .product-list__status-pending {
+  color: var(--ui-color-text-muted);
+  font-weight: var(--ui-font-weight-medium);
+}
+
+.product-list__status-confirmation > .product-list__status-error {
+  background-color: var(--ui-color-error-surface);
+  border: var(--ui-border-width) solid var(--ui-color-error);
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-color-on-error);
+  padding: var(--ui-space-3);
+}
+
+.product-list__status-confirmation-actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 64rem) {
+  .product-list__filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .product-list__search {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 40rem) {
+  .product-list__filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .product-list__search {
+    grid-column: auto;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

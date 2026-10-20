@@ -7,7 +7,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 
 const PAGINATOR_TEMPLATE = "PrevPageLink PageLinks NextPageLink CurrentPageReport";
 const PAGE_REPORT_TEMPLATE = "Página {currentPage} de {totalPages}";
-const EMPTY_PAGE_REPORT = "0 de 0 páginas";
+const EMPTY_PAGE_REPORT = "Página 1 de 1";
 
 export interface DataTableColumn<Row extends object> {
   key: Extract<keyof Row, string>;
@@ -36,7 +36,11 @@ export type DataTableResult<Row extends object> =
 
 export interface DataTableProps<Row extends object> {
   columns: DataTableColumn<Row>[];
+  emptyAction?: ReactNode;
+  emptyMessage?: string;
+  allowHorizontalScroll?: boolean;
   onPageChange: (page: number) => void;
+  onPageCorrection?: (page: number) => void;
   onSortChange: (sort: DataTableSort<Row> | null) => void;
   pageSize: number;
   result: DataTableResult<Row>;
@@ -46,7 +50,11 @@ export interface DataTableProps<Row extends object> {
 
 export const DataTable = <Row extends object>({
   columns,
+  allowHorizontalScroll = false,
+  emptyAction,
+  emptyMessage = "No hay datos para mostrar.",
   onPageChange,
+  onPageCorrection,
   onSortChange,
   pageSize,
   result,
@@ -55,16 +63,20 @@ export const DataTable = <Row extends object>({
 }: DataTableProps<Row>) => {
   const snapshot = result.status === "ready" ? result : result.snapshot;
   const rows = snapshot?.rows ?? [];
-  const hasRows = rows.length > 0;
+  const requestedPage = snapshot?.page ?? 1;
   const isLoading = result.status === "loading";
-  const isEmpty = result.status === "ready" && rows.length === 0;
-  const currentPage = snapshot?.page ?? 1;
   const total = snapshot?.total ?? 0;
   const totalPages = pageSize > 0 ? Math.ceil(total / pageSize) : 0;
+  const correctionPage = totalPages > 0 ? Math.min(Math.max(requestedPage, 1), totalPages) : 1;
+  const isCorrectingPage =
+    result.status !== "error" && snapshot !== undefined && requestedPage !== correctionPage;
+  const currentPage = requestedPage;
+  const hasRows = rows.length > 0;
+  const shouldShowRows = hasRows && !(result.status === "ready" && isCorrectingPage);
+  const isEmpty = result.status === "ready" && rows.length === 0 && !isCorrectingPage;
   const activeSort =
     sort && columns.some((column) => column.key === sort.columnId && column.sortable) ? sort : null;
   const sortOrder = activeSort ? (activeSort.direction === "asc" ? 1 : -1) : undefined;
-  const isCorrectingPage = totalPages > 0 && currentPage > totalPages;
   const errorMessage =
     result.status === "error" ? result.message.trim() || "No se pudieron cargar los datos." : null;
   const correctionKey = useRef<string | null>(null);
@@ -75,14 +87,23 @@ export const DataTable = <Row extends object>({
       return;
     }
 
-    const currentCorrectionKey = `${currentPage}:${total}:${pageSize}`;
+    const currentCorrectionKey = `${requestedPage}:${total}:${pageSize}`;
     if (correctionKey.current === currentCorrectionKey) {
       return;
     }
 
     correctionKey.current = currentCorrectionKey;
-    onPageChange(totalPages);
-  }, [currentPage, isCorrectingPage, onPageChange, pageSize, total, totalPages]);
+    onPageCorrection?.(correctionPage);
+    onPageChange(correctionPage);
+  }, [
+    correctionPage,
+    isCorrectingPage,
+    onPageChange,
+    onPageCorrection,
+    pageSize,
+    requestedPage,
+    total,
+  ]);
 
   const handlePage = (event: { first: number }) => {
     if (pageSize <= 0) {
@@ -142,16 +163,22 @@ export const DataTable = <Row extends object>({
         </p>
       ) : null}
       {isEmpty ? (
-        <p
-          aria-atomic="true"
-          className="ui-data-table__feedback ui-data-table__feedback--empty"
-          role="status"
-        >
-          No hay datos para mostrar.
-        </p>
+        <div className="ui-data-table__empty">
+          <p
+            aria-atomic="true"
+            className="ui-data-table__feedback ui-data-table__feedback--empty"
+            role="status"
+          >
+            {emptyMessage.trim() || "No hay datos para mostrar."}
+          </p>
+          {emptyAction ? <div className="ui-data-table__empty-action">{emptyAction}</div> : null}
+        </div>
       ) : null}
-      {hasRows ? (
-        <div aria-busy={isLoading || isCorrectingPage} className="ui-data-table__content">
+      {shouldShowRows ? (
+        <div
+          aria-busy={isLoading || isCorrectingPage}
+          className={`ui-data-table__content${allowHorizontalScroll ? " ui-data-table__content--horizontal-scroll" : ""}`}
+        >
           <PrimeDataTable
             alwaysShowPaginator
             className="ui-data-table"

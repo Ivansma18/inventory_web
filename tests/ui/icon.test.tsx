@@ -17,12 +17,13 @@ const iconNames = [
   "sort",
   "sortAscending",
   "sortDescending",
+  "box",
   "home",
   "menu",
   "logout",
 ] satisfies IconName[];
 
-const shellIconNames = ["home", "menu", "logout"] satisfies IconName[];
+const shellIconNames = ["home", "menu", "logout", "box"] satisfies IconName[];
 
 // @ts-expect-error Icon names are restricted to the public catalog.
 const invalidIconName: IconProps = { name: "edit" };
@@ -48,6 +49,12 @@ describe("Icon", () => {
 
     expect(icon).toHaveAttribute("aria-hidden", "true");
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("maps the box catalog entry to the box glyph", () => {
+    const { container } = render(<Icon name="box" />);
+
+    expect(container.firstElementChild).toHaveClass("pi-box");
   });
 
   it("exposes an informative icon through its accessible label", () => {

@@ -39,7 +39,7 @@ for (const width of [360, 768, 1280]) {
     if (width >= 1024) {
       await expect(sidebar).toBeVisible();
       await expect(sidebar).toContainText("Inventory");
-      await expect(navigation.getByRole("link")).toHaveCount(1);
+      await expect(navigation.getByRole("link")).toHaveCount(2);
       await expect(homeLink).toHaveAttribute("aria-current", "page");
       const expandButton = page.getByRole("button", { name: "Expandir navegación" });
       await expect(expandButton).toHaveAttribute("aria-expanded", "false");
