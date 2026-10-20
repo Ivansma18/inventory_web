@@ -40,6 +40,7 @@ Instalación reproducible: `pnpm install --frozen-lockfile`.
   origin de development y cuenta privada configurada en `.env`.
 - E2E adicionales verificados: `pnpm test:e2e --project=design-system`,
   `pnpm test:e2e --project=preview-smoke`,
+  `pnpm test:e2e --project=native-zoom`,
   `pnpm test:e2e --project=proxy-contract` y
   `pnpm test:e2e --project=auth-harness`.
 - Comprobaciones de proceso/hooks: `pnpm verify:startup` y
@@ -52,6 +53,9 @@ La demo `/__design-system` solo se sirve en desarrollo; su suite debe elegirse
 con `pnpm test:e2e --project=design-system`, queda fuera del E2E predeterminado
 y usa datos ficticios sin backend ni credenciales. `preview-smoke` verifica que
 el bundle de producción no incluya la ruta, el código ni los recursos de la demo.
+`native-zoom` lanza Chromium visible con zoom nativo al 200 %, usa un perfil
+temporal y datos simulados, y requiere una sesión de escritorio con interfaz
+gráfica.
 Husky solo puede instalar hooks dentro de la raíz de un repositorio Git; si no
 hay `.git`, usar los comandos CLI de calidad.
 

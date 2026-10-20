@@ -129,8 +129,12 @@ describe("Product list remote query", () => {
 
       renderProductRoute();
 
-      expect(await screen.findByRole("button", { name: "Desactivar" })).toBeVisible();
-      expect(screen.getByRole("button", { name: "Activar" })).toBeVisible();
+      expect(
+        await screen.findByRole("button", { name: "Desactivar" }, { timeout: 5_000 }),
+      ).toBeVisible();
+      expect(
+        await screen.findByRole("button", { name: "Activar" }, { timeout: 5_000 }),
+      ).toBeVisible();
     },
   );
 

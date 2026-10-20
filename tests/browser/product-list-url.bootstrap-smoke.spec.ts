@@ -114,10 +114,14 @@ test("replaces invalid list parameters instead of adding a browser history entry
   });
 
   await page.goto("/");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+  ).toBeVisible();
   await page.goto("/products?page=0&search=%20%20&status=archived&sort=unknown&order=sideways");
   await expect(page).toHaveURL(/\/products\?page=1&status=active&sort=name&order=asc$/);
+  await expect(page.getByText("No hay productos activos para mostrar.")).toBeVisible();
 
-  await page.goBack();
+  await page.goBack({ waitUntil: "commit" });
   await expect(page).toHaveURL(/\/$/);
   await expect(
     page.getByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),

@@ -69,6 +69,7 @@ export default defineConfig(({ mode, command }) => {
       ...(productMswTestHarnessEnabled ? [createProductMswTestHarnessPlugin(projectRoot)] : []),
       createDesignSystemDemoPlugin(),
     ],
+    ...(productMswTestHarnessEnabled ? { optimizeDeps: { include: ["msw/browser"] } } : {}),
     resolve: {
       alias: createViteAliases(projectRoot),
     },

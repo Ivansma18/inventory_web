@@ -214,7 +214,7 @@ test("lets the demo paginate, sort, and show table states without a backend", as
 
   await page.getByRole("button", { name: "Vaciar tabla" }).click();
   await expect(dataTable.getByRole("status")).toContainText("No hay datos para mostrar.");
-  await expect(dataTable.getByText("0 de 0 páginas")).toBeVisible();
+  await expect(dataTable.getByText("Página 1 de 1")).toBeVisible();
   await expect(dataTable.getByRole("table")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Simular carga" }).click();

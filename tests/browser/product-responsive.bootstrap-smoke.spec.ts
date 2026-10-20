@@ -89,7 +89,9 @@ const expectActionWithinViewport = async (action: Locator, width: number) => {
 
 // 640px is a viewport equivalent for a 1280px window at 200% zoom, not native zoom.
 for (const width of [360, 640, 768, 1280]) {
-  test(`keeps product list and forms usable at ${width}px`, async ({ page }) => {
+  test(`keeps product list and forms usable at ${width}px${width === 640 ? " (200% zoom viewport equivalent)" : ""}`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width, height: 900 });
     await mockProductApi(page);
 

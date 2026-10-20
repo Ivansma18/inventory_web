@@ -145,7 +145,7 @@ export const DesignSystemDemo = () => {
   };
   const visibleTableResult: DataTableResult<DemoRow> =
     tableScenario === "empty"
-      ? { status: "ready", page: 0, rows: [], total: 0 }
+      ? { status: "ready", page: 1, rows: [], total: 0 }
       : tableScenario === "loading"
         ? tableHasSnapshot
           ? { status: "loading", snapshot: tableSnapshot }
@@ -237,7 +237,7 @@ export const DesignSystemDemo = () => {
               onClick={() => {
                 setTableScenario("empty");
                 setTableHasSnapshot(false);
-                setTablePage(0);
+                setTablePage(1);
               }}
               variant="secondary"
             >

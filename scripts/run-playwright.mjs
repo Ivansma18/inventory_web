@@ -48,6 +48,7 @@ const authHarnessRouteEnabled = authHarnessProjectSelected || authRealWasSelecte
 const proxyContractProjectSelected =
   !hasExplicitProjectSelection || selectedProjects.includes("proxy-contract");
 const previewProjectSelected = selectedProjects.includes("preview-smoke");
+const nativeZoomProjectSelected = selectedProjects.includes("native-zoom");
 
 const child = spawn(process.execPath, [playwrightCli, "test", ...playwrightArgs], {
   cwd: process.cwd(),
@@ -59,6 +60,7 @@ const child = spawn(process.execPath, [playwrightCli, "test", ...playwrightArgs]
     INVENTORY_E2E_PROXY_CONTRACT: proxyContractProjectSelected ? "1" : "0",
     INVENTORY_E2E_PREVIEW: previewProjectSelected ? "1" : "0",
     INVENTORY_E2E_DESIGN_SYSTEM_PROJECT: designSystemProjectSelected ? "1" : "0",
+    INVENTORY_E2E_NATIVE_ZOOM_PROJECT: nativeZoomProjectSelected ? "1" : "0",
     INVENTORY_AUTH_E2E_HARNESS: authHarnessRouteEnabled ? "1" : "0",
     INVENTORY_HEALTH_E2E_HARNESS: healthRealWasSelected ? "1" : "0",
   },
