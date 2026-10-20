@@ -25,8 +25,9 @@ Cada tarea funcional incluye escribir o actualizar primero la prueba que demuest
 - [x] T7. Corregir páginas fuera de rango sin añadir historial. (RF-18–RF-19, RF-28, RF-30)
   Hecho cuando: pruebas verifican última página con resultados o página 1 si el total es cero; la corrección reemplaza la entrada actual y no produce ciclos de historial.
 - Evidencia: `tests/app-shell/categories-route.test.tsx` verifica `page=3` → última página disponible, `page=4` → página 1 con total cero y Atrás/Adelante sin restaurar la página inválida. `pnpm test:run --maxWorkers=1` (58 archivos, 515 pruebas), lint, typecheck, formato y build pasaron. El E2E predeterminado se ejecutó dos veces y ambas ejecuciones tuvieron 71/72 por fallos intermitentes no relacionados en Productos; los dos casos fallidos pasaron al repetirse de forma aislada con Playwright. El build conserva el aviso no bloqueante de chunk superior a 500 kB.
-- [ ] T8. Incorporar búsqueda, filtro de estado y ordenación del listado. (RF-20–RF-27)
+- [x] T8. Incorporar búsqueda, filtro de estado y ordenación del listado. (RF-20–RF-27)
   Hecho cuando: pruebas de UI verifican parámetros de búsqueda parcial sin distinción de mayúsculas, trim/blancos, búsqueda acumulada con estado, tres campos sort y ambas direcciones; cambiar criterios reinicia página, paginar no.
+- Evidencia: `tests/app-shell/categories-route.test.tsx` comprueba búsqueda parcial mixta (`fIC`) con trim y coincidencia insensible a mayúsculas simulada por MSW, búsqueda de blancos omitida, búsqueda acumulada con estado inactivo, campos `name`/`createdAt`/`updatedAt`, direcciones `asc`/`desc`, reinicio a página 1 al cambiar criterios y persistencia de criterios al paginar. `pnpm test:run --maxWorkers=1` (58 archivos, 516 pruebas), lint, typecheck, formato y build pasaron. Inspección Playwright con sesión y API simuladas a 1280×900 y 360×900: sin overflow horizontal. Detector Impeccable: `[]`. El build conserva el aviso no bloqueante de chunk superior a 500 kB.
 - [ ] T9. Conectar criterios con URL compartible, recarga e historial. (RF-28–RF-31)
   Hecho cuando: pruebas de router y navegador restauran controles y resultados al abrir URL, recargar y usar Atrás/Adelante; normalizar criterios inválidos no agrega una entrada.
 - [ ] T10. Aislar resultados de consultas reemplazadas. (RF-32)
@@ -276,4 +277,4 @@ La tabla vincula implementación y evidencia principal. T58 consolida resultados
 - Si no hay escritorio gráfico, lector de pantalla u otra condición necesaria, registrar bloqueo; no sustituir zoom nativo por viewport equivalente ni revisión humana por pruebas automáticas.
 - No modificar reglas del backend, scope aprobado ni contratos de Productos por inferencia. Toda discrepancia vuelve a `change-manager`.
 
-T1–T7 están completadas; T8 sigue pendiente y no se ha iniciado.
+T1–T8 están completadas; T9 sigue pendiente y no se ha iniciado.

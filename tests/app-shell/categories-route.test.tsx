@@ -418,6 +418,155 @@ describe("Categories route", () => {
     queryClient.clear();
   });
 
+  it("searches, filters, sorts, and resets pagination when criteria change", async () => {
+    const user = userEvent.setup();
+    const categoryRequests: URL[] = [];
+    const queryClient = createQueryClient();
+    queryClient.setDefaultOptions({
+      ...queryClient.getDefaultOptions(),
+      queries: { ...queryClient.getDefaultOptions().queries, staleTime: 0 },
+    });
+    const categories = Array.from({ length: 40 }, (_, index) => {
+      const isActive = index < 20;
+      const categoryNumber = isActive ? index + 1 : index - 19;
+
+      return {
+        uuid: `550e8400-e29b-41d4-a716-${String(index + 1).padStart(12, "0")}`,
+        name: `Oficina ${isActive ? "activa" : "inactiva"} ${String(categoryNumber).padStart(2, "0")}`,
+        description: null,
+        isActive,
+        createdAt: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+        updatedAt: new Date(Date.UTC(2026, 1, index + 1)).toISOString(),
+      };
+    });
+    const expectedQuery = (
+      page: number,
+      status: "active" | "inactive",
+      sort: "name" | "createdAt" | "updatedAt",
+      order: "asc" | "desc",
+      search?: string,
+    ) => ({
+      page: String(page),
+      limit: "15",
+      ...(search ? { search } : {}),
+      isActive: status === "active" ? "true" : "false",
+      sort,
+      order,
+    });
+    const waitForRequest = async (count: number) => {
+      await waitFor(() => expect(categoryRequests).toHaveLength(count));
+      return categoryRequests[count - 1]!;
+    };
+    const expectRequest = async (
+      count: number,
+      page: number,
+      status: "active" | "inactive",
+      sort: "name" | "createdAt" | "updatedAt",
+      order: "asc" | "desc",
+      search?: string,
+    ) => {
+      const request = await waitForRequest(count);
+      expect(Object.fromEntries(request.searchParams)).toEqual(
+        expectedQuery(page, status, sort, order, search),
+      );
+    };
+    const selectOptionByIndex = async (label: string, optionIndex: number) => {
+      const control = screen.getByRole("textbox", { name: label });
+      control.focus();
+      await user.keyboard("{ArrowDown}{Home}" + "{ArrowDown}".repeat(optionIndex + 1) + "{Enter}");
+    };
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get("https://inventory.test/api/categories", ({ request }) => {
+        const url = new URL(request.url);
+        categoryRequests.push(url);
+        const page = Number(url.searchParams.get("page"));
+        const isActive = url.searchParams.get("isActive") === "true";
+        const search = url.searchParams.get("search")?.toLowerCase();
+        const matchingCategories = categories.filter(
+          (category) =>
+            category.isActive === isActive &&
+            (!search || category.name.toLowerCase().includes(search)),
+        );
+
+        return HttpResponse.json({
+          data: matchingCategories.slice((page - 1) * 15, page * 15),
+          pagination: { total: matchingCategories.length, page, limit: 15 },
+        });
+      }),
+    );
+
+    const router = createMemoryRouter(appRoutes, { initialEntries: ["/categories"] });
+    await renderAuthenticatedCategoriesRoute(queryClient, router);
+
+    expect(await screen.findByRole("row", { name: /Oficina activa 01/ })).toBeVisible();
+    await expectRequest(1, 1, "active", "name", "asc");
+
+    await user.click(screen.getByRole("button", { name: "Página siguiente" }));
+    expect(await screen.findByRole("row", { name: /Oficina activa 16/ })).toBeVisible();
+    await expectRequest(2, 2, "active", "name", "asc");
+
+    const searchInput = screen.getByRole("searchbox", { name: "Buscar categorías" });
+    await user.type(searchInput, "  fIC  ");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+    expect(await screen.findByRole("row", { name: /Oficina activa 01/ })).toBeVisible();
+    expect(searchInput).toHaveValue("fIC");
+    await expectRequest(3, 1, "active", "name", "asc", "fIC");
+    expect(router.state.location.search).toBe("?page=1");
+
+    await user.click(screen.getByRole("button", { name: "Página siguiente" }));
+    expect(await screen.findByRole("row", { name: /Oficina activa 16/ })).toBeVisible();
+    await expectRequest(4, 2, "active", "name", "asc", "fIC");
+
+    await selectOptionByIndex("Estado de categoría", 1);
+    expect(await screen.findByRole("row", { name: /Oficina inactiva 01/ })).toBeVisible();
+    await expectRequest(5, 1, "inactive", "name", "asc", "fIC");
+    expect(router.state.location.search).toBe("?page=1");
+
+    await user.click(screen.getByRole("button", { name: "Página siguiente" }));
+    expect(await screen.findByRole("row", { name: /Oficina inactiva 16/ })).toBeVisible();
+    await expectRequest(6, 2, "inactive", "name", "asc", "fIC");
+
+    await user.clear(searchInput);
+    await user.type(searchInput, "   ");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+    expect(await screen.findByRole("row", { name: /Oficina inactiva 01/ })).toBeVisible();
+    expect(searchInput).toHaveValue("");
+    await expectRequest(7, 1, "inactive", "name", "asc");
+    expect(router.state.location.search).toBe("?page=1");
+
+    for (const [sort, optionIndex] of [
+      ["createdAt", 1],
+      ["updatedAt", 2],
+      ["name", 0],
+    ] as const) {
+      await user.click(screen.getByRole("button", { name: "Página siguiente" }));
+      expect(await screen.findByRole("row", { name: /Oficina inactiva 16/ })).toBeVisible();
+      const previousRequestCount = categoryRequests.length;
+      await selectOptionByIndex("Ordenar por", optionIndex);
+      expect(await screen.findByRole("row", { name: /Oficina inactiva 01/ })).toBeVisible();
+      await expectRequest(previousRequestCount + 1, 1, "inactive", sort, "asc");
+      expect(router.state.location.search).toBe("?page=1");
+    }
+
+    for (const [order, optionIndex] of [
+      ["desc", 1],
+      ["asc", 0],
+    ] as const) {
+      await user.click(screen.getByRole("button", { name: "Página siguiente" }));
+      expect(await screen.findByRole("row", { name: /Oficina inactiva 16/ })).toBeVisible();
+      const previousRequestCount = categoryRequests.length;
+      await selectOptionByIndex("Dirección del orden", optionIndex);
+      expect(await screen.findByRole("row", { name: /Oficina inactiva 01/ })).toBeVisible();
+      await expectRequest(previousRequestCount + 1, 1, "inactive", "name", order);
+      expect(router.state.location.search).toBe("?page=1");
+    }
+
+    router.dispose();
+    queryClient.clear();
+  }, 30_000);
+
   it.each([
     { path: "/categories/new", heading: "Crear categoría" },
     {
