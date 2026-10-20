@@ -1,5 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
@@ -135,4 +136,102 @@ describe("Categories route", () => {
     router.dispose();
     queryClient.clear();
   });
+
+  it.each([
+    { path: "/categories/new", heading: "Crear categoría" },
+    {
+      path: "/categories/018f1f3b-7c2a-7b6e-9f12-123456789abc/edit",
+      heading: "Editar categoría",
+    },
+  ])(
+    "protects the direct $path route and focuses its heading after session confirmation",
+    async ({ path, heading }) => {
+      const pendingResponses = Array.from({ length: 3 }, () => deferred<Response>());
+      const requestsStarted = Array.from({ length: 3 }, () => deferred<void>());
+      const queryClient = createQueryClient();
+      let requestCount = 0;
+      let refetch: UseSessionResult["refetch"] | undefined;
+
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () => {
+          const requestIndex = requestCount;
+          requestCount += 1;
+          requestsStarted[requestIndex]?.resolve();
+
+          const response = pendingResponses[requestIndex];
+          if (!response) {
+            throw new Error("Unexpected extra session verification request.");
+          }
+
+          return response.promise;
+        }),
+      );
+
+      const router = createMemoryRouter(appRoutes, { initialEntries: [path] });
+      const SessionRefreshDriver = () => {
+        refetch = useSession().refetch;
+        return null;
+      };
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <UiProvider>
+            <>
+              <RouterProvider router={router} />
+              <SessionRefreshDriver />
+            </>
+          </UiProvider>
+        </QueryClientProvider>,
+      );
+
+      let initialRefresh!: Promise<AuthSessionQueryResult>;
+      act(() => {
+        initialRefresh = refetch!();
+      });
+      await requestsStarted[0]?.promise;
+      expect(screen.getByRole("status")).toHaveTextContent("Comprobando tu sesión");
+      expect(screen.queryByRole("heading", { level: 1, name: heading })).not.toBeInTheDocument();
+
+      pendingResponses[0]?.resolve(HttpResponse.json(publicAuthResponse()));
+      await act(async () => initialRefresh);
+
+      const pageHeading = await screen.findByRole("heading", { level: 1, name: heading });
+      expect(pageHeading).toHaveFocus();
+      expect(screen.getByRole("main")).toContainElement(pageHeading);
+      expect(screen.getByRole("banner")).toHaveTextContent("operator@example.com");
+      expect(router.state.location.pathname).toBe(path);
+
+      let errorRefresh!: Promise<AuthSessionQueryResult>;
+      act(() => {
+        errorRefresh = refetch!();
+      });
+      await requestsStarted[1]?.promise;
+      expect(screen.getByRole("status")).toHaveTextContent("Comprobando tu sesión");
+      expect(screen.queryByRole("heading", { level: 1, name: heading })).not.toBeInTheDocument();
+
+      pendingResponses[1]?.resolve(
+        HttpResponse.json({ error: { code: "INTERNAL" } }, { status: 503 }),
+      );
+      await act(async () => errorRefresh);
+      expect(
+        await screen.findByRole("heading", { level: 1, name: "No se pudo comprobar la sesión" }),
+      ).toBeVisible();
+      expect(screen.queryByRole("heading", { level: 1, name: heading })).not.toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(path);
+
+      await userEvent.setup().click(screen.getByRole("button", { name: "Reintentar" }));
+      await requestsStarted[2]?.promise;
+      expect(screen.getByRole("status")).toHaveTextContent("Comprobando tu sesión");
+
+      pendingResponses[2]?.resolve(unauthenticatedResponse());
+      expect(
+        await screen.findByRole("heading", { level: 1, name: "Sesión no iniciada" }),
+      ).toBeVisible();
+      expect(screen.queryByRole("heading", { level: 1, name: heading })).not.toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(path);
+
+      router.dispose();
+      queryClient.clear();
+    },
+  );
 });

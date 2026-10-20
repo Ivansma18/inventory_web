@@ -1,14 +1,14 @@
-.category-list-page {
+.category-page {
   box-sizing: border-box;
   inline-size: min(100%, 64rem);
   padding-block: clamp(var(--ui-space-6), 6vh, var(--ui-space-8));
 }
 
-.category-list-page__content {
+.category-page__content {
   max-inline-size: 42rem;
 }
 
-.category-list-page__content::before {
+.category-page__content::before {
   display: block;
   inline-size: 2.5rem;
   block-size: var(--ui-border-width);
@@ -17,7 +17,7 @@
   content: "";
 }
 
-.category-list-page__heading {
+.category-page__heading {
   max-inline-size: 22ch;
   margin: 0;
   color: var(--ui-color-text);
@@ -28,12 +28,12 @@
   text-wrap: balance;
 }
 
-.category-list-page__heading:focus {
+.category-page__heading:focus {
   outline: var(--ui-focus-ring-width) solid var(--ui-color-focus-ring);
   outline-offset: var(--ui-focus-ring-offset);
 }
 
-.category-list-page__description {
+.category-page__description {
   max-inline-size: 65ch;
   margin: var(--ui-space-3) 0 0;
   color: var(--ui-color-text-muted);

@@ -10,8 +10,9 @@ Cada tarea funcional incluye escribir o actualizar primero la prueba que demuest
 - [x] T2. Añadir el destino Categorías y su página de listado bajo el App Shell. (RF-1–RF-2, RF-5–RF-6, RF-113)
   Hecho cuando: una prueba de router verifica enlace, acceso directo autenticado a `/categories`, estados de acceso y foco en el encabezado; la página inicial usa el Design System sin introducir lógica de consultas aún.
   Evidencia: `tests/app-shell/router.test.tsx` y `tests/app-shell/categories-route.test.tsx` verifican enlace/URL, foco, sesión pendiente y cerrada, y ausencia de consulta/tabla; smokes de navegación ajustados en `tests/browser/navigation-keyboard.bootstrap-smoke.spec.ts` y `tests/browser/app-layout.bootstrap-smoke.spec.ts`. `pnpm test:run` (56 archivos, 487 pruebas), `pnpm test:e2e` (72 pruebas), lint, typecheck, formato y build pasaron. Capturas revisadas a 1280×720 y 390×844; sin overflow. Detector Impeccable: `[]`. Build conserva aviso no bloqueante de chunk superior a 500 kB.
-- [ ] T3. Registrar páginas propias de creación y edición con encabezados y acceso protegido. (RF-3–RF-6, RF-113)
+- [x] T3. Registrar páginas propias de creación y edición con encabezados y acceso protegido. (RF-3–RF-6, RF-113)
   Hecho cuando: pruebas de router abren `/categories/new` y `/categories/:uuid/edit` tras confirmar sesión, presentan los estados de acceso establecidos y enfocan el encabezado de cada nueva página.
+- Evidencia: `tests/app-shell/categories-route.test.tsx` prueba ambas URLs directas, sesión pendiente/confirmada/error/ausente, URL preservada y foco en cada encabezado; `tests/app-shell/router.test.tsx` cubre navegación y foco del listado. `pnpm test:run` (56 archivos, 489 pruebas), lint, typecheck, formato y build pasaron. `pnpm test:e2e --workers=1` pasó (72 pruebas). Una ejecución E2E predeterminada con cuatro workers tuvo dos fallos transitorios en smokes existentes de Productos (URL y scroll responsive); ambos pasaron aislados y en la ejecución serial. Revisión visual autenticada a 1280×720 y 390×844, sin overflow y con foco visible; detector Impeccable: `[]`. Build conserva aviso no bloqueante de chunk superior a 500 kB.
 - [ ] T4. Definir parser, serializador y traducción contractual de criterios del listado. (RF-10–RF-11, RF-20–RF-31)
   Hecho cuando: pruebas unitarias verifican defaults, página positiva, tamaño 15, búsqueda recortada/omitida si vacía, ambos estados, tres campos de orden, ambas direcciones y normalización de criterios inválidos.
 - [ ] T5. Integrar consulta remota de gestión, filas, total y paginación controlada. (RF-8–RF-13)
@@ -271,4 +272,4 @@ La tabla vincula implementación y evidencia principal. T58 consolida resultados
 - Si no hay escritorio gráfico, lector de pantalla u otra condición necesaria, registrar bloqueo; no sustituir zoom nativo por viewport equivalente ni revisión humana por pruebas automáticas.
 - No modificar reglas del backend, scope aprobado ni contratos de Productos por inferencia. Toda discrepancia vuelve a `change-manager`.
 
-T1 y T2 están completadas; T3 sigue pendiente y no se ha iniciado.
+T1, T2 y T3 están completadas; T4 sigue pendiente y no se ha iniciado.
