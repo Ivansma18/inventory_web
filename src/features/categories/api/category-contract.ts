@@ -24,6 +24,11 @@ const categoryListResponseSchema = z.object({
 }) satisfies z.ZodType<CategoryListResponse>;
 const categoryDataResponseSchema = z.object({ data: categorySchema });
 
+export interface CategoryResponseExpectation {
+  uuid?: string;
+  isActive?: boolean;
+}
+
 export class CategoryResponseContractError extends Error {
   readonly kind = "contract";
 
@@ -43,12 +48,24 @@ export const parseCategoryListResponse = (value: unknown): CategoryListResponse 
   return result.data;
 };
 
-export const parseCategoryDataResponse = (value: unknown): Category => {
+export const parseCategoryDataResponse = (
+  value: unknown,
+  expected: CategoryResponseExpectation = {},
+): Category => {
   const result = categoryDataResponseSchema.safeParse(value);
 
   if (!result.success) {
     throw new CategoryResponseContractError();
   }
 
-  return result.data.data;
+  const category = result.data.data;
+
+  if (
+    (expected.uuid !== undefined && category.uuid !== expected.uuid) ||
+    (expected.isActive !== undefined && category.isActive !== expected.isActive)
+  ) {
+    throw new CategoryResponseContractError();
+  }
+
+  return category;
 };

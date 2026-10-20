@@ -1,11 +1,12 @@
 # Tareas - Spec 005 Categorías
 
-Plan aprobado por el usuario. Todas las tareas están pendientes; su numeración no autoriza implementarlas sin petición explícita. Cada unidad está acotada a aproximadamente 30 minutos de trabajo de implementación o verificación, sin contar esperas externas. Si aparece un bloqueo o hace falta dividir una tarea, conservar su identificador y solicitar la actualización correspondiente antes de ampliar alcance.
+Plan aprobado por el usuario. Las tareas comienzan pendientes y solo se marcan completadas con evidencia verificada; su numeración no autoriza implementar una tarea sin petición explícita. Cada unidad está acotada a aproximadamente 30 minutos de trabajo de implementación o verificación, sin contar esperas externas. Si aparece un bloqueo o hace falta dividir una tarea, conservar su identificador y solicitar la actualización correspondiente antes de ampliar alcance.
 
 Cada tarea funcional incluye escribir o actualizar primero la prueba que demuestra su comportamiento. Utilizar Impeccable antes de crear o mejorar vistas, Design System propio y CSS co-localizado. Ejecutar las comprobaciones aplicables al cambio y registrar resultados reales; no marcar como completada una revisión manual pendiente de evidencia humana.
 
-- [ ] T1. Verificar los contratos existentes de escritura y los parsers de respuestas de Categorías. (RF-37, RF-40, RF-46, RF-77, RF-93; NFR-7)
+- [x] T1. Verificar los contratos existentes de escritura y los parsers de respuestas de Categorías. (RF-37, RF-40, RF-46, RF-77, RF-93; NFR-7)
   Hecho cuando: pruebas de contrato contrastan POST/PATCH y respuestas con el OpenAPI existente; se rechazan cuerpos inválidos y respuestas de UUID/estado incompatibles; queda explícito que DELETE es eliminación permanente y no se ofrece como desactivación. Si el contrato difiere, se registra el bloqueo sin inventar cambios.
+  Evidencia: `tests/categories/categories-openapi-contract.test.ts` y `tests/categories/categories-api.test.tsx`; `pnpm test:run` (55 archivos, 486 pruebas), `pnpm lint`, `pnpm typecheck`, `pnpm format:check` y `pnpm build` pasaron. Build conserva el aviso no bloqueante de chunk superior a 500 kB.
 - [ ] T2. Añadir el destino Categorías y su página de listado bajo el App Shell. (RF-1–RF-2, RF-5–RF-6, RF-113)
   Hecho cuando: una prueba de router verifica enlace, acceso directo autenticado a `/categories`, estados de acceso y foco en el encabezado; la página inicial usa el Design System sin introducir lógica de consultas aún.
 - [ ] T3. Registrar páginas propias de creación y edición con encabezados y acceso protegido. (RF-3–RF-6, RF-113)
@@ -269,4 +270,4 @@ La tabla vincula implementación y evidencia principal. T58 consolida resultados
 - Si no hay escritorio gráfico, lector de pantalla u otra condición necesaria, registrar bloqueo; no sustituir zoom nativo por viewport equivalente ni revisión humana por pruebas automáticas.
 - No modificar reglas del backend, scope aprobado ni contratos de Productos por inferencia. Toda discrepancia vuelve a `change-manager`.
 
-Pendiente de aprobación explícita antes de implementar T1.
+T1 está completada; T2 sigue pendiente y no se ha iniciado.

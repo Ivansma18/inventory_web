@@ -5,6 +5,7 @@ import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { useActiveCategories, useCategory } from "@/features/categories";
+import { CategoryResponseContractError } from "@/features/categories/api/category-contract";
 import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
@@ -156,5 +157,28 @@ describe("public active categories query", () => {
     expect(result.current.data).toEqual({ ...category("Oficina"), isActive: false });
     expect(requestedUrls).toHaveLength(1);
     expect(requestedUrls[0]?.pathname).toBe(`/api/categories/${categoryUuid}`);
+  });
+
+  it("rejects a detail response whose UUID differs from the requested category", async () => {
+    const queryClient = createQueryClient();
+    queryClients.push(queryClient);
+
+    server.use(
+      http.get(`https://inventory.test/api/categories/${categoryUuid}`, () =>
+        HttpResponse.json({
+          data: {
+            ...category("Otra categoría"),
+            uuid: "550e8400-e29b-41d4-a716-446655440001",
+          },
+        }),
+      ),
+    );
+
+    const { result } = renderHook(() => useCategory(sessionId, categoryUuid), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error).toBeInstanceOf(CategoryResponseContractError);
   });
 });

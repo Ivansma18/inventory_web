@@ -59,5 +59,5 @@ export const getCategory = async (
     signal,
   });
 
-  return parseCategoryDataResponse(response);
+  return parseCategoryDataResponse(response, { uuid });
 };
