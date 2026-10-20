@@ -7,8 +7,9 @@ Cada tarea funcional incluye escribir o actualizar primero la prueba que demuest
 - [x] T1. Verificar los contratos existentes de escritura y los parsers de respuestas de Categorías. (RF-37, RF-40, RF-46, RF-77, RF-93; NFR-7)
   Hecho cuando: pruebas de contrato contrastan POST/PATCH y respuestas con el OpenAPI existente; se rechazan cuerpos inválidos y respuestas de UUID/estado incompatibles; queda explícito que DELETE es eliminación permanente y no se ofrece como desactivación. Si el contrato difiere, se registra el bloqueo sin inventar cambios.
   Evidencia: `tests/categories/categories-openapi-contract.test.ts` y `tests/categories/categories-api.test.tsx`; `pnpm test:run` (55 archivos, 486 pruebas), `pnpm lint`, `pnpm typecheck`, `pnpm format:check` y `pnpm build` pasaron. Build conserva el aviso no bloqueante de chunk superior a 500 kB.
-- [ ] T2. Añadir el destino Categorías y su página de listado bajo el App Shell. (RF-1–RF-2, RF-5–RF-6, RF-113)
+- [x] T2. Añadir el destino Categorías y su página de listado bajo el App Shell. (RF-1–RF-2, RF-5–RF-6, RF-113)
   Hecho cuando: una prueba de router verifica enlace, acceso directo autenticado a `/categories`, estados de acceso y foco en el encabezado; la página inicial usa el Design System sin introducir lógica de consultas aún.
+  Evidencia: `tests/app-shell/router.test.tsx` y `tests/app-shell/categories-route.test.tsx` verifican enlace/URL, foco, sesión pendiente y cerrada, y ausencia de consulta/tabla; smokes de navegación ajustados en `tests/browser/navigation-keyboard.bootstrap-smoke.spec.ts` y `tests/browser/app-layout.bootstrap-smoke.spec.ts`. `pnpm test:run` (56 archivos, 487 pruebas), `pnpm test:e2e` (72 pruebas), lint, typecheck, formato y build pasaron. Capturas revisadas a 1280×720 y 390×844; sin overflow. Detector Impeccable: `[]`. Build conserva aviso no bloqueante de chunk superior a 500 kB.
 - [ ] T3. Registrar páginas propias de creación y edición con encabezados y acceso protegido. (RF-3–RF-6, RF-113)
   Hecho cuando: pruebas de router abren `/categories/new` y `/categories/:uuid/edit` tras confirmar sesión, presentan los estados de acceso establecidos y enfocan el encabezado de cada nueva página.
 - [ ] T4. Definir parser, serializador y traducción contractual de criterios del listado. (RF-10–RF-11, RF-20–RF-31)
@@ -270,4 +271,4 @@ La tabla vincula implementación y evidencia principal. T58 consolida resultados
 - Si no hay escritorio gráfico, lector de pantalla u otra condición necesaria, registrar bloqueo; no sustituir zoom nativo por viewport equivalente ni revisión humana por pruebas automáticas.
 - No modificar reglas del backend, scope aprobado ni contratos de Productos por inferencia. Toda discrepancia vuelve a `change-manager`.
 
-T1 está completada; T2 sigue pendiente y no se ha iniciado.
+T1 y T2 están completadas; T3 sigue pendiente y no se ha iniciado.

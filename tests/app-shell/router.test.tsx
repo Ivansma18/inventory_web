@@ -59,6 +59,7 @@ describe("App Shell routes and navigation catalog", () => {
     expect(appNavigationItems).toEqual([
       { id: "home", label: "Inicio", to: "/", icon: "home" },
       { id: "products", label: "Productos", to: "/products", icon: "box" },
+      { id: "categories", label: "Categorías", to: "/categories", icon: "sort" },
     ]);
     expect(appNavigationItems.some(({ to }) => to.startsWith("/__"))).toBe(false);
 
@@ -107,17 +108,30 @@ describe("App Shell routes and navigation catalog", () => {
       screen.getByRole("complementary", { name: "Barra lateral de Inventory" }),
     ).toHaveTextContent("Inventory");
     const navigation = screen.getByRole("navigation", { name: "Navegación principal" });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(2);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(3);
     const homeNavigationLink = within(navigation).getByRole("link", { name: "Inicio" });
     const productsNavigationLink = within(navigation).getByRole("link", { name: "Productos" });
+    const categoriesNavigationLink = within(navigation).getByRole("link", { name: "Categorías" });
     expect(homeNavigationLink).toHaveAttribute("aria-current", "page");
     expect(productsNavigationLink).not.toHaveAttribute("aria-current");
+    expect(categoriesNavigationLink).not.toHaveAttribute("aria-current");
     expect(screen.getByRole("link", { name: "Saltar al contenido" })).toHaveAttribute(
       "href",
       "#main-content",
     );
     expect(homeMain).toHaveAttribute("id", "main-content");
     expect(homeMain).toHaveAttribute("tabindex", "-1");
+
+    await user.click(categoriesNavigationLink);
+    const categoriesHeading = await screen.findByRole("heading", {
+      level: 1,
+      name: "Categorías",
+    });
+    expect(categoriesHeading).toBeVisible();
+    expect(categoriesHeading).toHaveFocus();
+    expect(screen.getByRole("main")).toContainElement(categoriesHeading);
+    expect(categoriesNavigationLink).toHaveAttribute("aria-current", "page");
+    expect(homeNavigationLink).not.toHaveAttribute("aria-current");
 
     await user.click(productsNavigationLink);
     const productsHeading = await screen.findByRole("heading", {
@@ -128,6 +142,7 @@ describe("App Shell routes and navigation catalog", () => {
     expect(screen.getByRole("main")).toContainElement(productsHeading);
     expect(productsNavigationLink).toHaveAttribute("aria-current", "page");
     expect(homeNavigationLink).not.toHaveAttribute("aria-current");
+    expect(categoriesNavigationLink).not.toHaveAttribute("aria-current");
 
     await act(async () => router.navigate("/not-registered"));
     expect(

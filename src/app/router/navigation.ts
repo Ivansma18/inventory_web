@@ -10,4 +10,5 @@ export interface AppNavigationItem {
 export const appNavigationItems = [
   { id: "home", label: "Inicio", to: "/", icon: "home" },
   { id: "products", label: "Productos", to: "/products", icon: "box" },
+  { id: "categories", label: "Categorías", to: "/categories", icon: "sort" },
 ] as const satisfies readonly AppNavigationItem[];

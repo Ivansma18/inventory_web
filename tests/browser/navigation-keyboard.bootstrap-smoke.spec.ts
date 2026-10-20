@@ -54,6 +54,9 @@ for (const width of [360, 768]) {
     const productsLink = page
       .getByRole("navigation", { name: "Navegación principal" })
       .getByRole("link", { name: "Productos", exact: true });
+    const categoriesLink = page
+      .getByRole("navigation", { name: "Navegación principal" })
+      .getByRole("link", { name: "Categorías", exact: true });
     await expect(drawer).toBeVisible();
     await expect(drawer).toHaveAttribute("aria-modal", "true");
     await expect(openerElement).toHaveAttribute("aria-expanded", "true");
@@ -62,13 +65,15 @@ for (const width of [360, 768]) {
     await expect(root).toHaveAttribute("inert", "");
 
     await page.keyboard.press("Shift+Tab");
-    await expect(productsLink).toBeFocused();
+    await expect(categoriesLink).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(closeButton).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(homeLink).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(productsLink).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(categoriesLink).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(closeButton).toBeFocused();
     await page.keyboard.press("Escape");
