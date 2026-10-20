@@ -1,6 +1,7 @@
 import type { paths } from "@/shared/api/generated/category-contracts";
 import { httpClient } from "@/shared/api/http-client";
 
+import type { CategoryListCriteria } from "../utils/category-list-url-state";
 import {
   parseCategoryDataResponse,
   parseCategoryListResponse,
@@ -19,6 +20,22 @@ export interface ActiveCategoryListCriteria {
 }
 
 export const CATEGORY_LIST_PAGE_SIZE = 15;
+
+export const buildCategoryListQuery = (
+  criteria: CategoryListCriteria,
+  page: number,
+): CategoryListQuery => {
+  const search = criteria.search.trim();
+
+  return {
+    page,
+    limit: CATEGORY_LIST_PAGE_SIZE,
+    ...(search ? { search } : {}),
+    isActive: criteria.status === "active" ? "true" : "false",
+    sort: criteria.sort,
+    order: criteria.order,
+  };
+};
 
 export const buildActiveCategoryListQuery = (
   criteria: ActiveCategoryListCriteria,

@@ -13,8 +13,9 @@ Cada tarea funcional incluye escribir o actualizar primero la prueba que demuest
 - [x] T3. Registrar páginas propias de creación y edición con encabezados y acceso protegido. (RF-3–RF-6, RF-113)
   Hecho cuando: pruebas de router abren `/categories/new` y `/categories/:uuid/edit` tras confirmar sesión, presentan los estados de acceso establecidos y enfocan el encabezado de cada nueva página.
 - Evidencia: `tests/app-shell/categories-route.test.tsx` prueba ambas URLs directas, sesión pendiente/confirmada/error/ausente, URL preservada y foco en cada encabezado; `tests/app-shell/router.test.tsx` cubre navegación y foco del listado. `pnpm test:run` (56 archivos, 489 pruebas), lint, typecheck, formato y build pasaron. `pnpm test:e2e --workers=1` pasó (72 pruebas). Una ejecución E2E predeterminada con cuatro workers tuvo dos fallos transitorios en smokes existentes de Productos (URL y scroll responsive); ambos pasaron aislados y en la ejecución serial. Revisión visual autenticada a 1280×720 y 390×844, sin overflow y con foco visible; detector Impeccable: `[]`. Build conserva aviso no bloqueante de chunk superior a 500 kB.
-- [ ] T4. Definir parser, serializador y traducción contractual de criterios del listado. (RF-10–RF-11, RF-20–RF-31)
+- [x] T4. Definir parser, serializador y traducción contractual de criterios del listado. (RF-10–RF-11, RF-20–RF-31)
   Hecho cuando: pruebas unitarias verifican defaults, página positiva, tamaño 15, búsqueda recortada/omitida si vacía, ambos estados, tres campos de orden, ambas direcciones y normalización de criterios inválidos.
+- Evidencia: `tests/categories/category-list-url-state.test.ts` cubre defaults, página positiva, trim/omisión de búsqueda, estados, campos/direcciones de orden, duplicados e inválidos; contrasta `buildCategoryListQuery` con tipos OpenAPI y `limit=15`. `pnpm test:run` (57 archivos, 507 pruebas), lint, typecheck, formato y build pasaron. Build conserva aviso no bloqueante de chunk superior a 500 kB.
 - [ ] T5. Integrar consulta remota de gestión, filas, total y paginación controlada. (RF-8–RF-13)
   Hecho cuando: una prueba MSW verifica nombre, estado, total y quince elementos por página con parámetros predeterminados; otra cambia de página y comprueba la petición y filas remotas sin afectar `useActiveCategories`.
 - [ ] T6. Mostrar carga, error con reintento y estados vacíos del listado. (RF-14–RF-17)
@@ -272,4 +273,4 @@ La tabla vincula implementación y evidencia principal. T58 consolida resultados
 - Si no hay escritorio gráfico, lector de pantalla u otra condición necesaria, registrar bloqueo; no sustituir zoom nativo por viewport equivalente ni revisión humana por pruebas automáticas.
 - No modificar reglas del backend, scope aprobado ni contratos de Productos por inferencia. Toda discrepancia vuelve a `change-manager`.
 
-T1, T2 y T3 están completadas; T4 sigue pendiente y no se ha iniciado.
+T1–T4 están completadas; T5 sigue pendiente y no se ha iniciado.
