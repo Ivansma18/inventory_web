@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { useActiveCategories, useCategory } from "@/features/categories";
 import { CategoryResponseContractError } from "@/features/categories/api/category-contract";
 import { useCreateCategory } from "@/features/categories/hooks/use-create-category";
+import { useUpdateCategory } from "@/features/categories/hooks/use-update-category";
 import { useCategoryList } from "@/features/categories/hooks/use-category-list";
 import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
@@ -305,6 +306,99 @@ describe("category creation mutation", () => {
     });
 
     expect(result.current.isError).toBe(true);
+    expect(requestCount).toBe(1);
+  });
+});
+
+describe("category update mutation", () => {
+  it("patches only information fields and validates the requested UUID and original state", async () => {
+    let requestBody: unknown;
+    let requestMethod: string | undefined;
+    const updatedCategory = { ...category("Herramientas actualizadas"), isActive: false };
+    const queryClient = createQueryClient();
+    queryClients.push(queryClient);
+
+    server.use(
+      http.patch(`https://inventory.test/api/categories/${categoryUuid}`, async ({ request }) => {
+        requestMethod = request.method;
+        requestBody = await request.json();
+        return HttpResponse.json({ data: updatedCategory });
+      }),
+    );
+
+    const { result } = renderHook(() => useUpdateCategory(sessionId), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({
+          uuid: categoryUuid,
+          isActive: false,
+          payload: { name: "Herramientas actualizadas" },
+        }),
+      ).resolves.toEqual(updatedCategory);
+    });
+
+    expect(requestMethod).toBe("PATCH");
+    expect(requestBody).toEqual({ name: "Herramientas actualizadas" });
+  });
+
+  it("rejects a successful response that changes the original active state", async () => {
+    const queryClient = createQueryClient();
+    queryClients.push(queryClient);
+
+    server.use(
+      http.patch(`https://inventory.test/api/categories/${categoryUuid}`, () =>
+        HttpResponse.json({ data: category("Herramientas actualizadas") }),
+      ),
+    );
+
+    const { result } = renderHook(() => useUpdateCategory(sessionId), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({
+          uuid: categoryUuid,
+          isActive: false,
+          payload: { name: "Herramientas actualizadas" },
+        }),
+      ).rejects.toBeInstanceOf(CategoryResponseContractError);
+    });
+
+    expect(result.current.isError).toBe(true);
+  });
+
+  it("does not resend a failed PATCH automatically", async () => {
+    let requestCount = 0;
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: 3, retryDelay: 0 } },
+    });
+    queryClients.push(queryClient);
+
+    server.use(
+      http.patch(`https://inventory.test/api/categories/${categoryUuid}`, () => {
+        requestCount += 1;
+        return HttpResponse.json({ message: "Unavailable" }, { status: 503 });
+      }),
+    );
+
+    const { result } = renderHook(() => useUpdateCategory(sessionId), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({
+          uuid: categoryUuid,
+          isActive: false,
+          payload: { description: "Nueva descripción" },
+        }),
+      ).rejects.toBeDefined();
+    });
+
     expect(requestCount).toBe(1);
   });
 });

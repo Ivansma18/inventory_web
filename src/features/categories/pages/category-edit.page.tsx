@@ -1,26 +1,29 @@
 import "./category-edit.page.css";
 
+import { useRef, useState, type FormEvent } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { useSession } from "@/features/auth";
-import { Badge, Button } from "@/shared/ui";
+import { Badge, Button, useToast } from "@/shared/ui";
 
 import type { Category } from "../api/category-contract";
 import { categoryUuidSchema } from "../api/category-contract";
 import { CategoryFormFields } from "../components/category-form-fields";
 import { CategoryPageShell } from "../components/category-page-shell";
 import { useCategory } from "../hooks/use-category";
+import { useUpdateCategory } from "../hooks/use-update-category";
 import {
   categoryFormSchema,
   type CategoryFormInput,
   type CategoryFormValues,
 } from "../schemas/category-form.schema";
+import { buildCategoryUpdatePayload } from "../utils/category-update-payload";
 import {
-  DEFAULT_CATEGORY_LIST_CRITERIA,
-  serializeCategoryListUrlState,
-} from "../utils/category-list-url-state";
+  DEFAULT_CATEGORY_LIST_RETURN_TO,
+  parseCategoryEditReturnTo,
+} from "../utils/category-edit-return-to";
 
 const getHttpErrorStatus = (error: unknown): number | null => {
   if (
@@ -49,7 +52,18 @@ const isRetryableCategoryLoadError = (error: unknown): boolean => {
   return status !== null && status >= 500 && status < 600;
 };
 
-const LoadedCategoryFields = ({ category }: { category: Category }) => {
+interface LoadedCategoryFieldsProps {
+  category: Category;
+  returnTo: string;
+  sessionId: string | null;
+}
+
+const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryFieldsProps) => {
+  const [initialCategory] = useState(() => category);
+  const submitLock = useRef(false);
+  const navigate = useNavigate();
+  const toast = useToast();
+  const updateCategoryMutation = useUpdateCategory(sessionId);
   const form = useForm<CategoryFormInput, unknown, CategoryFormValues>({
     defaultValues: {
       name: category.name,
@@ -58,17 +72,86 @@ const LoadedCategoryFields = ({ category }: { category: Category }) => {
     mode: "onBlur",
     resolver: zodResolver(categoryFormSchema),
   });
+  const operationPending = updateCategoryMutation.isPending || form.formState.isSubmitting;
+
+  const submitCategory = async (values: CategoryFormValues) => {
+    const payload = buildCategoryUpdatePayload(initialCategory, values);
+    if (payload === null) {
+      return;
+    }
+
+    try {
+      await updateCategoryMutation.mutateAsync({
+        uuid: initialCategory.uuid,
+        isActive: initialCategory.isActive,
+        payload,
+      });
+    } catch {
+      form.setError("root.server", {
+        type: "server",
+        message:
+          "No se pudo confirmar la actualización. Revisa la categoría antes de volver a intentarlo.",
+      });
+      return;
+    }
+
+    toast.show({ kind: "success", message: "Categoría actualizada correctamente." });
+    void navigate(returnTo, { replace: true });
+  };
+
+  const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (submitLock.current || updateCategoryMutation.isPending) {
+      return;
+    }
+
+    submitLock.current = true;
+    form.clearErrors("root.server");
+    void form
+      .handleSubmit(submitCategory)(event)
+      .finally(() => {
+        submitLock.current = false;
+      });
+  };
 
   return (
     <div className="category-edit-page__loaded">
       <p className="category-edit-page__category-status">
         Estado:{" "}
         <Badge
-          label={category.isActive ? "Activa" : "Inactiva"}
-          tone={category.isActive ? "success" : "neutral"}
+          label={initialCategory.isActive ? "Activa" : "Inactiva"}
+          tone={initialCategory.isActive ? "success" : "neutral"}
         />
       </p>
-      <CategoryFormFields form={form} />
+      <form
+        aria-busy={operationPending || undefined}
+        aria-labelledby="category-form-fields-heading"
+        className="category-edit-page__form"
+        noValidate
+        onSubmit={handleFormSubmit}
+      >
+        <CategoryFormFields disabled={operationPending} form={form} />
+        <div className="category-edit-page__actions">
+          {form.formState.errors.root?.server?.message ? (
+            <p className="category-edit-page__error" role="alert">
+              {form.formState.errors.root.server.message}
+            </p>
+          ) : null}
+          {operationPending ? (
+            <p className="category-edit-page__status" role="status">
+              Guardando cambios de la categoría…
+            </p>
+          ) : null}
+          <Button
+            disabled={operationPending || !form.formState.isDirty}
+            loading={operationPending}
+            type="submit"
+          >
+            {operationPending ? "Guardando cambios…" : "Guardar cambios"}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 };
@@ -77,17 +160,16 @@ export const CategoryEditPage = () => {
   const { uuid = "" } = useParams();
   const session = useSession();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const sessionId = session.status === "authenticated" ? session.session.id : null;
   const validUuid = categoryUuidSchema.safeParse(uuid).success;
   const categoryQuery = useCategory(sessionId, validUuid ? uuid : null);
   const status = getHttpErrorStatus(categoryQuery.error);
   const isNotFound = status === 404;
   const canRetry = !isNotFound && isRetryableCategoryLoadError(categoryQuery.error);
-  const defaultListSearch = serializeCategoryListUrlState({
-    page: 1,
-    criteria: DEFAULT_CATEGORY_LIST_CRITERIA,
-  });
-  const returnToList = () => navigate(`/categories?${defaultListSearch}`);
+  const returnTo =
+    parseCategoryEditReturnTo(searchParams.get("returnTo")) ?? DEFAULT_CATEGORY_LIST_RETURN_TO;
+  const returnToList = () => navigate(returnTo);
 
   return (
     <CategoryPageShell
@@ -113,7 +195,12 @@ export const CategoryEditPage = () => {
           </Button>
         </div>
       ) : categoryQuery.data ? (
-        <LoadedCategoryFields category={categoryQuery.data} key={categoryQuery.data.uuid} />
+        <LoadedCategoryFields
+          category={categoryQuery.data}
+          key={categoryQuery.data.uuid}
+          returnTo={returnTo}
+          sessionId={sessionId}
+        />
       ) : categoryQuery.isPending ? (
         <p aria-live="polite" className="category-edit-page__status" role="status">
           Cargando datos de la categoría…

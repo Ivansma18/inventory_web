@@ -34,7 +34,14 @@
 }
 
 .category-edit-page__loaded {
+  display: grid;
+  gap: var(--ui-space-5);
   margin-block-start: var(--ui-space-6);
+}
+
+.category-edit-page__form {
+  display: grid;
+  gap: var(--ui-space-5);
 }
 
 .category-edit-page__category-status {
