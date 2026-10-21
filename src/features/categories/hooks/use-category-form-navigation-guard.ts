@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { useBlocker } from "react-router";
 
 export const useCategoryFormNavigationGuard = (isDirty: boolean, isOperationPending: boolean) => {
@@ -8,6 +8,24 @@ export const useCategoryFormNavigationGuard = (isDirty: boolean, isOperationPend
   useLayoutEffect(() => {
     shouldProtectRef.current = !dismissedRef.current && isDirty && !isOperationPending;
   }, [isDirty, isOperationPending]);
+
+  useEffect(() => {
+    if (!isDirty) {
+      return;
+    }
+
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (dismissedRef.current) {
+        return;
+      }
+
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [isDirty]);
 
   const blocker = useBlocker(({ currentLocation, nextLocation }) => {
     const isLeavingCurrentLocation =
