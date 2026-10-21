@@ -8,10 +8,11 @@ import { Input, Textarea } from "@/shared/ui";
 import type { CategoryFormInput, CategoryFormValues } from "../schemas/category-form.schema";
 
 export interface CategoryFormFieldsProps {
+  disabled?: boolean;
   form: UseFormReturn<CategoryFormInput, unknown, CategoryFormValues>;
 }
 
-export const CategoryFormFields = ({ form }: CategoryFormFieldsProps) => (
+export const CategoryFormFields = ({ form, disabled = false }: CategoryFormFieldsProps) => (
   <section aria-labelledby="category-form-fields-heading" className="category-form-fields">
     <h2 className="category-form-fields__heading" id="category-form-fields-heading">
       Datos de la categoría
@@ -22,6 +23,7 @@ export const CategoryFormFields = ({ form }: CategoryFormFieldsProps) => (
         name="name"
         render={({ field, fieldState }) => (
           <Input
+            disabled={disabled}
             error={fieldState.error?.message}
             label="Nombre (obligatorio)"
             onBlur={field.onBlur}
@@ -36,6 +38,7 @@ export const CategoryFormFields = ({ form }: CategoryFormFieldsProps) => (
         name="description"
         render={({ field, fieldState }) => (
           <Textarea
+            disabled={disabled}
             error={fieldState.error?.message}
             label="Descripción (opcional)"
             onValueChange={field.onChange}

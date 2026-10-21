@@ -1,0 +1,29 @@
+.category-create-form {
+  display: grid;
+  gap: var(--ui-space-5);
+  margin-block-start: var(--ui-space-6);
+}
+
+.category-create-form__actions {
+  display: grid;
+  justify-items: end;
+  gap: var(--ui-space-3);
+  padding-block-start: var(--ui-space-4);
+  border-block-start: var(--ui-border-width) solid var(--ui-color-border);
+}
+
+.category-create-form__error,
+.category-create-form__status {
+  justify-self: stretch;
+  margin: 0;
+  font-size: var(--ui-font-size-sm);
+  line-height: var(--ui-line-height-normal);
+}
+
+.category-create-form__error {
+  color: var(--ui-color-on-error);
+}
+
+.category-create-form__status {
+  color: var(--ui-color-text-muted);
+}

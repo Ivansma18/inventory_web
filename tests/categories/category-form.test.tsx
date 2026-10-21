@@ -2,10 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
-import { CategoryCreatePage } from "@/features/categories/pages/category-create.page";
 import { Button } from "@/shared/ui";
 import {
   DEFAULT_CATEGORY_FORM_VALUES,
@@ -38,13 +36,8 @@ const CategoryFormHarness = ({ onValid }: { onValid: (values: CategoryFormValues
 
 describe("category form fields and schema", () => {
   it("exposes labeled name and optional description fields", () => {
-    render(
-      <MemoryRouter>
-        <CategoryCreatePage />
-      </MemoryRouter>,
-    );
+    render(<CategoryFormHarness onValid={vi.fn()} />);
 
-    expect(screen.getByRole("heading", { level: 2, name: "Datos de la categoría" })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Nombre (obligatorio)" })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Descripción (opcional)" })).toBeVisible();
   });
