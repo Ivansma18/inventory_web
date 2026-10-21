@@ -311,7 +311,7 @@ describe("product edit page", () => {
         listRequests.push(new URL(request.url));
         return HttpResponse.json({
           data: [product(false)],
-          pagination: { total: 1, page: 2, limit: 15 },
+          pagination: { total: 31, page: 2, limit: 15 },
         });
       }),
       http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),

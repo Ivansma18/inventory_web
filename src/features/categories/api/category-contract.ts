@@ -6,8 +6,10 @@ export type Category = components["schemas"]["Category"];
 export type CategoryListResponse = components["schemas"]["CategoryListResponse"];
 export type CategoryCreatePayload = components["schemas"]["CreateCategory"];
 
+export const categoryUuidSchema = z.uuid();
+
 const categorySchema = z.object({
-  uuid: z.uuid(),
+  uuid: categoryUuidSchema,
   name: z.string(),
   description: z.string().nullable(),
   isActive: z.boolean(),

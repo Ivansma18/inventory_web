@@ -792,6 +792,18 @@ describe("Categories route", () => {
 
           return response.promise;
         }),
+        http.get("https://inventory.test/api/categories/:uuid", ({ params }) =>
+          HttpResponse.json({
+            data: {
+              uuid: String(params.uuid),
+              name: "Categoría de prueba",
+              description: null,
+              isActive: true,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+            },
+          }),
+        ),
       );
 
       const router = createMemoryRouter(appRoutes, { initialEntries: [path] });
