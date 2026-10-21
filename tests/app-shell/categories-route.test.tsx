@@ -660,6 +660,110 @@ describe("Categories route", () => {
     queryClient.clear();
   });
 
+  it("does not show a replaced query result when deferred category responses finish out of order", async () => {
+    const user = userEvent.setup();
+    const slowResponse = deferred<Response>();
+    const currentResponse = deferred<Response>();
+    const slowRequestStarted = deferred<void>();
+    const currentRequestStarted = deferred<void>();
+    const slowHandlerFinished = deferred<void>();
+    const queryClient = createQueryClient();
+    const categoryResponse = (name: string) =>
+      HttpResponse.json({
+        data: [
+          {
+            uuid:
+              name === "Resultado anterior"
+                ? "550e8400-e29b-41d4-a716-446655440017"
+                : name === "Resultado lento"
+                  ? "550e8400-e29b-41d4-a716-446655440018"
+                  : "550e8400-e29b-41d4-a716-446655440019",
+            name,
+            description: null,
+            isActive: true,
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+        pagination: { total: 1, page: 1, limit: 15 },
+      });
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get("https://inventory.test/api/categories", ({ request }) => {
+        const search = new URL(request.url).searchParams.get("search");
+
+        if (search === "seed") {
+          return categoryResponse("Resultado anterior");
+        }
+
+        if (search === "slow") {
+          slowRequestStarted.resolve();
+          return slowResponse.promise.then((response) => {
+            slowHandlerFinished.resolve();
+            return response;
+          });
+        }
+
+        if (search === "current") {
+          currentRequestStarted.resolve();
+          return currentResponse.promise;
+        }
+
+        throw new Error(`Unexpected category search: ${search}`);
+      }),
+    );
+
+    const router = createMemoryRouter(appRoutes, {
+      initialEntries: ["/categories?search=seed"],
+    });
+    await renderAuthenticatedCategoriesRoute(queryClient, router);
+
+    expect(await screen.findByRole("row", { name: /Resultado anterior/ })).toBeVisible();
+    const searchInput = screen.getByRole("searchbox", { name: "Buscar categorías" });
+    await user.clear(searchInput);
+    await user.type(searchInput, "slow");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+    await slowRequestStarted.promise;
+    expect(screen.getByRole("status")).toHaveTextContent("Cargando datos...");
+    expect(
+      screen.queryByRole("row", { name: /Resultado anterior|Resultado lento|Resultado vigente/ }),
+    ).toBeNull();
+
+    await user.clear(searchInput);
+    await user.type(searchInput, "current");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+    await currentRequestStarted.promise;
+    expect(router.state.location.search).toBe(
+      "?page=1&search=current&status=active&sort=name&order=asc",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Cargando datos...");
+    expect(
+      screen.queryByRole("row", { name: /Resultado anterior|Resultado lento|Resultado vigente/ }),
+    ).toBeNull();
+
+    await act(async () => {
+      currentResponse.resolve(categoryResponse("Resultado vigente"));
+    });
+    expect(await screen.findByRole("row", { name: /Resultado vigente/ })).toBeVisible();
+    expect(screen.queryByRole("row", { name: /Resultado lento/ })).toBeNull();
+
+    await act(async () => {
+      slowResponse.resolve(categoryResponse("Resultado lento"));
+      await slowHandlerFinished.promise;
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("row", { name: /Resultado vigente/ })).toBeVisible();
+      expect(screen.queryByRole("row", { name: /Resultado lento/ })).toBeNull();
+    });
+    expect(router.state.location.search).toBe(
+      "?page=1&search=current&status=active&sort=name&order=asc",
+    );
+
+    router.dispose();
+    queryClient.clear();
+  });
+
   it.each([
     { path: "/categories/new", heading: "Crear categoría" },
     {

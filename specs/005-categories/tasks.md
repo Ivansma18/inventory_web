@@ -31,8 +31,9 @@ Cada tarea funcional incluye escribir o actualizar primero la prueba que demuest
 - [x] T9. Conectar criterios con URL compartible, recarga e historial. (RF-28–RF-31)
   Hecho cuando: pruebas de router y navegador restauran controles y resultados al abrir URL, recargar y usar Atrás/Adelante; normalizar criterios inválidos no agrega una entrada.
 - Evidencia: `tests/app-shell/categories-route.test.tsx` restaura controles y resultados desde una URL completa, verifica los parámetros enviados al backend y conserva el estado al navegar Atrás/Adelante. `tests/browser/category-list-url.bootstrap-smoke.spec.ts` comprueba apertura directa, recarga, cambio de búsqueda, historial Atrás/Adelante y que criterios inválidos se reemplacen sin historial adicional. `pnpm test:e2e --project=bootstrap-smoke tests/browser/category-list-url.bootstrap-smoke.spec.ts` (2 pruebas), `pnpm test:run --maxWorkers=1` (58 archivos, 517 pruebas), lint, typecheck, formato y build pasaron. El build conserva el aviso no bloqueante de chunk superior a 500 kB.
-- [ ] T10. Aislar resultados de consultas reemplazadas. (RF-32)
+- [x] T10. Aislar resultados de consultas reemplazadas. (RF-32)
   Hecho cuando: dos respuestas MSW diferidas llegan fuera de orden y solo queda visible el resultado del criterio vigente; no se usa un snapshot de otra clave como resultado actual.
+- Evidencia: `tests/app-shell/categories-route.test.tsx` carga primero un resultado, cambia a dos criterios con respuestas MSW diferidas y comprueba que no se muestran filas de otra clave durante la carga; resuelve primero la consulta vigente y después la reemplazada, y solo permanece visible el resultado vigente. La clave administrativa ya incluye sesión y parámetros; la cobertura confirma que no hace falta cambiar la lógica de producción. `pnpm test:run --maxWorkers=1` (58 archivos, 518 pruebas), lint, typecheck, formato y build pasaron. El build conserva el aviso no bloqueante de chunk superior a 500 kB.
 - [ ] T11. Construir los campos y esquemas del formulario de Categorías. (RF-33–RF-36, RF-44, RF-133)
   Hecho cuando: pruebas verifican nombre requerido tras trim, descripción opcional y campos con labels; no se inventan límites ni se introducen truncamientos de texto.
 - [ ] T12. Incorporar la operación de creación tipada y validada. (RF-35, RF-37, RF-92–RF-93)
@@ -278,4 +279,4 @@ La tabla vincula implementación y evidencia principal. T58 consolida resultados
 - Si no hay escritorio gráfico, lector de pantalla u otra condición necesaria, registrar bloqueo; no sustituir zoom nativo por viewport equivalente ni revisión humana por pruebas automáticas.
 - No modificar reglas del backend, scope aprobado ni contratos de Productos por inferencia. Toda discrepancia vuelve a `change-manager`.
 
-T1–T9 están completadas; T10 sigue pendiente y no se ha iniciado.
+T1–T10 están completadas; T11 sigue pendiente y no se ha iniciado.
