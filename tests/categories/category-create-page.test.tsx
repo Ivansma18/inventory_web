@@ -17,10 +17,11 @@ const categoryUuid = "550e8400-e29b-41d4-a716-446655440000";
 
 const publicAuthResponse = (
   role: components["schemas"]["PublicAuthResponse"]["data"]["user"]["role"] = "OPERATOR",
+  sessionId = "category-create-session",
 ): components["schemas"]["PublicAuthResponse"] => ({
   data: {
     user: { id: "category-create-user", email: "operator@example.com", role },
-    session: { id: "category-create-session", createdAt: "2026-01-01T00:00:00.000Z" },
+    session: { id: sessionId, createdAt: "2026-01-01T00:00:00.000Z" },
   },
 });
 
@@ -33,6 +34,47 @@ const category = (name: string, description: string | null = null) => ({
   updatedAt: "2026-01-01T00:00:00.000Z",
 });
 
+const creationFailureScenarios = [
+  {
+    description: "a permission rejection",
+    status: 403,
+    code: "FORBIDDEN",
+    placement: "root",
+    expectedMessage: "No tienes permiso para crear categorías.",
+  },
+  {
+    description: "an identifiable name validation rejection",
+    status: 400,
+    code: "INVALID_CATEGORY_DATA",
+    placement: "name",
+    expectedMessage: "El nombre no es válido. Revísalo e inténtalo de nuevo.",
+  },
+  {
+    description: "a general validation rejection",
+    status: 400,
+    code: "VALIDATION_ERROR",
+    placement: "root",
+    expectedMessage:
+      "El servidor rechazó los datos enviados. Revisa el formulario e inténtalo de nuevo.",
+  },
+  {
+    description: "a server failure",
+    status: 503,
+    code: "INTERNAL_ERROR",
+    placement: "root",
+    expectedMessage:
+      "No se pudo confirmar el resultado de la creación. Revisa el listado antes de volver a intentarlo.",
+  },
+  {
+    description: "a network failure",
+    status: null,
+    code: "",
+    placement: "root",
+    expectedMessage:
+      "No se pudo confirmar el resultado de la creación. Revisa el listado antes de volver a intentarlo.",
+  },
+] as const;
+
 const routeResources: Array<{
   queryClient: ReturnType<typeof createQueryClient>;
   router: ReturnType<typeof createMemoryRouter>;
@@ -40,13 +82,17 @@ const routeResources: Array<{
 
 const renderCategoryCreateRoute = (
   role?: components["schemas"]["PublicAuthResponse"]["data"]["user"]["role"],
+  sessionResponse?: () => Response | Promise<Response>,
 ) => {
   const queryClient = createQueryClient();
   const router = createMemoryRouter(appRoutes, { initialEntries: ["/categories/new"] });
   routeResources.push({ queryClient, router });
 
   server.use(
-    http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse(role))),
+    http.get(
+      /\/api\/auth\/get-session/,
+      () => sessionResponse?.() ?? HttpResponse.json(publicAuthResponse(role)),
+    ),
   );
 
   render(
@@ -206,4 +252,202 @@ describe("category creation page", () => {
       expect(name).not.toHaveAttribute("aria-invalid", "true");
     },
   );
+
+  it.each(creationFailureScenarios)(
+    "preserves and unlocks the form after $description without retrying automatically",
+    async ({ status, code, placement, expectedMessage }) => {
+      const user = userEvent.setup();
+      const privateMessage = "private category mutation details";
+      let createRequests = 0;
+
+      server.use(
+        http.post(categoriesUrl, () => {
+          createRequests += 1;
+          return status === null
+            ? HttpResponse.error()
+            : HttpResponse.json(
+                {
+                  error: {
+                    code,
+                    message: privateMessage,
+                    ...(code === "VALIDATION_ERROR"
+                      ? { fieldErrors: { description: ["private field detail"] } }
+                      : {}),
+                  },
+                },
+                { status },
+              );
+        }),
+      );
+
+      const { router } = renderCategoryCreateRoute();
+      const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+      const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
+      await user.type(name, "Nombre local");
+      await user.type(description, "Descripción local");
+      await user.click(screen.getByRole("button", { name: "Crear categoría" }));
+
+      if (placement === "name") {
+        const error = await screen.findByText(expectedMessage);
+        expect(name).toHaveAttribute("aria-invalid", "true");
+        expect(name).toHaveAccessibleDescription(error.textContent ?? "");
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      } else {
+        expect(await screen.findByRole("alert")).toHaveTextContent(expectedMessage);
+        expect(name).not.toHaveAttribute("aria-invalid", "true");
+      }
+
+      expect(name).toHaveValue("Nombre local");
+      expect(description).toHaveValue("Descripción local");
+      expect(name).toBeEnabled();
+      expect(description).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Crear categoría" })).toBeEnabled();
+      expect(screen.queryByText(privateMessage)).not.toBeInTheDocument();
+      expect(screen.queryByText("private field detail")).not.toBeInTheDocument();
+      expect(screen.queryByText("Categoría creada correctamente.")).not.toBeInTheDocument();
+      expect(router.state.location.pathname).toBe("/categories/new");
+      expect(createRequests).toBe(1);
+
+      await user.clear(name);
+      await user.type(name, "Nombre corregido");
+      expect(name).toHaveValue("Nombre corregido");
+      expect(createRequests).toBe(1);
+    },
+  );
+
+  it("shows an uncertain response error after an invalid successful creation response", async () => {
+    const user = userEvent.setup();
+    let createRequests = 0;
+
+    server.use(
+      http.post(categoriesUrl, () => {
+        createRequests += 1;
+        return HttpResponse.json(
+          { data: { uuid: categoryUuid, name: "Incomplete" } },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const { router } = renderCategoryCreateRoute();
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
+    await user.type(name, "Nombre local");
+    await user.type(description, "Descripción local");
+    await user.click(screen.getByRole("button", { name: "Crear categoría" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "La respuesta de creación no se pudo validar. Revisa el listado antes de volver a intentarlo.",
+    );
+    expect(name).toHaveValue("Nombre local");
+    expect(description).toHaveValue("Descripción local");
+    expect(name).toBeEnabled();
+    expect(description).toBeEnabled();
+    expect(screen.queryByText("Categoría creada correctamente.")).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/categories/new");
+    expect(createRequests).toBe(1);
+  });
+
+  it("rechecks Auth after a 401 and does not repeat category creation", async () => {
+    const user = userEvent.setup();
+    let mutationRejected = false;
+    let sessionRefreshRequests = 0;
+    let createRequests = 0;
+    let resolveSessionRefresh!: (response: Response) => void;
+    const sessionRefresh = new Promise<Response>((resolve) => {
+      resolveSessionRefresh = resolve;
+    });
+
+    server.use(
+      http.post(categoriesUrl, () => {
+        createRequests += 1;
+        mutationRejected = true;
+        return HttpResponse.json(
+          { error: { code: "UNAUTHORIZED", message: "private authentication detail" } },
+          { status: 401 },
+        );
+      }),
+    );
+
+    renderCategoryCreateRoute(undefined, () => {
+      if (mutationRejected) {
+        sessionRefreshRequests += 1;
+        return sessionRefresh;
+      }
+      return HttpResponse.json(publicAuthResponse());
+    });
+    await screen.findByRole("heading", { level: 1, name: "Crear categoría" });
+    await user.type(screen.getByRole("textbox", { name: "Nombre (obligatorio)" }), "Nueva");
+    fireEvent.submit(screen.getByRole("form", { name: "Datos de la categoría" }));
+
+    await waitFor(() => {
+      expect(createRequests).toBe(1);
+      expect(sessionRefreshRequests).toBe(1);
+    });
+    expect(await screen.findByRole("heading", { name: "Comprobando tu sesión" })).toBeVisible();
+    expect(createRequests).toBe(1);
+    expect(screen.queryByRole("form", { name: "Datos de la categoría" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Categoría creada correctamente.")).not.toBeInTheDocument();
+
+    resolveSessionRefresh(HttpResponse.json(publicAuthResponse()));
+
+    expect(
+      await screen.findByText(
+        "La sesión se verificó, pero no se confirmó el resultado de la creación. Revisa el listado antes de volver a intentarlo.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("private authentication detail")).not.toBeInTheDocument();
+    expect(createRequests).toBe(1);
+  });
+
+  it("does not carry a rejected creation result into a replacement session", async () => {
+    const user = userEvent.setup();
+    let mutationRejected = false;
+    let sessionRefreshRequests = 0;
+    let createRequests = 0;
+    let resolveSessionRefresh!: (response: Response) => void;
+    const sessionRefresh = new Promise<Response>((resolve) => {
+      resolveSessionRefresh = resolve;
+    });
+
+    server.use(
+      http.post(categoriesUrl, () => {
+        createRequests += 1;
+        mutationRejected = true;
+        return HttpResponse.json(
+          { error: { code: "UNAUTHORIZED", message: "private authentication detail" } },
+          { status: 401 },
+        );
+      }),
+    );
+
+    renderCategoryCreateRoute(undefined, () => {
+      if (mutationRejected) {
+        sessionRefreshRequests += 1;
+        return sessionRefresh;
+      }
+      return HttpResponse.json(publicAuthResponse());
+    });
+    await screen.findByRole("heading", { level: 1, name: "Crear categoría" });
+    const name = screen.getByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.type(name, "Valor de la sesión anterior");
+    fireEvent.submit(screen.getByRole("form", { name: "Datos de la categoría" }));
+
+    await waitFor(() => expect(sessionRefreshRequests).toBe(1));
+    expect(screen.queryByRole("form", { name: "Datos de la categoría" })).not.toBeInTheDocument();
+    resolveSessionRefresh(
+      HttpResponse.json(publicAuthResponse("OPERATOR", "replacement-category-session")),
+    );
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Crear categoría" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Nombre (obligatorio)" })).toHaveValue("");
+    expect(screen.queryByText("Valor de la sesión anterior")).not.toBeInTheDocument();
+    expect(screen.queryByText("Categoría creada correctamente.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "La sesión se verificó, pero no se confirmó el resultado de la creación. Revisa el listado antes de volver a intentarlo.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(createRequests).toBe(1);
+  });
 });

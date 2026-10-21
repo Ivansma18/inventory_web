@@ -32,10 +32,11 @@ const deferred = <T,>(): Deferred<T> => {
 
 const publicAuthResponse = (
   role: components["schemas"]["PublicAuthResponse"]["data"]["user"]["role"] = "OPERATOR",
+  sessionId = "category-edit-session",
 ): components["schemas"]["PublicAuthResponse"] => ({
   data: {
     user: { id: "category-edit-user", email: "operator@example.com", role },
-    session: { id: "category-edit-session", createdAt: "2026-01-01T00:00:00.000Z" },
+    session: { id: sessionId, createdAt: "2026-01-01T00:00:00.000Z" },
   },
 });
 
@@ -48,6 +49,47 @@ const category = (name = "Herramientas", description: string | null = "Para mant
   updatedAt: "2026-01-02T00:00:00.000Z",
 });
 
+const updateFailureScenarios = [
+  {
+    description: "a permission rejection",
+    status: 403,
+    code: "FORBIDDEN",
+    placement: "root",
+    expectedMessage: "No tienes permiso para editar esta categoría.",
+  },
+  {
+    description: "an identifiable name validation rejection",
+    status: 400,
+    code: "INVALID_CATEGORY_DATA",
+    placement: "name",
+    expectedMessage: "El nombre no es válido. Revísalo e inténtalo de nuevo.",
+  },
+  {
+    description: "a general validation rejection",
+    status: 400,
+    code: "VALIDATION_ERROR",
+    placement: "root",
+    expectedMessage:
+      "El servidor rechazó los datos enviados. Revisa el formulario e inténtalo de nuevo.",
+  },
+  {
+    description: "a server failure",
+    status: 503,
+    code: "INTERNAL_ERROR",
+    placement: "root",
+    expectedMessage:
+      "No se pudo confirmar el resultado de la actualización. Revisa la categoría antes de volver a intentarlo.",
+  },
+  {
+    description: "a network failure",
+    status: null,
+    code: "",
+    placement: "root",
+    expectedMessage:
+      "No se pudo confirmar el resultado de la actualización. Revisa la categoría antes de volver a intentarlo.",
+  },
+] as const;
+
 const routeResources: Array<{
   queryClient: ReturnType<typeof createQueryClient>;
   router: ReturnType<typeof createMemoryRouter>;
@@ -56,6 +98,7 @@ const routeResources: Array<{
 const renderCategoryEditRoute = (
   role?: components["schemas"]["PublicAuthResponse"]["data"]["user"]["role"],
   returnTo?: string,
+  sessionResponse?: () => Response | Promise<Response>,
 ) => {
   const queryClient = createQueryClient();
   const route = `/categories/${categoryUuid}/edit`;
@@ -66,7 +109,10 @@ const renderCategoryEditRoute = (
   routeResources.push({ queryClient, router });
 
   server.use(
-    http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse(role))),
+    http.get(
+      /\/api\/auth\/get-session/,
+      () => sessionResponse?.() ?? HttpResponse.json(publicAuthResponse(role)),
+    ),
   );
 
   render(
@@ -189,11 +235,14 @@ describe("category edit form", () => {
     await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "No se pudo confirmar la actualización. Revisa la categoría antes de volver a intentarlo.",
+      "La respuesta de actualización no se pudo validar. Revisa la categoría antes de volver a intentarlo.",
     );
     expect(screen.queryByText("Categoría actualizada correctamente.")).not.toBeInTheDocument();
     expect(router.state.location.pathname).toBe(`/categories/${categoryUuid}/edit`);
     expect(name).toHaveValue("Nombre nuevo");
+    expect(screen.getByRole("textbox", { name: "Descripción (opcional)" })).toHaveValue(
+      "Para mantenimiento",
+    );
     expect(name).toBeEnabled();
     expect(patchRequests).toBe(1);
   });
@@ -272,4 +321,188 @@ describe("category edit form", () => {
       expect(name).not.toHaveAttribute("aria-invalid", "true");
     },
   );
+
+  it.each(updateFailureScenarios)(
+    "preserves and unlocks the form after $description without retrying automatically",
+    async ({ status, code, placement, expectedMessage }) => {
+      const user = userEvent.setup();
+      const privateMessage = "private category mutation details";
+      let patchRequests = 0;
+
+      server.use(
+        http.get(categoryUrl, () => HttpResponse.json({ data: category() })),
+        http.patch(categoryUrl, () => {
+          patchRequests += 1;
+          return status === null
+            ? HttpResponse.error()
+            : HttpResponse.json(
+                {
+                  error: {
+                    code,
+                    message: privateMessage,
+                    ...(code === "VALIDATION_ERROR"
+                      ? { fieldErrors: { description: ["private field detail"] } }
+                      : {}),
+                  },
+                },
+                { status },
+              );
+        }),
+      );
+
+      const { router } = renderCategoryEditRoute();
+      const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+      const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
+      await user.clear(name);
+      await user.type(name, "Nombre local");
+      await user.clear(description);
+      await user.type(description, "Descripción local");
+      await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+      if (placement === "name") {
+        const error = await screen.findByText(expectedMessage);
+        expect(name).toHaveAttribute("aria-invalid", "true");
+        expect(name).toHaveAccessibleDescription(error.textContent ?? "");
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      } else {
+        expect(await screen.findByRole("alert")).toHaveTextContent(expectedMessage);
+        expect(name).not.toHaveAttribute("aria-invalid", "true");
+      }
+
+      expect(name).toHaveValue("Nombre local");
+      expect(description).toHaveValue("Descripción local");
+      expect(name).toBeEnabled();
+      expect(description).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeEnabled();
+      expect(screen.queryByText(privateMessage)).not.toBeInTheDocument();
+      expect(screen.queryByText("private field detail")).not.toBeInTheDocument();
+      expect(screen.queryByText("Categoría actualizada correctamente.")).not.toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(`/categories/${categoryUuid}/edit`);
+      expect(patchRequests).toBe(1);
+
+      if (placement === "name") {
+        await user.clear(name);
+        await user.type(name, "Nombre corregido");
+        expect(screen.queryByText(expectedMessage)).not.toBeInTheDocument();
+      } else {
+        await user.clear(description);
+        await user.type(description, "Descripción corregida");
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      }
+
+      expect(name).toBeEnabled();
+      expect(description).toBeEnabled();
+      expect(patchRequests).toBe(1);
+    },
+  );
+
+  it("rechecks Auth after a 401 and does not repeat the category update", async () => {
+    const user = userEvent.setup();
+    let mutationRejected = false;
+    let sessionRefreshRequests = 0;
+    let patchRequests = 0;
+    let resolveSessionRefresh!: (response: Response) => void;
+    const sessionRefresh = new Promise<Response>((resolve) => {
+      resolveSessionRefresh = resolve;
+    });
+
+    server.use(
+      http.get(categoryUrl, () => HttpResponse.json({ data: category() })),
+      http.patch(categoryUrl, () => {
+        patchRequests += 1;
+        mutationRejected = true;
+        return HttpResponse.json(
+          { error: { code: "UNAUTHORIZED", message: "private authentication detail" } },
+          { status: 401 },
+        );
+      }),
+    );
+
+    renderCategoryEditRoute(undefined, undefined, () => {
+      if (mutationRejected) {
+        sessionRefreshRequests += 1;
+        return sessionRefresh;
+      }
+      return HttpResponse.json(publicAuthResponse());
+    });
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Nombre local");
+    fireEvent.submit(screen.getByRole("form", { name: "Datos de la categoría" }));
+
+    await waitFor(() => {
+      expect(patchRequests).toBe(1);
+      expect(sessionRefreshRequests).toBe(1);
+    });
+    expect(await screen.findByRole("heading", { name: "Comprobando tu sesión" })).toBeVisible();
+    expect(patchRequests).toBe(1);
+    expect(screen.queryByRole("form", { name: "Datos de la categoría" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Categoría actualizada correctamente.")).not.toBeInTheDocument();
+
+    resolveSessionRefresh(HttpResponse.json(publicAuthResponse()));
+
+    expect(
+      await screen.findByText(
+        "La sesión se verificó, pero no se confirmó el resultado de la actualización. Revisa la categoría antes de volver a intentarlo.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("private authentication detail")).not.toBeInTheDocument();
+    expect(patchRequests).toBe(1);
+  });
+
+  it("does not carry a rejected update result into a replacement session", async () => {
+    const user = userEvent.setup();
+    let mutationRejected = false;
+    let sessionRefreshRequests = 0;
+    let patchRequests = 0;
+    let resolveSessionRefresh!: (response: Response) => void;
+    const sessionRefresh = new Promise<Response>((resolve) => {
+      resolveSessionRefresh = resolve;
+    });
+
+    server.use(
+      http.get(categoryUrl, () => HttpResponse.json({ data: category() })),
+      http.patch(categoryUrl, () => {
+        patchRequests += 1;
+        mutationRejected = true;
+        return HttpResponse.json(
+          { error: { code: "UNAUTHORIZED", message: "private authentication detail" } },
+          { status: 401 },
+        );
+      }),
+    );
+
+    renderCategoryEditRoute(undefined, undefined, () => {
+      if (mutationRejected) {
+        sessionRefreshRequests += 1;
+        return sessionRefresh;
+      }
+      return HttpResponse.json(publicAuthResponse());
+    });
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Valor de la sesión anterior");
+    fireEvent.submit(screen.getByRole("form", { name: "Datos de la categoría" }));
+
+    await waitFor(() => expect(sessionRefreshRequests).toBe(1));
+    expect(screen.queryByRole("form", { name: "Datos de la categoría" })).not.toBeInTheDocument();
+    resolveSessionRefresh(
+      HttpResponse.json(publicAuthResponse("OPERATOR", "replacement-category-session")),
+    );
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Editar categoría" }),
+    ).toBeVisible();
+    expect(await screen.findByRole("textbox", { name: "Nombre (obligatorio)" })).toHaveValue(
+      "Herramientas",
+    );
+    expect(screen.queryByText("Valor de la sesión anterior")).not.toBeInTheDocument();
+    expect(screen.queryByText("Categoría actualizada correctamente.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "La sesión se verificó, pero no se confirmó el resultado de la actualización. Revisa la categoría antes de volver a intentarlo.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(patchRequests).toBe(1);
+  });
 });

@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
-import { useSession } from "@/features/auth";
+import { isCurrentSession, useSession } from "@/features/auth";
 import { Badge, Button, useToast } from "@/shared/ui";
 
 import type { Category } from "../api/category-contract";
@@ -20,8 +20,16 @@ import {
   type CategoryFormValues,
 } from "../schemas/category-form.schema";
 import {
+  categoryValidationMessage,
   categoryNameConflictMessage,
+  invalidCategoryNameMessage,
+  isCategoryForbiddenError,
+  isCategoryResponseContractError,
+  isCategoryUnauthorizedError,
+  isCategoryValidationError,
   isDuplicateCategoryNameError,
+  isInvalidCategoryNameError,
+  isUncertainCategoryMutationError,
 } from "../utils/category-api-errors";
 import { buildCategoryUpdatePayload } from "../utils/category-update-payload";
 import {
@@ -64,6 +72,7 @@ interface LoadedCategoryFieldsProps {
 
 const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryFieldsProps) => {
   const [initialCategory] = useState(() => category);
+  const session = useSession();
   const submitLock = useRef(false);
   const navigate = useNavigate();
   const toast = useToast();
@@ -91,16 +100,71 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
         payload,
       });
     } catch (error: unknown) {
+      if (isCategoryUnauthorizedError(error)) {
+        const refreshedSession = await session.refetch();
+        if (sessionId !== null && refreshedSession.data?.data.session.id === sessionId) {
+          toast.show({
+            kind: "error",
+            message:
+              "La sesión se verificó, pero no se confirmó el resultado de la actualización. Revisa la categoría antes de volver a intentarlo.",
+          });
+        }
+        return;
+      }
+
+      if (sessionId === null || !isCurrentSession(sessionId)) {
+        return;
+      }
+
       if (isDuplicateCategoryNameError(error)) {
         form.setError("name", { type: "server", message: categoryNameConflictMessage });
         return;
       }
 
+      if (isInvalidCategoryNameError(error)) {
+        form.setError("name", { type: "server", message: invalidCategoryNameMessage });
+        return;
+      }
+
+      if (isCategoryForbiddenError(error)) {
+        form.setError("root.server", {
+          type: "server",
+          message: "No tienes permiso para editar esta categoría.",
+        });
+        return;
+      }
+
+      if (isCategoryValidationError(error)) {
+        form.setError("root.server", { type: "server", message: categoryValidationMessage });
+        return;
+      }
+
+      if (isCategoryResponseContractError(error)) {
+        form.setError("root.server", {
+          type: "server",
+          message:
+            "La respuesta de actualización no se pudo validar. Revisa la categoría antes de volver a intentarlo.",
+        });
+        return;
+      }
+
+      if (isUncertainCategoryMutationError(error)) {
+        form.setError("root.server", {
+          type: "server",
+          message:
+            "No se pudo confirmar el resultado de la actualización. Revisa la categoría antes de volver a intentarlo.",
+        });
+        return;
+      }
+
       form.setError("root.server", {
         type: "server",
-        message:
-          "No se pudo confirmar la actualización. Revisa la categoría antes de volver a intentarlo.",
+        message: "No se pudieron guardar los cambios. Revisa los datos e inténtalo de nuevo.",
       });
+      return;
+    }
+
+    if (sessionId === null || !isCurrentSession(sessionId)) {
       return;
     }
 

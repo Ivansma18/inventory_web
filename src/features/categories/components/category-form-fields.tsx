@@ -32,6 +32,7 @@ export const CategoryFormFields = ({ form, disabled = false }: CategoryFormField
               if (fieldState.error?.type === "server") {
                 form.clearErrors("name");
               }
+              form.clearErrors("root.server");
             }}
             required
             value={field.value}
@@ -46,7 +47,10 @@ export const CategoryFormFields = ({ form, disabled = false }: CategoryFormField
             disabled={disabled}
             error={fieldState.error?.message}
             label="Descripción (opcional)"
-            onValueChange={field.onChange}
+            onValueChange={(value) => {
+              field.onChange(value);
+              form.clearErrors("root.server");
+            }}
             rows={4}
             value={field.value}
           />

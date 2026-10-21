@@ -5,7 +5,7 @@ import { useRef, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { useForm } from "react-hook-form";
 
-import { useSession } from "@/features/auth";
+import { isCurrentSession, useSession } from "@/features/auth";
 import { Button, useToast } from "@/shared/ui";
 
 import type { CategoryCreatePayload } from "../api/category-contract";
@@ -19,8 +19,16 @@ import {
   type CategoryFormValues,
 } from "../schemas/category-form.schema";
 import {
+  categoryValidationMessage,
   categoryNameConflictMessage,
+  invalidCategoryNameMessage,
+  isCategoryForbiddenError,
+  isCategoryResponseContractError,
+  isCategoryUnauthorizedError,
+  isCategoryValidationError,
   isDuplicateCategoryNameError,
+  isInvalidCategoryNameError,
+  isUncertainCategoryMutationError,
 } from "../utils/category-api-errors";
 import {
   DEFAULT_CATEGORY_LIST_CRITERIA,
@@ -50,16 +58,71 @@ export const CategoryCreatePage = () => {
     try {
       await createCategoryMutation.mutateAsync(payload);
     } catch (error: unknown) {
+      if (isCategoryUnauthorizedError(error)) {
+        const refreshedSession = await session.refetch();
+        if (sessionId !== null && refreshedSession.data?.data.session.id === sessionId) {
+          toast.show({
+            kind: "error",
+            message:
+              "La sesión se verificó, pero no se confirmó el resultado de la creación. Revisa el listado antes de volver a intentarlo.",
+          });
+        }
+        return;
+      }
+
+      if (sessionId === null || !isCurrentSession(sessionId)) {
+        return;
+      }
+
       if (isDuplicateCategoryNameError(error)) {
         form.setError("name", { type: "server", message: categoryNameConflictMessage });
         return;
       }
 
+      if (isInvalidCategoryNameError(error)) {
+        form.setError("name", { type: "server", message: invalidCategoryNameMessage });
+        return;
+      }
+
+      if (isCategoryForbiddenError(error)) {
+        form.setError("root.server", {
+          type: "server",
+          message: "No tienes permiso para crear categorías.",
+        });
+        return;
+      }
+
+      if (isCategoryValidationError(error)) {
+        form.setError("root.server", { type: "server", message: categoryValidationMessage });
+        return;
+      }
+
+      if (isCategoryResponseContractError(error)) {
+        form.setError("root.server", {
+          type: "server",
+          message:
+            "La respuesta de creación no se pudo validar. Revisa el listado antes de volver a intentarlo.",
+        });
+        return;
+      }
+
+      if (isUncertainCategoryMutationError(error)) {
+        form.setError("root.server", {
+          type: "server",
+          message:
+            "No se pudo confirmar el resultado de la creación. Revisa el listado antes de volver a intentarlo.",
+        });
+        return;
+      }
+
       form.setError("root.server", {
         type: "server",
-        message:
-          "No se pudo confirmar la creación. Revisa el listado antes de volver a intentarlo.",
+        message: "No se pudo crear la categoría. Revisa los datos e inténtalo de nuevo.",
       });
+      return;
+    }
+
+    if (sessionId === null || !isCurrentSession(sessionId)) {
       return;
     }
 
