@@ -1,5 +1,12 @@
 export { useActiveCategories } from "./hooks/use-active-categories";
 export { useCategory } from "./hooks/use-category";
+export { CategoryOperationsProvider } from "./providers/category-operations.provider";
+export type {
+  CategoryOperation,
+  CategoryOperationPhase,
+} from "./providers/category-operations.context";
+export type { CategoryOperationsProviderProps } from "./providers/category-operations.provider";
+export { useCategoryOperations } from "./hooks/use-category-operations";
 export { CategoryCreatePage } from "./pages/category-create.page";
 export { CategoryEditPage } from "./pages/category-edit.page";
 export { CategoryListPage } from "./pages/category-list.page";
