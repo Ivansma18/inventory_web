@@ -11,7 +11,9 @@ import { Button, useToast } from "@/shared/ui";
 import type { CategoryCreatePayload } from "../api/category-contract";
 import { CategoryFormFields } from "../components/category-form-fields";
 import { CategoryPageShell } from "../components/category-page-shell";
+import { CategoryUnsavedChangesDialog } from "../components/category-unsaved-changes-dialog";
 import { useCreateCategory } from "../hooks/use-create-category";
+import { useCategoryFormNavigationGuard } from "../hooks/use-category-form-navigation-guard";
 import {
   categoryFormSchema,
   DEFAULT_CATEGORY_FORM_VALUES,
@@ -48,6 +50,7 @@ export const CategoryCreatePage = () => {
   });
   const createCategoryMutation = useCreateCategory(sessionId);
   const operationPending = createCategoryMutation.isPending || form.formState.isSubmitting;
+  const navigationGuard = useCategoryFormNavigationGuard(form.formState.isDirty, operationPending);
 
   const submitCategory = async (values: CategoryFormValues) => {
     const payload: CategoryCreatePayload = {
@@ -126,6 +129,7 @@ export const CategoryCreatePage = () => {
       return;
     }
 
+    navigationGuard.dismissProtection();
     toast.show({ kind: "success", message: "Categoría creada correctamente." });
     const defaultListSearch = serializeCategoryListUrlState({
       page: 1,
@@ -182,6 +186,11 @@ export const CategoryCreatePage = () => {
           </Button>
         </div>
       </form>
+      <CategoryUnsavedChangesDialog
+        onContinueEditing={navigationGuard.continueEditing}
+        onDiscardChanges={navigationGuard.discardChanges}
+        open={navigationGuard.blocker.state === "blocked"}
+      />
     </CategoryPageShell>
   );
 };

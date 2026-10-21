@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
@@ -99,13 +99,18 @@ const renderCategoryEditRoute = (
   role?: components["schemas"]["PublicAuthResponse"]["data"]["user"]["role"],
   returnTo?: string,
   sessionResponse?: () => Response | Promise<Response>,
+  initialEntries?: string[],
 ) => {
   const queryClient = createQueryClient();
   const route = `/categories/${categoryUuid}/edit`;
   const initialEntry = returnTo
     ? `${route}?${new URLSearchParams({ returnTo }).toString()}`
     : route;
-  const router = createMemoryRouter(appRoutes, { initialEntries: [initialEntry] });
+  const entries = initialEntries ?? [initialEntry];
+  const router = createMemoryRouter(appRoutes, {
+    initialEntries: entries,
+    initialIndex: entries.indexOf(initialEntry),
+  });
   routeResources.push({ queryClient, router });
 
   server.use(
@@ -144,6 +149,64 @@ describe("category edit form", () => {
       expect(await screen.findByRole("button", { name: "Guardar cambios" })).toBeVisible();
     },
   );
+
+  it("confirms Back navigation from a dirty edit and preserves or discards to the requested history entry", async () => {
+    const user = userEvent.setup();
+    const sourceListUrl =
+      "/categories?page=3&search=tools&status=inactive&sort=updatedAt&order=desc";
+    const editEntry = `/categories/${categoryUuid}/edit?${new URLSearchParams({ returnTo: sourceListUrl }).toString()}`;
+
+    server.use(
+      http.get(categoryUrl, () => HttpResponse.json({ data: category() })),
+      http.get(categoriesUrl, () =>
+        HttpResponse.json({
+          data: [category()],
+          pagination: { total: 46, page: 3, limit: 15 },
+        }),
+      ),
+    );
+
+    const { router } = renderCategoryEditRoute(undefined, sourceListUrl, undefined, [
+      sourceListUrl,
+      editEntry,
+    ]);
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
+    await user.clear(name);
+    await user.type(name, "Nombre local pendiente");
+    await user.clear(description);
+    await user.type(description, "Descripción local pendiente");
+
+    await act(async () => router.navigate(-1));
+    const continuePrompt = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    await user.click(within(continuePrompt).getByRole("button", { name: "Continuar editando" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(router.state.location.pathname).toBe(`/categories/${categoryUuid}/edit`);
+    expect(name).toHaveValue("Nombre local pendiente");
+    expect(description).toHaveValue("Descripción local pendiente");
+
+    await act(async () => router.navigate(-1));
+    const discardPrompt = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    await user.click(within(discardPrompt).getByRole("button", { name: "Descartar cambios" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Categorías" })).toBeVisible();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/categories"));
+    expect(router.state.location.search).toBe(sourceListUrl.slice("/categories".length));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await act(async () => router.navigate(1));
+    const restoredName = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    expect(restoredName).toHaveValue("Herramientas");
+    expect(screen.getByRole("textbox", { name: "Descripción (opcional)" })).toHaveValue(
+      "Para mantenimiento",
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await act(async () => router.navigate(-1));
+    expect(await screen.findByRole("heading", { level: 1, name: "Categorías" })).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
 
   it("locks the fields and sends one partial update while pending, then confirms and returns to its source list", async () => {
     const user = userEvent.setup();

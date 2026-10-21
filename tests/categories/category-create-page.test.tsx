@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
@@ -122,6 +122,50 @@ describe("category creation page", () => {
       expect(await screen.findByRole("button", { name: "Crear categoría" })).toBeVisible();
     },
   );
+
+  it("asks before leaving a dirty create form and can continue or discard to the requested link", async () => {
+    const user = userEvent.setup();
+    const { router } = renderCategoryCreateRoute();
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
+    await user.type(name, "Borrador de categoría");
+    await user.type(description, "Descripción pendiente");
+
+    const navigation = within(screen.getByRole("navigation", { name: "Navegación principal" }));
+    const homeLink = navigation.getByRole("link", { name: "Inicio" });
+    await user.click(homeLink);
+
+    const continuePrompt = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    expect(continuePrompt).toHaveTextContent("Hay cambios sin guardar");
+    await user.click(within(continuePrompt).getByRole("button", { name: "Continuar editando" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(router.state.location.pathname).toBe("/categories/new");
+    expect(name).toHaveValue("Borrador de categoría");
+    expect(description).toHaveValue("Descripción pendiente");
+
+    await user.click(homeLink);
+    const discardPrompt = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    await user.click(within(discardPrompt).getByRole("button", { name: "Descartar cambios" }));
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+    ).toBeVisible();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await act(async () => router.navigate(-1));
+    expect(await screen.findByRole("form", { name: "Datos de la categoría" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Nombre (obligatorio)" })).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "Descripción (opcional)" })).toHaveValue("");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(navigation.getByRole("link", { name: "Inicio" }));
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
 
   it("locks the form while creating and returns to the default active list after confirmation", async () => {
     const user = userEvent.setup();

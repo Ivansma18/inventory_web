@@ -1,0 +1,11 @@
+.category-unsaved-changes-dialog__message {
+  margin: 0;
+  line-height: var(--ui-line-height-relaxed);
+}
+
+.category-unsaved-changes-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ui-space-3);
+}

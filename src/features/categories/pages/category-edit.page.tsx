@@ -12,7 +12,9 @@ import type { Category } from "../api/category-contract";
 import { categoryUuidSchema } from "../api/category-contract";
 import { CategoryFormFields } from "../components/category-form-fields";
 import { CategoryPageShell } from "../components/category-page-shell";
+import { CategoryUnsavedChangesDialog } from "../components/category-unsaved-changes-dialog";
 import { useCategory } from "../hooks/use-category";
+import { useCategoryFormNavigationGuard } from "../hooks/use-category-form-navigation-guard";
 import { useUpdateCategory } from "../hooks/use-update-category";
 import {
   categoryFormSchema,
@@ -86,6 +88,7 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
     resolver: zodResolver(categoryFormSchema),
   });
   const operationPending = updateCategoryMutation.isPending || form.formState.isSubmitting;
+  const navigationGuard = useCategoryFormNavigationGuard(form.formState.isDirty, operationPending);
 
   const submitCategory = async (values: CategoryFormValues) => {
     const payload = buildCategoryUpdatePayload(initialCategory, values);
@@ -168,6 +171,7 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
       return;
     }
 
+    navigationGuard.dismissProtection();
     toast.show({ kind: "success", message: "Categoría actualizada correctamente." });
     void navigate(returnTo, { replace: true });
   };
@@ -228,6 +232,11 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
           </Button>
         </div>
       </form>
+      <CategoryUnsavedChangesDialog
+        onContinueEditing={navigationGuard.continueEditing}
+        onDiscardChanges={navigationGuard.discardChanges}
+        open={navigationGuard.blocker.state === "blocked"}
+      />
     </div>
   );
 };
