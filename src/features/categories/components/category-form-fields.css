@@ -1,0 +1,19 @@
+.category-form-fields {
+  display: grid;
+  gap: var(--ui-space-4);
+  margin-block-start: var(--ui-space-6);
+}
+
+.category-form-fields__heading {
+  margin: 0;
+  color: var(--ui-color-text);
+  font-size: var(--ui-font-size-xl);
+  font-weight: var(--ui-font-weight-semibold);
+  line-height: var(--ui-line-height-tight);
+}
+
+.category-form-fields__controls {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-inline-size: 0;
+}
