@@ -5,6 +5,8 @@ import type { components } from "@/shared/api/generated/category-contracts";
 export type Category = components["schemas"]["Category"];
 export type CategoryListResponse = components["schemas"]["CategoryListResponse"];
 export type CategoryCreatePayload = components["schemas"]["CreateCategory"];
+export type CategoryUpdatePayload = components["schemas"]["UpdateCategory"];
+export type CategoryInformationUpdatePayload = Pick<CategoryUpdatePayload, "name" | "description">;
 
 export const categoryUuidSchema = z.uuid();
 
