@@ -172,6 +172,7 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
     }
 
     navigationGuard.dismissProtection();
+    navigationGuard.resetBlockedNavigation();
     toast.show({ kind: "success", message: "Categoría actualizada correctamente." });
     void navigate(returnTo, { replace: true });
   };
@@ -184,6 +185,7 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
     }
 
     submitLock.current = true;
+    navigationGuard.clearPendingNavigationNotice();
     form.clearErrors("root.server");
     if (form.getFieldState("name").error?.type === "server") {
       form.clearErrors("name");
@@ -218,6 +220,11 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
               {form.formState.errors.root.server.message}
             </p>
           ) : null}
+          {navigationGuard.showWaitingNotice ? (
+            <p className="category-edit-page__status" role="status">
+              Espera a que termine el guardado antes de salir de esta página.
+            </p>
+          ) : null}
           {operationPending ? (
             <p className="category-edit-page__status" role="status">
               Guardando cambios de la categoría…
@@ -235,7 +242,10 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
       <CategoryUnsavedChangesDialog
         onContinueEditing={navigationGuard.continueEditing}
         onDiscardChanges={navigationGuard.discardChanges}
-        open={navigationGuard.blocker.state === "blocked"}
+        open={
+          navigationGuard.blocker.state === "blocked" &&
+          !navigationGuard.isNavigationBlockedDuringOperation
+        }
       />
     </div>
   );

@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { UiProvider } from "@/app/providers/ui.provider";
 import { appRoutes } from "@/app/router/router";
+import { useSession } from "@/features/auth";
+import type { UseSessionResult } from "@/features/auth";
 import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
@@ -83,10 +85,16 @@ const routeResources: Array<{
 const renderCategoryCreateRoute = (
   role?: components["schemas"]["PublicAuthResponse"]["data"]["user"]["role"],
   sessionResponse?: () => Response | Promise<Response>,
+  onSessionRefetch?: (refetch: UseSessionResult["refetch"]) => void,
 ) => {
   const queryClient = createQueryClient();
   const router = createMemoryRouter(appRoutes, { initialEntries: ["/categories/new"] });
   routeResources.push({ queryClient, router });
+  const SessionRefreshDriver = () => {
+    const session = useSession();
+    onSessionRefetch?.(session.refetch);
+    return null;
+  };
 
   server.use(
     http.get(
@@ -98,7 +106,10 @@ const renderCategoryCreateRoute = (
   render(
     <QueryClientProvider client={queryClient}>
       <UiProvider>
-        <RouterProvider router={router} />
+        <>
+          <RouterProvider router={router} />
+          {onSessionRefetch ? <SessionRefreshDriver /> : null}
+        </>
       </UiProvider>
     </QueryClientProvider>,
   );
@@ -241,6 +252,151 @@ describe("category creation page", () => {
       order: "asc",
     });
     expect(createRequestCount).toBe(1);
+  });
+
+  it("blocks a link exit during creation and requires a new exit attempt after failure", async () => {
+    const user = userEvent.setup();
+    let createRequests = 0;
+    let markCreateStarted!: () => void;
+    let resolveCreate!: (response: Response) => void;
+    const createStarted = new Promise<void>((resolve) => {
+      markCreateStarted = resolve;
+    });
+    const deferredCreate = new Promise<Response>((resolve) => {
+      resolveCreate = resolve;
+    });
+
+    server.use(
+      http.post(categoriesUrl, () => {
+        createRequests += 1;
+        markCreateStarted();
+        return deferredCreate;
+      }),
+    );
+
+    const { router } = renderCategoryCreateRoute();
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.type(name, "Categoría pendiente");
+    await user.click(screen.getByRole("button", { name: "Crear categoría" }));
+    await createStarted;
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Creando categoría…");
+    const homeLink = within(
+      screen.getByRole("navigation", { name: "Navegación principal" }),
+    ).getByRole("link", { name: "Inicio" });
+    await user.click(homeLink);
+
+    expect(
+      await screen.findByText("Espera a que termine el guardado antes de salir de esta página."),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe("/categories/new");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveCreate(
+        HttpResponse.json(
+          { error: { code: "INTERNAL_ERROR", message: "private details" } },
+          { status: 503 },
+        ),
+      );
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No se pudo confirmar el resultado de la creación. Revisa el listado antes de volver a intentarlo.",
+    );
+    await waitFor(() => expect(name).toBeEnabled());
+    expect(name).toHaveValue("Categoría pendiente");
+    expect(router.state.location.pathname).toBe("/categories/new");
+    expect(
+      screen.queryByText("Espera a que termine el guardado antes de salir de esta página."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(createRequests).toBe(1);
+
+    await user.click(homeLink);
+    const discardPrompt = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    await user.click(within(discardPrompt).getByRole("button", { name: "Continuar editando" }));
+    expect(router.state.location.pathname).toBe("/categories/new");
+  });
+
+  it("gives the session boundary priority over a pending creation and blocked exit", async () => {
+    let refetchSession: UseSessionResult["refetch"] | undefined;
+    let shouldHoldSessionRefresh = false;
+    let markSessionRefreshRequested!: () => void;
+    let resolveSessionRefresh!: (response: Response) => void;
+    let resolveCreate!: (response: Response) => void;
+    const sessionRefreshRequested = new Promise<void>((resolve) => {
+      markSessionRefreshRequested = resolve;
+    });
+    const sessionRefresh = new Promise<Response>((resolve) => {
+      resolveSessionRefresh = resolve;
+    });
+    const deferredCreate = new Promise<Response>((resolve) => {
+      resolveCreate = resolve;
+    });
+
+    server.use(http.post(categoriesUrl, () => deferredCreate));
+
+    const { router } = renderCategoryCreateRoute(
+      undefined,
+      () => {
+        if (shouldHoldSessionRefresh) {
+          markSessionRefreshRequested();
+          return sessionRefresh;
+        }
+        return HttpResponse.json(publicAuthResponse());
+      },
+      (refetch) => {
+        refetchSession = refetch;
+      },
+    );
+
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await userEvent.setup().type(name, "Borrador de sesión anterior");
+    fireEvent.submit(screen.getByRole("form", { name: "Datos de la categoría" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Creando categoría…");
+
+    const homeLink = within(
+      screen.getByRole("navigation", { name: "Navegación principal" }),
+    ).getByRole("link", { name: "Inicio" });
+    await userEvent.setup().click(homeLink);
+    expect(
+      await screen.findByText("Espera a que termine el guardado antes de salir de esta página."),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe("/categories/new");
+
+    shouldHoldSessionRefresh = true;
+    if (!refetchSession) {
+      throw new Error("The session refresh driver did not expose refetch.");
+    }
+    let refreshResult!: ReturnType<UseSessionResult["refetch"]>;
+    act(() => {
+      refreshResult = refetchSession!();
+    });
+    await sessionRefreshRequested;
+
+    expect(await screen.findByRole("heading", { name: "Comprobando tu sesión" })).toBeVisible();
+    expect(screen.queryByRole("form", { name: "Datos de la categoría" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Espera a que termine el guardado antes de salir de esta página."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    resolveCreate(
+      HttpResponse.json(
+        { error: { code: "INTERNAL_ERROR", message: "private details" } },
+        { status: 503 },
+      ),
+    );
+    resolveSessionRefresh(HttpResponse.json(publicAuthResponse()));
+    await act(async () => refreshResult);
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Crear categoría" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Nombre (obligatorio)" })).toHaveValue("");
+    expect(router.state.location.pathname).toBe("/categories/new");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("Categoría creada correctamente.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it.each([

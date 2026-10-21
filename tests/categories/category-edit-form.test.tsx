@@ -208,6 +208,79 @@ describe("category edit form", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("blocks Back and Forward while updating and does not run either exit after failure", async () => {
+    const user = userEvent.setup();
+    const editPath = `/categories/${categoryUuid}/edit`;
+    const patchResponse = deferred<Response>();
+    const patchStarted = deferred<void>();
+
+    server.use(
+      http.get(categoryUrl, () => HttpResponse.json({ data: category() })),
+      http.get(categoriesUrl, () =>
+        HttpResponse.json({ data: [category()], pagination: { total: 1, page: 1, limit: 15 } }),
+      ),
+      http.patch(categoryUrl, () => {
+        patchStarted.resolve();
+        return patchResponse.promise;
+      }),
+    );
+
+    const { router } = renderCategoryEditRoute(undefined, undefined, undefined, [
+      "/categories",
+      editPath,
+      "/",
+    ]);
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Nombre pendiente");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await patchStarted.promise;
+
+    expect(await screen.findByText("Guardando cambios de la categoría…")).toBeVisible();
+    await act(async () => {
+      await router.navigate(-1);
+    });
+    expect(
+      await screen.findByText("Espera a que termine el guardado antes de salir de esta página."),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe(editPath);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await act(async () => {
+      await router.navigate(1);
+    });
+    expect(router.state.location.pathname).toBe(editPath);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await act(async () => {
+      patchResponse.resolve(
+        HttpResponse.json(
+          { error: { code: "INTERNAL_ERROR", message: "private details" } },
+          { status: 503 },
+        ),
+      );
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No se pudo confirmar el resultado de la actualización. Revisa la categoría antes de volver a intentarlo.",
+    );
+    await waitFor(() => expect(name).toBeEnabled());
+    expect(name).toHaveValue("Nombre pendiente");
+    expect(router.state.location.pathname).toBe(editPath);
+    expect(
+      screen.queryByText("Espera a que termine el guardado antes de salir de esta página."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await act(async () => {
+      await router.navigate(-1);
+    });
+    const discardPrompt = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    await user.click(within(discardPrompt).getByRole("button", { name: "Continuar editando" }));
+    expect(router.state.location.pathname).toBe(editPath);
+    expect(name).toHaveValue("Nombre pendiente");
+  });
+
   it("locks the fields and sends one partial update while pending, then confirms and returns to its source list", async () => {
     const user = userEvent.setup();
     const sourceListUrl =

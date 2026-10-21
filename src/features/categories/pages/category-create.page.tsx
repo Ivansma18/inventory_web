@@ -130,6 +130,7 @@ export const CategoryCreatePage = () => {
     }
 
     navigationGuard.dismissProtection();
+    navigationGuard.resetBlockedNavigation();
     toast.show({ kind: "success", message: "Categoría creada correctamente." });
     const defaultListSearch = serializeCategoryListUrlState({
       page: 1,
@@ -146,6 +147,7 @@ export const CategoryCreatePage = () => {
     }
 
     submitLock.current = true;
+    navigationGuard.clearPendingNavigationNotice();
     form.clearErrors("root.server");
     if (form.getFieldState("name").error?.type === "server") {
       form.clearErrors("name");
@@ -176,6 +178,11 @@ export const CategoryCreatePage = () => {
               {form.formState.errors.root.server.message}
             </p>
           ) : null}
+          {navigationGuard.showWaitingNotice ? (
+            <p className="category-create-form__status" role="status">
+              Espera a que termine el guardado antes de salir de esta página.
+            </p>
+          ) : null}
           {operationPending ? (
             <p className="category-create-form__status" role="status">
               Creando categoría…
@@ -189,7 +196,10 @@ export const CategoryCreatePage = () => {
       <CategoryUnsavedChangesDialog
         onContinueEditing={navigationGuard.continueEditing}
         onDiscardChanges={navigationGuard.discardChanges}
-        open={navigationGuard.blocker.state === "blocked"}
+        open={
+          navigationGuard.blocker.state === "blocked" &&
+          !navigationGuard.isNavigationBlockedDuringOperation
+        }
       />
     </CategoryPageShell>
   );
