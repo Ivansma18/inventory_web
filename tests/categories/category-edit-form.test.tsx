@@ -254,6 +254,107 @@ describe("category edit form", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("keeps a category-not-found edit read-only and refreshes its source list after discard", async () => {
+    const user = userEvent.setup();
+    const sourceListUrl =
+      "/categories?page=3&search=tools&status=inactive&sort=updatedAt&order=desc";
+    const sourceListParams = {
+      page: 3,
+      limit: 15,
+      search: "tools",
+      isActive: "false",
+      sort: "updatedAt",
+      order: "desc",
+    };
+    let patchRequests = 0;
+    const patchBodies: unknown[] = [];
+    const listRequests: URL[] = [];
+
+    server.use(
+      http.get(categoryUrl, () => HttpResponse.json({ data: category() })),
+      http.patch(categoryUrl, async ({ request }) => {
+        patchRequests += 1;
+        patchBodies.push(await request.json());
+        return HttpResponse.json(
+          { error: { code: "CATEGORY_NOT_FOUND", message: "private category detail" } },
+          { status: 404 },
+        );
+      }),
+      http.get(categoriesUrl, ({ request }) => {
+        listRequests.push(new URL(request.url));
+        return HttpResponse.json({
+          data: [category("Resultado actualizado")],
+          pagination: { total: 46, page: 3, limit: 15 },
+        });
+      }),
+    );
+
+    const { queryClient, router } = renderCategoryEditRoute(undefined, sourceListUrl);
+    queryClient.setQueryData(
+      ["categories", "management-list", "category-edit-session", sourceListParams],
+      {
+        data: [category("Resultado almacenado")],
+        pagination: { total: 46, page: 3, limit: 15 },
+      },
+    );
+
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
+    await user.clear(name);
+    await user.type(name, "Borrador retenido");
+    await user.clear(description);
+    await user.type(description, "Descripción retenida");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No se encontró la categoría. Los datos introducidos quedan en solo lectura y no se pueden guardar.",
+    );
+    expect(name).toHaveValue("Borrador retenido");
+    expect(description).toHaveValue("Descripción retenida");
+    expect(name).toHaveAttribute("readonly");
+    expect(description).toHaveAttribute("readonly");
+    expect(name).toBeEnabled();
+    expect(description).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Guardar cambios" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Volver al listado" })).toBeEnabled();
+    expect(screen.queryByText("private category detail")).not.toBeInTheDocument();
+
+    fireEvent.change(name, { target: { value: "No debe cambiar" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Datos de la categoría" }));
+    expect(name).toHaveValue("Borrador retenido");
+    expect(patchRequests).toBe(1);
+    expect(patchBodies).toEqual([
+      { name: "Borrador retenido", description: "Descripción retenida" },
+    ]);
+
+    await user.click(screen.getByRole("button", { name: "Volver al listado" }));
+    const continuePrompt = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    await user.click(within(continuePrompt).getByRole("button", { name: "Continuar editando" }));
+    expect(name).toHaveValue("Borrador retenido");
+    expect(name).toHaveAttribute("readonly");
+    expect(router.state.location.pathname).toBe(`/categories/${categoryUuid}/edit`);
+
+    await user.click(screen.getByRole("button", { name: "Volver al listado" }));
+    const discardPrompt = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    await user.click(within(discardPrompt).getByRole("button", { name: "Descartar cambios" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Categorías" })).toBeVisible();
+    expect(router.state.location.pathname).toBe("/categories");
+    expect(router.state.location.search).toBe(sourceListUrl.slice("/categories".length));
+    expect(await screen.findByRole("row", { name: /Resultado actualizado/ })).toBeVisible();
+    expect(listRequests).toHaveLength(1);
+    expect(Object.fromEntries(listRequests[0]!.searchParams)).toEqual({
+      page: "3",
+      limit: "15",
+      search: "tools",
+      isActive: "false",
+      sort: "updatedAt",
+      order: "desc",
+    });
+    expect(patchRequests).toBe(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("blocks Back and Forward while updating and does not run either exit after failure", async () => {
     const user = userEvent.setup();
     const editPath = `/categories/${categoryUuid}/edit`;

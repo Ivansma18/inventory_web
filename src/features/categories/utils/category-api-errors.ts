@@ -41,6 +41,11 @@ export const isCategoryValidationError = (error: unknown): boolean => {
 export const isCategoryForbiddenError = (error: unknown): boolean =>
   getCategoryHttpError(error)?.status === 403;
 
+export const isCategoryNotFoundError = (error: unknown): boolean => {
+  const httpError = getCategoryHttpError(error);
+  return httpError?.status === 404 || httpError?.code === "CATEGORY_NOT_FOUND";
+};
+
 export const isCategoryUnauthorizedError = (error: unknown): boolean =>
   getCategoryHttpError(error)?.status === 401;
 

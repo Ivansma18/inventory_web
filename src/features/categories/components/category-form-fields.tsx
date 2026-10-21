@@ -10,9 +10,14 @@ import type { CategoryFormInput, CategoryFormValues } from "../schemas/category-
 export interface CategoryFormFieldsProps {
   disabled?: boolean;
   form: UseFormReturn<CategoryFormInput, unknown, CategoryFormValues>;
+  readOnly?: boolean;
 }
 
-export const CategoryFormFields = ({ form, disabled = false }: CategoryFormFieldsProps) => (
+export const CategoryFormFields = ({
+  form,
+  disabled = false,
+  readOnly = false,
+}: CategoryFormFieldsProps) => (
   <section aria-labelledby="category-form-fields-heading" className="category-form-fields">
     <h2 className="category-form-fields__heading" id="category-form-fields-heading">
       Datos de la categoría
@@ -34,6 +39,7 @@ export const CategoryFormFields = ({ form, disabled = false }: CategoryFormField
               }
               form.clearErrors("root.server");
             }}
+            readOnly={readOnly}
             required
             value={field.value}
           />
@@ -51,6 +57,7 @@ export const CategoryFormFields = ({ form, disabled = false }: CategoryFormField
               field.onChange(value);
               form.clearErrors("root.server");
             }}
+            readOnly={readOnly}
             rows={4}
             value={field.value}
           />

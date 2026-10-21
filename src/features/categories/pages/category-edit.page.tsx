@@ -1,6 +1,7 @@
 import "./category-edit.page.css";
 
 import { useRef, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useNavigate, useParams, useSearchParams } from "react-router";
@@ -26,6 +27,7 @@ import {
   categoryNameConflictMessage,
   invalidCategoryNameMessage,
   isCategoryForbiddenError,
+  isCategoryNotFoundError,
   isCategoryResponseContractError,
   isCategoryUnauthorizedError,
   isCategoryValidationError,
@@ -71,7 +73,9 @@ interface LoadedCategoryFieldsProps {
 
 const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryFieldsProps) => {
   const [initialCategory] = useState(() => category);
+  const [categoryNotFound, setCategoryNotFound] = useState(false);
   const session = useSession();
+  const queryClient = useQueryClient();
   const submitLock = useRef(false);
   const navigate = useNavigate();
   const toast = useToast();
@@ -88,6 +92,10 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
   const navigationGuard = useCategoryFormNavigationGuard(form.formState.isDirty, operationPending);
 
   const submitCategory = async (values: CategoryFormValues) => {
+    if (categoryNotFound) {
+      return;
+    }
+
     const payload = buildCategoryUpdatePayload(initialCategory, values);
     if (payload === null) {
       return;
@@ -113,6 +121,20 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
       }
 
       if (sessionId === null || !isCurrentSession(sessionId)) {
+        return;
+      }
+
+      if (isCategoryNotFoundError(error)) {
+        void queryClient.invalidateQueries({
+          queryKey: ["categories", "management-list", sessionId],
+          refetchType: "none",
+        });
+        setCategoryNotFound(true);
+        form.setError("root.server", {
+          type: "server",
+          message:
+            "No se encontró la categoría. Los datos introducidos quedan en solo lectura y no se pueden guardar.",
+        });
         return;
       }
 
@@ -177,7 +199,7 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (submitLock.current || updateCategoryMutation.isPending) {
+    if (categoryNotFound || submitLock.current || updateCategoryMutation.isPending) {
       return;
     }
 
@@ -210,7 +232,7 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
         noValidate
         onSubmit={handleFormSubmit}
       >
-        <CategoryFormFields disabled={operationPending} form={form} />
+        <CategoryFormFields disabled={operationPending} form={form} readOnly={categoryNotFound} />
         <div className="category-edit-page__actions">
           {form.formState.errors.root?.server?.message ? (
             <p className="category-edit-page__error" role="alert">
@@ -234,15 +256,17 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
               type="button"
               variant="secondary"
             >
-              Cancelar
+              {categoryNotFound ? "Volver al listado" : "Cancelar"}
             </Button>
-            <Button
-              disabled={operationPending || !form.formState.isDirty}
-              loading={operationPending}
-              type="submit"
-            >
-              {operationPending ? "Guardando cambios…" : "Guardar cambios"}
-            </Button>
+            {!categoryNotFound ? (
+              <Button
+                disabled={operationPending || !form.formState.isDirty}
+                loading={operationPending}
+                type="submit"
+              >
+                {operationPending ? "Guardando cambios…" : "Guardar cambios"}
+              </Button>
+            ) : null}
           </div>
         </div>
       </form>
