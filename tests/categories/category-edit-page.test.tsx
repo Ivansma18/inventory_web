@@ -37,10 +37,14 @@ const publicAuthResponse = (): components["schemas"]["PublicAuthResponse"] => ({
   },
 });
 
-const category = (isActive: boolean, name = "Herramientas") => ({
+const category = (
+  isActive: boolean,
+  name = "Herramientas",
+  description = "Para mantenimiento",
+) => ({
   uuid: categoryUuid,
   name,
-  description: "Para mantenimiento",
+  description,
   isActive,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
@@ -132,6 +136,45 @@ describe("category edit page", () => {
     await user.clear(name);
     await user.type(name, "Nombre actualizado localmente");
     expect(name).toHaveValue("Nombre actualizado localmente");
+  });
+
+  it("preserves edited values and dirty state when refreshed details arrive", async () => {
+    const user = userEvent.setup();
+    let detailRequests = 0;
+    server.use(
+      http.get(categoryUrl, () => {
+        detailRequests += 1;
+        return HttpResponse.json({
+          data:
+            detailRequests === 1
+              ? category(false)
+              : category(false, "Nombre remoto", "Descripción remota"),
+        });
+      }),
+    );
+
+    const { queryClient } = renderCategoryEditRoute();
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
+    const saveButton = screen.getByRole("button", { name: "Guardar cambios" });
+
+    await user.clear(name);
+    await user.type(name, "Nombre local");
+    await user.clear(description);
+    await user.type(description, "Descripción local");
+    expect(saveButton).toBeEnabled();
+
+    await act(async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["categories", "detail", "category-edit-session", categoryUuid],
+        exact: true,
+      });
+    });
+
+    expect(detailRequests).toBe(2);
+    expect(name).toHaveValue("Nombre local");
+    expect(description).toHaveValue("Descripción local");
+    expect(saveButton).toBeEnabled();
   });
 
   it("shows an invalid-address state without requesting a category", async () => {
