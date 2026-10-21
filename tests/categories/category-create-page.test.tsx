@@ -152,4 +152,58 @@ describe("category creation page", () => {
     });
     expect(createRequestCount).toBe(1);
   });
+
+  it.each([
+    {
+      scenario: "a case-only name variation",
+      name: "HERRAMIENTAS",
+      occupiedName: "Herramientas",
+      privateMessage: "The name belongs to an active category.",
+    },
+    {
+      scenario: "surrounding whitespace around a name reserved by an inactive category",
+      name: "  herramientas  ",
+      occupiedName: "HERRAMIENTAS",
+      privateMessage: "The name belongs to an inactive category.",
+    },
+  ])(
+    "places $scenario conflicts beside the name without revealing the existing category state",
+    async ({ name: submittedName, occupiedName, privateMessage }) => {
+      const user = userEvent.setup();
+      const submittedBodies: unknown[] = [];
+      const conflictMessage = "Ya existe una categoría con este nombre. Elige otro nombre.";
+
+      server.use(
+        http.post(categoriesUrl, async ({ request }) => {
+          const body = (await request.json()) as { name: string };
+          submittedBodies.push(body);
+          expect(body.name.trim().toLowerCase()).toBe(occupiedName.trim().toLowerCase());
+          return HttpResponse.json(
+            { error: { code: "CATEGORY_NAME_ALREADY_EXISTS", message: privateMessage } },
+            { status: 409 },
+          );
+        }),
+      );
+
+      const { router } = renderCategoryCreateRoute();
+      const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+      await user.type(name, submittedName);
+      await user.click(screen.getByRole("button", { name: "Crear categoría" }));
+
+      const error = await screen.findByText(conflictMessage);
+      expect(name).toHaveValue(submittedName);
+      expect(name).toHaveAttribute("aria-invalid", "true");
+      expect(name).toHaveAccessibleDescription(error.textContent ?? "");
+      expect(submittedBodies).toEqual([{ name: submittedName.trim() }]);
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText(privateMessage)).not.toBeInTheDocument();
+      expect(screen.queryByText("Categoría creada correctamente.")).not.toBeInTheDocument();
+      expect(router.state.location.pathname).toBe("/categories/new");
+
+      await user.clear(name);
+      await user.type(name, "Herramientas nuevas");
+      expect(screen.queryByText(conflictMessage)).not.toBeInTheDocument();
+      expect(name).not.toHaveAttribute("aria-invalid", "true");
+    },
+  );
 });

@@ -19,6 +19,10 @@ import {
   type CategoryFormValues,
 } from "../schemas/category-form.schema";
 import {
+  categoryNameConflictMessage,
+  isDuplicateCategoryNameError,
+} from "../utils/category-api-errors";
+import {
   DEFAULT_CATEGORY_LIST_CRITERIA,
   serializeCategoryListUrlState,
 } from "../utils/category-list-url-state";
@@ -45,7 +49,12 @@ export const CategoryCreatePage = () => {
 
     try {
       await createCategoryMutation.mutateAsync(payload);
-    } catch {
+    } catch (error: unknown) {
+      if (isDuplicateCategoryNameError(error)) {
+        form.setError("name", { type: "server", message: categoryNameConflictMessage });
+        return;
+      }
+
       form.setError("root.server", {
         type: "server",
         message:
@@ -71,6 +80,9 @@ export const CategoryCreatePage = () => {
 
     submitLock.current = true;
     form.clearErrors("root.server");
+    if (form.getFieldState("name").error?.type === "server") {
+      form.clearErrors("name");
+    }
     void form
       .handleSubmit(submitCategory)(event)
       .finally(() => {

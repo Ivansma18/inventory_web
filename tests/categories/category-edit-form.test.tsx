@@ -215,4 +215,61 @@ describe("category edit form", () => {
     fireEvent.submit(screen.getByRole("form", { name: "Datos de la categoría" }));
     await waitFor(() => expect(patchRequests).toBe(0));
   });
+
+  it.each([
+    {
+      scenario: "a name that differs only by letter case",
+      name: "HERRAMIENTAS",
+      occupiedName: "Herramientas",
+      privateMessage: "The name belongs to an active category.",
+    },
+    {
+      scenario: "a name with surrounding whitespace reserved by an inactive category",
+      name: "  herramientas  ",
+      occupiedName: "HERRAMIENTAS",
+      privateMessage: "The name belongs to an inactive category.",
+    },
+  ])(
+    "places $scenario conflicts beside the name without revealing the existing category state",
+    async ({ name: submittedName, occupiedName, privateMessage }) => {
+      const user = userEvent.setup();
+      const patchBodies: unknown[] = [];
+      const conflictMessage = "Ya existe una categoría con este nombre. Elige otro nombre.";
+
+      server.use(
+        http.get(categoryUrl, () => HttpResponse.json({ data: category("Oficina") })),
+        http.patch(categoryUrl, async ({ request }) => {
+          const body = (await request.json()) as { name: string };
+          patchBodies.push(body);
+          expect(body.name.trim().toLowerCase()).toBe(occupiedName.trim().toLowerCase());
+          return HttpResponse.json(
+            { error: { code: "CATEGORY_NAME_ALREADY_EXISTS", message: privateMessage } },
+            { status: 409 },
+          );
+        }),
+      );
+
+      const { router } = renderCategoryEditRoute();
+      const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+      await user.clear(name);
+      await user.type(name, submittedName);
+      await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+      const error = await screen.findByText(conflictMessage);
+      expect(name).toHaveValue(submittedName);
+      expect(name).toHaveAttribute("aria-invalid", "true");
+      expect(name).toHaveAccessibleDescription(error.textContent ?? "");
+      expect(patchBodies).toEqual([{ name: submittedName.trim() }]);
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText(privateMessage)).not.toBeInTheDocument();
+      expect(screen.queryByText("Categoría actualizada correctamente.")).not.toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(`/categories/${categoryUuid}/edit`);
+      expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeEnabled();
+
+      await user.clear(name);
+      await user.type(name, "Nombre disponible");
+      expect(screen.queryByText(conflictMessage)).not.toBeInTheDocument();
+      expect(name).not.toHaveAttribute("aria-invalid", "true");
+    },
+  );
 });

@@ -19,6 +19,10 @@ import {
   type CategoryFormInput,
   type CategoryFormValues,
 } from "../schemas/category-form.schema";
+import {
+  categoryNameConflictMessage,
+  isDuplicateCategoryNameError,
+} from "../utils/category-api-errors";
 import { buildCategoryUpdatePayload } from "../utils/category-update-payload";
 import {
   DEFAULT_CATEGORY_LIST_RETURN_TO,
@@ -86,7 +90,12 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
         isActive: initialCategory.isActive,
         payload,
       });
-    } catch {
+    } catch (error: unknown) {
+      if (isDuplicateCategoryNameError(error)) {
+        form.setError("name", { type: "server", message: categoryNameConflictMessage });
+        return;
+      }
+
       form.setError("root.server", {
         type: "server",
         message:
@@ -108,6 +117,9 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
 
     submitLock.current = true;
     form.clearErrors("root.server");
+    if (form.getFieldState("name").error?.type === "server") {
+      form.clearErrors("name");
+    }
     void form
       .handleSubmit(submitCategory)(event)
       .finally(() => {

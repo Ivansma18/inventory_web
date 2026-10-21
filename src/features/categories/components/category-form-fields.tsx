@@ -27,7 +27,12 @@ export const CategoryFormFields = ({ form, disabled = false }: CategoryFormField
             error={fieldState.error?.message}
             label="Nombre (obligatorio)"
             onBlur={field.onBlur}
-            onValueChange={field.onChange}
+            onValueChange={(value) => {
+              field.onChange(value);
+              if (fieldState.error?.type === "server") {
+                form.clearErrors("name");
+              }
+            }}
             required
             value={field.value}
           />
