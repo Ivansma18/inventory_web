@@ -34,10 +34,7 @@ import {
   isUncertainCategoryMutationError,
 } from "../utils/category-api-errors";
 import { buildCategoryUpdatePayload } from "../utils/category-update-payload";
-import {
-  DEFAULT_CATEGORY_LIST_RETURN_TO,
-  parseCategoryEditReturnTo,
-} from "../utils/category-edit-return-to";
+import { resolveCategoryFormReturnTo } from "../utils/category-form-return-to";
 
 const getHttpErrorStatus = (error: unknown): number | null => {
   if (
@@ -230,13 +227,23 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
               Guardando cambios de la categoría…
             </p>
           ) : null}
-          <Button
-            disabled={operationPending || !form.formState.isDirty}
-            loading={operationPending}
-            type="submit"
-          >
-            {operationPending ? "Guardando cambios…" : "Guardar cambios"}
-          </Button>
+          <div className="category-edit-page__form-buttons">
+            <Button
+              disabled={operationPending}
+              onClick={() => navigate(returnTo)}
+              type="button"
+              variant="secondary"
+            >
+              Cancelar
+            </Button>
+            <Button
+              disabled={operationPending || !form.formState.isDirty}
+              loading={operationPending}
+              type="submit"
+            >
+              {operationPending ? "Guardando cambios…" : "Guardar cambios"}
+            </Button>
+          </div>
         </div>
       </form>
       <CategoryUnsavedChangesDialog
@@ -262,8 +269,7 @@ export const CategoryEditPage = () => {
   const status = getHttpErrorStatus(categoryQuery.error);
   const isNotFound = status === 404;
   const canRetry = !isNotFound && isRetryableCategoryLoadError(categoryQuery.error);
-  const returnTo =
-    parseCategoryEditReturnTo(searchParams.get("returnTo")) ?? DEFAULT_CATEGORY_LIST_RETURN_TO;
+  const returnTo = resolveCategoryFormReturnTo(searchParams);
   const returnToList = () => navigate(returnTo);
 
   return (

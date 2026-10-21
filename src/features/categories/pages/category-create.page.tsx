@@ -2,7 +2,7 @@ import "./category-create.page.css";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRef, type FormEvent } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { useForm } from "react-hook-form";
 
 import { isCurrentSession, useSession } from "@/features/auth";
@@ -36,11 +36,14 @@ import {
   DEFAULT_CATEGORY_LIST_CRITERIA,
   serializeCategoryListUrlState,
 } from "../utils/category-list-url-state";
+import { resolveCategoryFormReturnTo } from "../utils/category-form-return-to";
 
 export const CategoryCreatePage = () => {
   const session = useSession();
   const sessionId = session.status === "authenticated" ? session.session.id : null;
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = resolveCategoryFormReturnTo(searchParams);
   const toast = useToast();
   const submitLock = useRef(false);
   const form = useForm<CategoryFormInput, unknown, CategoryFormValues>({
@@ -188,9 +191,19 @@ export const CategoryCreatePage = () => {
               Creando categoría…
             </p>
           ) : null}
-          <Button disabled={operationPending} loading={operationPending} type="submit">
-            {operationPending ? "Creando categoría…" : "Crear categoría"}
-          </Button>
+          <div className="category-create-form__buttons">
+            <Button
+              disabled={operationPending}
+              onClick={() => navigate(returnTo)}
+              type="button"
+              variant="secondary"
+            >
+              Cancelar
+            </Button>
+            <Button disabled={operationPending} loading={operationPending} type="submit">
+              {operationPending ? "Creando categoría…" : "Crear categoría"}
+            </Button>
+          </div>
         </div>
       </form>
       <CategoryUnsavedChangesDialog

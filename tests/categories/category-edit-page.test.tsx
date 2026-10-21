@@ -195,6 +195,60 @@ describe("category edit page", () => {
     expect(detailRequests).toBe(0);
   });
 
+  it("returns to the validated source after an invalid category address", async () => {
+    const user = userEvent.setup();
+    const sourceListUrl =
+      "/categories?page=2&search=oficina&status=inactive&sort=createdAt&order=desc";
+    server.use(
+      http.get(categoriesUrl, ({ request }) =>
+        HttpResponse.json({
+          data: [category(true)],
+          pagination: {
+            total: 16,
+            page: Number(new URL(request.url).searchParams.get("page")),
+            limit: 15,
+          },
+        }),
+      ),
+    );
+
+    const route = `/categories/not-a-uuid/edit?${new URLSearchParams({ returnTo: sourceListUrl })}`;
+    const { router } = renderCategoryEditRoute(route);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "La dirección de la categoría no es válida.",
+    );
+    await user.click(screen.getByRole("button", { name: "Volver al listado" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Categorías" })).toBeVisible();
+    expect(router.state.location.pathname).toBe("/categories");
+    expect(router.state.location.search).toBe(sourceListUrl.slice("/categories".length));
+  });
+
+  it.each([
+    ["missing", ""],
+    ["external", `?${new URLSearchParams({ returnTo: "https://attacker.test/categories" })}`],
+    ["malformed", `?${new URLSearchParams({ returnTo: "/categories?page=0" })}`],
+    [
+      "duplicated",
+      `?${new URLSearchParams({ returnTo: "/categories?page=2" })}&returnTo=%2Fcategories%3Fpage%3D3`,
+    ],
+  ])("uses the default list when the %s return origin is provided", async (_case, search) => {
+    const user = userEvent.setup();
+    server.use(
+      http.get(categoriesUrl, () =>
+        HttpResponse.json({ data: [], pagination: { total: 0, page: 1, limit: 15 } }),
+      ),
+    );
+
+    const { router } = renderCategoryEditRoute(`/categories/not-a-uuid/edit${search}`);
+    await screen.findByRole("alert");
+    await user.click(screen.getByRole("button", { name: "Volver al listado" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Categorías" })).toBeVisible();
+    expect(router.state.location.pathname).toBe("/categories");
+    expect(router.state.location.search).toBe("?page=1&status=active&sort=name&order=asc");
+  });
+
   it("offers a return to the default list when the category is not found", async () => {
     const user = userEvent.setup();
     let detailRequests = 0;
@@ -220,6 +274,39 @@ describe("category edit page", () => {
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/categories"));
     expect(router.state.location.search).toBe("?page=1&status=active&sort=name&order=asc");
+  });
+
+  it("returns to the validated source after a category is not found", async () => {
+    const user = userEvent.setup();
+    const sourceListUrl =
+      "/categories?page=4&search=ferreteria&status=inactive&sort=name&order=asc";
+    server.use(
+      http.get(categoryUrl, () =>
+        HttpResponse.json(
+          { error: { code: "CATEGORY_NOT_FOUND", message: "Missing" } },
+          { status: 404 },
+        ),
+      ),
+      http.get(categoriesUrl, ({ request }) =>
+        HttpResponse.json({
+          data: [category(false)],
+          pagination: {
+            total: 46,
+            page: Number(new URL(request.url).searchParams.get("page")),
+            limit: 15,
+          },
+        }),
+      ),
+    );
+
+    const route = `/categories/${categoryUuid}/edit?${new URLSearchParams({ returnTo: sourceListUrl })}`;
+    const { router } = renderCategoryEditRoute(route);
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se encontró la categoría.");
+    await user.click(screen.getByRole("button", { name: "Volver al listado" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Categorías" })).toBeVisible();
+    expect(router.state.location.pathname).toBe("/categories");
+    expect(router.state.location.search).toBe(sourceListUrl.slice("/categories".length));
   });
 
   it.each(["network", "server"] as const)(

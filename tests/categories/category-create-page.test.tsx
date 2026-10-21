@@ -86,9 +86,10 @@ const renderCategoryCreateRoute = (
   role?: components["schemas"]["PublicAuthResponse"]["data"]["user"]["role"],
   sessionResponse?: () => Response | Promise<Response>,
   onSessionRefetch?: (refetch: UseSessionResult["refetch"]) => void,
+  initialEntry = "/categories/new",
 ) => {
   const queryClient = createQueryClient();
-  const router = createMemoryRouter(appRoutes, { initialEntries: ["/categories/new"] });
+  const router = createMemoryRouter(appRoutes, { initialEntries: [initialEntry] });
   routeResources.push({ queryClient, router });
   const SessionRefreshDriver = () => {
     const session = useSession();
@@ -178,6 +179,70 @@ describe("category creation page", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("cancels a clean create form to its validated list origin", async () => {
+    const sourceListUrl =
+      "/categories?page=3&search=tools&status=inactive&sort=updatedAt&order=desc";
+    server.use(
+      http.get(categoriesUrl, () =>
+        HttpResponse.json({
+          data: [category("Herramientas")],
+          pagination: { total: 46, page: 3, limit: 15 },
+        }),
+      ),
+    );
+
+    const { router } = renderCategoryCreateRoute(
+      undefined,
+      undefined,
+      undefined,
+      `/categories/new?${new URLSearchParams({ returnTo: sourceListUrl })}`,
+    );
+    await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await userEvent.setup().click(screen.getByRole("button", { name: "Cancelar" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Categorías" })).toBeVisible();
+    expect(router.state.location.pathname).toBe("/categories");
+    expect(router.state.location.search).toBe(sourceListUrl.slice("/categories".length));
+  });
+
+  it("requires discard confirmation when cancelling a dirty create form", async () => {
+    const user = userEvent.setup();
+    const sourceListUrl = "/categories?page=2&status=inactive&sort=name&order=asc";
+    server.use(
+      http.get(categoriesUrl, () =>
+        HttpResponse.json({
+          data: [category("Herramientas")],
+          pagination: { total: 16, page: 2, limit: 15 },
+        }),
+      ),
+    );
+
+    const { router } = renderCategoryCreateRoute(
+      undefined,
+      undefined,
+      undefined,
+      `/categories/new?${new URLSearchParams({ returnTo: sourceListUrl })}`,
+    );
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.type(name, "Borrador local");
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    const prompt = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    expect(router.state.location.pathname).toBe("/categories/new");
+    await user.click(within(prompt).getByRole("button", { name: "Continuar editando" }));
+    expect(name).toHaveValue("Borrador local");
+    expect(router.state.location.pathname).toBe("/categories/new");
+
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    const discardPrompt = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    await user.click(within(discardPrompt).getByRole("button", { name: "Descartar cambios" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Categorías" })).toBeVisible();
+    expect(router.state.location.pathname).toBe("/categories");
+    expect(router.state.location.search).toBe(sourceListUrl.slice("/categories".length));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("locks the form while creating and returns to the default active list after confirmation", async () => {
     const user = userEvent.setup();
     let createRequestCount = 0;
@@ -222,6 +287,7 @@ describe("category creation page", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Creando categoría…");
     expect(name).toBeDisabled();
     expect(description).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Creando categoría…" })).toBeDisabled();
     expect(submittedBody).toEqual({ name: "Herramientas", description: "Para mantenimiento" });
     expect(screen.queryByText("Categoría creada correctamente.")).not.toBeInTheDocument();

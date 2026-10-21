@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const categoryUuid = "550e8400-e29b-41d4-a716-446655440000";
 const categoriesPath = "/api/backend/categories";
+const sourceListUrl = "/categories?page=2&search=tools&status=inactive&sort=updatedAt&order=desc";
 
 const category = (overrides: Record<string, unknown> = {}) => ({
   uuid: categoryUuid,
@@ -43,7 +44,12 @@ const readBeforeUnloadEvent = async (page: Page) =>
     return { defaultPrevented: event.defaultPrevented, providedText };
   });
 
-const expectReloadWarning = async (page: Page, inputName: string, value: string) => {
+const expectReloadWarning = async (
+  page: Page,
+  inputName: string,
+  value: string,
+  expectedUrl: string,
+) => {
   expect(await readBeforeUnloadEvent(page)).toEqual({ defaultPrevented: true, providedText: "" });
 
   const dialogPromise = page.waitForEvent("dialog");
@@ -55,6 +61,7 @@ const expectReloadWarning = async (page: Page, inputName: string, value: string)
   await dialog.dismiss();
   void reloadPromise.catch(() => undefined);
   await expect(page.getByRole("textbox", { name: inputName })).toHaveValue(value);
+  await expect(page).toHaveURL(expectedUrl);
 };
 
 const expectNoReloadWarning = async (page: Page) => {
@@ -101,10 +108,11 @@ test("warns before reloading a dirty category creation form, then stops after sa
     await route.abort();
   });
 
-  await page.goto("/categories/new");
+  const createLocation = `/categories/new?${new URLSearchParams({ returnTo: sourceListUrl })}`;
+  await page.goto(createLocation);
   const name = page.getByRole("textbox", { name: "Nombre (obligatorio)" });
   await name.fill("Repuestos");
-  await expectReloadWarning(page, "Nombre (obligatorio)", "Repuestos");
+  await expectReloadWarning(page, "Nombre (obligatorio)", "Repuestos", createLocation);
 
   await page.getByRole("button", { name: "Crear categoría" }).click();
   await expect(page.getByText("Categoría creada correctamente.")).toBeVisible();
@@ -122,10 +130,15 @@ test("warns before reloading a dirty category edit form, then stops after save",
     const detailPath = `${categoriesPath}/${categoryUuid}`;
 
     if (pathname === categoriesPath && request.method() === "GET") {
+      const url = new URL(request.url());
+      const pageNumber = Number(url.searchParams.get("page") ?? "1");
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ data: [category()], pagination: { total: 1, page: 1, limit: 15 } }),
+        body: JSON.stringify({
+          data: [category()],
+          pagination: { total: pageNumber === 2 ? 16 : 1, page: pageNumber, limit: 15 },
+        }),
       });
       return;
     }
@@ -151,14 +164,15 @@ test("warns before reloading a dirty category edit form, then stops after save",
     await route.abort();
   });
 
-  await page.goto(`/categories/${categoryUuid}/edit`);
+  const editLocation = `/categories/${categoryUuid}/edit?${new URLSearchParams({ returnTo: sourceListUrl })}`;
+  await page.goto(editLocation);
   const name = page.getByRole("textbox", { name: "Nombre (obligatorio)" });
   await expect(name).toHaveValue("Herramientas");
   await name.fill("Herramientas manuales");
-  await expectReloadWarning(page, "Nombre (obligatorio)", "Herramientas manuales");
+  await expectReloadWarning(page, "Nombre (obligatorio)", "Herramientas manuales", editLocation);
 
   await page.getByRole("button", { name: "Guardar cambios" }).click();
   await expect(page.getByText("Categoría actualizada correctamente.")).toBeVisible();
-  await expect(page).toHaveURL(/\/categories\?page=1&status=active&sort=name&order=asc$/);
+  await expect(page).toHaveURL(sourceListUrl);
   await expectNoReloadWarning(page);
 });

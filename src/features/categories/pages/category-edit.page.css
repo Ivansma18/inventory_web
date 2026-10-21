@@ -33,6 +33,13 @@
   gap: var(--ui-space-3);
 }
 
+.category-edit-page__form-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ui-space-3);
+}
+
 .category-edit-page__loaded {
   display: grid;
   gap: var(--ui-space-5);

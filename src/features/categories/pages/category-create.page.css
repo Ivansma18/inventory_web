@@ -12,6 +12,13 @@
   border-block-start: var(--ui-border-width) solid var(--ui-color-border);
 }
 
+.category-create-form__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ui-space-3);
+}
+
 .category-create-form__error,
 .category-create-form__status {
   justify-self: stretch;

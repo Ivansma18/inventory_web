@@ -208,6 +208,52 @@ describe("category edit form", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("returns to its source when cancelling a clean edit or after confirming dirty discard", async () => {
+    const user = userEvent.setup();
+    const sourceListUrl =
+      "/categories?page=3&search=tools&status=inactive&sort=updatedAt&order=desc";
+    server.use(
+      http.get(categoryUrl, () => HttpResponse.json({ data: category() })),
+      http.get(categoriesUrl, () =>
+        HttpResponse.json({
+          data: [category()],
+          pagination: { total: 46, page: 3, limit: 15 },
+        }),
+      ),
+    );
+
+    const { router } = renderCategoryEditRoute(undefined, sourceListUrl);
+    await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Categorías" })).toBeVisible();
+    expect(router.state.location.pathname).toBe("/categories");
+    expect(router.state.location.search).toBe(sourceListUrl.slice("/categories".length));
+
+    await act(async () =>
+      router.navigate(
+        `/categories/${categoryUuid}/edit?${new URLSearchParams({ returnTo: sourceListUrl })}`,
+      ),
+    );
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Borrador local");
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    const prompt = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    expect(router.state.location.pathname).toBe(`/categories/${categoryUuid}/edit`);
+    await user.click(within(prompt).getByRole("button", { name: "Continuar editando" }));
+    expect(name).toHaveValue("Borrador local");
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    const discardPrompt = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    await user.click(within(discardPrompt).getByRole("button", { name: "Descartar cambios" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Categorías" })).toBeVisible();
+    expect(router.state.location.pathname).toBe("/categories");
+    expect(router.state.location.search).toBe(sourceListUrl.slice("/categories".length));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("blocks Back and Forward while updating and does not run either exit after failure", async () => {
     const user = userEvent.setup();
     const editPath = `/categories/${categoryUuid}/edit`;
@@ -321,6 +367,7 @@ describe("category edit form", () => {
     );
     expect(name).toBeDisabled();
     expect(description).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Guardando cambios…" })).toBeDisabled();
     expect(patchBodies).toEqual([{ name: "Herramientas actualizadas" }]);
     expect(screen.queryByText("Categoría actualizada correctamente.")).not.toBeInTheDocument();

@@ -18,7 +18,7 @@ export const DEFAULT_CATEGORY_LIST_RETURN_TO = `${CATEGORY_LIST_PATH}?${serializ
   DEFAULT_CATEGORY_LIST_STATE,
 ).toString()}`;
 
-export const parseCategoryEditReturnTo = (candidate: string | null | undefined): string | null => {
+export const parseCategoryListReturnTo = (candidate: string | null | undefined): string | null => {
   if (
     !candidate ||
     !candidate.startsWith("/") ||
@@ -58,4 +58,13 @@ export const parseCategoryEditReturnTo = (candidate: string | null | undefined):
   }
 
   return `${CATEGORY_LIST_PATH}?${serializeCategoryListUrlState(listState).toString()}`;
+};
+
+export const resolveCategoryFormReturnTo = (searchParams: URLSearchParams): string => {
+  const candidates = searchParams.getAll("returnTo");
+  if (candidates.length !== 1) {
+    return DEFAULT_CATEGORY_LIST_RETURN_TO;
+  }
+
+  return parseCategoryListReturnTo(candidates[0]) ?? DEFAULT_CATEGORY_LIST_RETURN_TO;
 };
