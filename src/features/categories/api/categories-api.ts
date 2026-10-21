@@ -6,6 +6,7 @@ import {
   parseCategoryDataResponse,
   parseCategoryListResponse,
   type Category,
+  type CategoryCreatePayload,
   type CategoryListResponse,
 } from "./category-contract";
 
@@ -79,4 +80,14 @@ export const getCategory = async (
   });
 
   return parseCategoryDataResponse(response, { uuid });
+};
+
+export const createCategory = async (payload: CategoryCreatePayload): Promise<Category> => {
+  const response = await httpClient.request<unknown, CategoryCreatePayload>({
+    path: "/categories",
+    method: "POST",
+    data: payload,
+  });
+
+  return parseCategoryDataResponse(response);
 };

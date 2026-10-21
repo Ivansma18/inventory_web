@@ -1,4 +1,4 @@
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { http, HttpResponse } from "msw";
@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { useActiveCategories, useCategory } from "@/features/categories";
 import { CategoryResponseContractError } from "@/features/categories/api/category-contract";
+import { useCreateCategory } from "@/features/categories/hooks/use-create-category";
 import { useCategoryList } from "@/features/categories/hooks/use-category-list";
 import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
@@ -13,6 +14,10 @@ import { server } from "../mocks/server";
 const categoriesUrl = "https://inventory.test/api/categories";
 const categoryUuid = "550e8400-e29b-41d4-a716-446655440000";
 const sessionId = "categories-test-session";
+const createdCategory = (name: string, description: string | null) => ({
+  ...category(name),
+  description,
+});
 
 const category = (name: string) => ({
   uuid: categoryUuid,
@@ -233,5 +238,73 @@ describe("public active categories query", () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error).toBeInstanceOf(CategoryResponseContractError);
+  });
+});
+
+describe("category creation mutation", () => {
+  it.each([
+    {
+      payload: { name: "Herramientas", description: "Para mantenimiento" },
+      responseDescription: "Para mantenimiento",
+    },
+    {
+      payload: { name: "Almacén" },
+      responseDescription: null,
+    },
+  ])(
+    "posts the typed payload and returns a validated category",
+    async ({ payload, responseDescription }) => {
+      let requestBody: unknown;
+      const queryClient = createQueryClient();
+      queryClients.push(queryClient);
+
+      server.use(
+        http.post(categoriesUrl, async ({ request }) => {
+          requestBody = await request.json();
+          return HttpResponse.json(
+            { data: createdCategory(payload.name, responseDescription) },
+            { status: 201 },
+          );
+        }),
+      );
+
+      const { result } = renderHook(() => useCreateCategory(sessionId), {
+        wrapper: createWrapper(queryClient),
+      });
+
+      await act(async () => {
+        await expect(result.current.mutateAsync(payload)).resolves.toEqual(
+          createdCategory(payload.name, responseDescription),
+        );
+      });
+
+      expect(requestBody).toEqual(payload);
+    },
+  );
+
+  it("does not resend a failed POST automatically", async () => {
+    let requestCount = 0;
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: 3, retryDelay: 0 } },
+    });
+    queryClients.push(queryClient);
+
+    server.use(
+      http.post(categoriesUrl, () => {
+        requestCount += 1;
+        return HttpResponse.json({ message: "Unavailable" }, { status: 503 });
+      }),
+    );
+
+    const { result } = renderHook(() => useCreateCategory(sessionId), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await expect(result.current.mutateAsync({ name: "Herramientas" })).rejects.toBeDefined();
+    });
+
+    expect(result.current.isError).toBe(true);
+    expect(requestCount).toBe(1);
   });
 });

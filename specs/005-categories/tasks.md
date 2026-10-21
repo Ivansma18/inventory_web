@@ -37,8 +37,9 @@ Cada tarea funcional incluye escribir o actualizar primero la prueba que demuest
 - [x] T11. Construir los campos y esquemas del formulario de Categorías. (RF-33–RF-36, RF-44, RF-133)
   Hecho cuando: pruebas verifican nombre requerido tras trim, descripción opcional y campos con labels; no se inventan límites ni se introducen truncamientos de texto.
 - Evidencia: `src/features/categories/schemas/category-form.schema.ts` define el nombre requerido tras trim y descripción de texto opcional, sin límites; `CategoryFormFields` usa labels accesibles y se integra en la página de creación. `tests/categories/category-form.test.tsx` verifica errores para nombre vacío tras trim, descripción vacía válida, texto extenso sin truncar ni `maxLength` y labels visibles. `pnpm test:run --maxWorkers=1` (59 archivos, 522 pruebas), lint, typecheck, formato y build pasaron. Inspección Playwright con sesión simulada a 1280×900 y 360×900: sin overflow horizontal; detector Impeccable: `[]`. Build conserva el aviso no bloqueante de chunk superior a 500 kB.
-- [ ] T12. Incorporar la operación de creación tipada y validada. (RF-35, RF-37, RF-92–RF-93)
+- [x] T12. Incorporar la operación de creación tipada y validada. (RF-35, RF-37, RF-92–RF-93)
   Hecho cuando: pruebas MSW verifican POST con nombre/descripción, descripción ausente admitida, respuesta contractual válida y ausencia de reenvío automático tras fallo.
+- Evidencia: `createCategory` tipa el payload desde el esquema OpenAPI y valida la respuesta con `parseCategoryDataResponse`; `useCreateCategory` ejecuta POST sin reintentos automáticos e invalida las listas de la sesión solicitante. `tests/categories/categories-api.test.tsx` comprueba cuerpos con descripción y sin ella, categoría creada validada y un único POST ante un fallo 503 aun con retry habilitado por defecto en el cliente de prueba. `pnpm test:run --maxWorkers=1` (59 archivos, 525 pruebas), lint, typecheck, formato y build pasaron. Build conserva el aviso no bloqueante de chunk superior a 500 kB.
 - [ ] T13. Conectar creación con espera, bloqueo de duplicados, éxito y retorno. (RF-7, RF-37–RF-39, RF-52–RF-54)
   Hecho cuando: pruebas de UI con respuesta diferida verifican acción visible para distintos roles, campos bloqueados, una sola solicitud y ningún éxito anticipado; confirmada la creación, se vuelve al listado activo/página 1/sin búsqueda/nombre ascendente.
 - [ ] T14. Cargar edición y distinguir dirección inválida, inexistencia y fallo recuperable. (RF-40–RF-43, RF-94–RF-96)
@@ -280,4 +281,4 @@ La tabla vincula implementación y evidencia principal. T58 consolida resultados
 - Si no hay escritorio gráfico, lector de pantalla u otra condición necesaria, registrar bloqueo; no sustituir zoom nativo por viewport equivalente ni revisión humana por pruebas automáticas.
 - No modificar reglas del backend, scope aprobado ni contratos de Productos por inferencia. Toda discrepancia vuelve a `change-manager`.
 
-T1–T11 están completadas; T12 sigue pendiente y no se ha iniciado.
+T1–T12 están completadas; T13 sigue pendiente y no se ha iniciado.
