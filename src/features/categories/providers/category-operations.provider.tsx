@@ -30,6 +30,7 @@ const SessionScopedCategoryOperations = ({
 }: SessionScopedCategoryOperationsProps) => {
   const [operations, setOperations] = useState<CategoryOperation[]>([]);
   const statusLocks = useRef(new Set<string>());
+  const checksInFlight = useRef(new Set<string>());
   const operationUuidsById = useRef(new Map<string, string>());
   const operationSequence = useRef(0);
   const queryClient = useQueryClient();
@@ -92,10 +93,11 @@ const SessionScopedCategoryOperations = ({
 
   const checkUncertainStatus = useCallback(
     async (operationId: string, uuid: string) => {
-      if (sessionId === null || !isCurrentSession(sessionId)) {
+      if (sessionId === null || !isCurrentSession(sessionId) || checksInFlight.current.has(uuid)) {
         return;
       }
 
+      checksInFlight.current.add(uuid);
       setOperationPhase(operationId, "checking");
 
       try {
@@ -136,9 +138,29 @@ const SessionScopedCategoryOperations = ({
             isCategoryNotFoundError(error) ? "not-found" : "check-failed",
           );
         }
+      } finally {
+        checksInFlight.current.delete(uuid);
       }
     },
     [queryClient, sessionId, setOperationPhase],
+  );
+
+  const retryStatusCheck = useCallback(
+    async (operationId: string) => {
+      if (sessionId === null || !isCurrentSession(sessionId)) {
+        return;
+      }
+
+      const operation = operations.find(
+        (candidate) => candidate.id === operationId && candidate.sessionId === sessionId,
+      );
+      if (operation?.phase !== "check-failed") {
+        return;
+      }
+
+      await checkUncertainStatus(operation.id, operation.uuid);
+    },
+    [checkUncertainStatus, operations, sessionId],
   );
 
   const requestStatusChange = useCallback(
@@ -217,6 +239,7 @@ const SessionScopedCategoryOperations = ({
       setOperationPhase,
       removeOperation,
       getOperationForCategory,
+      retryStatusCheck,
       requestStatusChange,
     }),
     [
@@ -225,6 +248,7 @@ const SessionScopedCategoryOperations = ({
       setOperationPhase,
       removeOperation,
       getOperationForCategory,
+      retryStatusCheck,
       requestStatusChange,
     ],
   );

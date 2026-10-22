@@ -26,6 +26,7 @@ export interface CategoryOperationsContextValue {
   setOperationPhase: (operationId: string, phase: CategoryOperationPhase) => void;
   removeOperation: (operationId: string) => void;
   getOperationForCategory: (uuid: string) => CategoryOperation | undefined;
+  retryStatusCheck: (operationId: string) => Promise<void>;
   requestStatusChange: (request: CategoryStatusChangeRequest) => Promise<Category>;
 }
 

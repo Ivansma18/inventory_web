@@ -43,9 +43,10 @@ const CategoryListRowActions = ({
   onEditCategory,
   onRequestStatusChange,
 }: CategoryListRowActionsProps) => {
-  const { getOperationForCategory } = useCategoryOperations();
+  const { getOperationForCategory, retryStatusCheck } = useCategoryOperations();
   const operation = getOperationForCategory(category.uuid);
   const isPending = operation?.phase === "pending" || operation?.phase === "checking";
+  const isCheckFailed = operation?.phase === "check-failed";
 
   return (
     <div className="category-list-table__row-actions">
@@ -57,13 +58,31 @@ const CategoryListRowActions = ({
         Editar
       </Button>
       <Button
-        disabled={operation !== undefined && !isPending}
+        disabled={operation !== undefined && !isPending && !isCheckFailed}
         loading={isPending}
-        onClick={() => onRequestStatusChange(category)}
+        onClick={() => {
+          if (isCheckFailed && operation) {
+            void retryStatusCheck(operation.id);
+            return;
+          }
+
+          onRequestStatusChange(category);
+        }}
         variant="secondary"
       >
-        {category.isActive ? "Desactivar" : "Activar"}
+        {isCheckFailed
+          ? "Reintentar comprobación"
+          : operation?.phase === "checking"
+            ? "Comprobando estado…"
+            : category.isActive
+              ? "Desactivar"
+              : "Activar"}
       </Button>
+      {isCheckFailed ? (
+        <p className="category-list-table__row-status-error" role="alert">
+          No se pudo comprobar el estado. Reintenta la consulta para habilitar el cambio.
+        </p>
+      ) : null}
     </div>
   );
 };

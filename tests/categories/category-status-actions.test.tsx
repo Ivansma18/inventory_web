@@ -812,7 +812,9 @@ describe("category status actions", () => {
       await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
       const lockedRow = screen.getByRole("row", { name: /Herramientas/ });
-      const lockedAction = within(lockedRow).getByRole("button", { name: "Desactivar" });
+      const lockedAction = within(lockedRow).getByRole("button", {
+        name: "Comprobando estado…",
+      });
       expect(lockedAction).toBeDisabled();
       await user.click(lockedAction);
       expect(patchRequestCount).toBe(1);
@@ -837,6 +839,95 @@ describe("category status actions", () => {
     },
   );
 
+  it("keeps a failed detail check locked across navigation and retries only the detail GET", async () => {
+    const user = userEvent.setup();
+    const { router } = renderCategoryList("OPERATOR", true);
+    const initialRow = await screen.findByRole("row", { name: /Herramientas/ });
+    let patchRequestCount = 0;
+    let detailRequestCount = 0;
+    let listRequestCount = 0;
+    let resolveRetryDetail!: (response: Response) => void;
+
+    server.use(
+      http.get(categoriesUrl, () => {
+        listRequestCount += 1;
+        return HttpResponse.json({
+          data: [category(true)],
+          pagination: { total: 1, page: 1, limit: 15 },
+        });
+      }),
+      http.get(categoryUrl, () => {
+        detailRequestCount += 1;
+        if (detailRequestCount === 1) {
+          return HttpResponse.json(
+            { error: { code: "SERVICE_UNAVAILABLE", message: "Internal details." } },
+            { status: 503 },
+          );
+        }
+
+        return new Promise<Response>((resolve) => {
+          resolveRetryDetail = resolve;
+        });
+      }),
+      http.patch(categoryUrl, () => {
+        patchRequestCount += 1;
+        return HttpResponse.error();
+      }),
+    );
+
+    await user.click(within(initialRow).getByRole("button", { name: "Desactivar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+
+    await waitFor(() => {
+      expect(patchRequestCount).toBe(1);
+      expect(detailRequestCount).toBe(1);
+    });
+    expect(await within(dialog).findByRole("alert")).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole("link", { name: "Inicio" }));
+    await screen.findByRole("heading", { level: 1, name: "Bienvenido a Inventory" });
+    expect(router.state.location.pathname).toBe("/");
+    expect(patchRequestCount).toBe(1);
+
+    await user.click(screen.getByRole("link", { name: "Categorías" }));
+    const returnedRow = await screen.findByRole("row", { name: /Herramientas/ });
+    expect(
+      within(returnedRow).queryByRole("button", { name: "Desactivar" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(returnedRow).getByRole("button", { name: "Reintentar comprobación" }),
+    ).toBeVisible();
+    expect(within(returnedRow).getByRole("alert")).toHaveTextContent(
+      "No se pudo comprobar el estado. Reintenta la consulta para habilitar el cambio.",
+    );
+    expect(listRequestCount).toBe(0);
+
+    await user.click(within(returnedRow).getByRole("button", { name: "Reintentar comprobación" }));
+    await waitFor(() => expect(detailRequestCount).toBe(2));
+    expect(patchRequestCount).toBe(1);
+    const checkingRow = screen.getByRole("row", { name: /Herramientas/ });
+    const checkingButton = within(checkingRow).getByRole("button", {
+      name: "Comprobando estado…",
+    });
+    expect(checkingButton).toBeDisabled();
+
+    resolveRetryDetail(HttpResponse.json({ data: category(true) }));
+
+    await waitFor(() => expect(listRequestCount).toBe(1));
+    await waitFor(() => {
+      expect(
+        within(screen.getByRole("row", { name: /Herramientas/ })).getByRole("button", {
+          name: "Desactivar",
+        }),
+      ).toBeEnabled();
+    });
+    expect(detailRequestCount).toBe(2);
+    expect(patchRequestCount).toBe(1);
+  });
+
   it.each([
     {
       outcome: "success",
@@ -857,12 +948,14 @@ describe("category status actions", () => {
     "announces a delayed $outcome after leaving the list without changing route or focus and refreshes on return",
     async ({ status, response, expectedAnnouncement, announcementRole }) => {
       const user = userEvent.setup();
-      const { router } = renderCategoryList("OPERATOR", true);
+      const { queryClient, router } = renderCategoryList("OPERATOR", true);
       const categoryRow = await screen.findByRole("row", { name: /Herramientas/ });
       let listRequestCount = 0;
       let patchRequestCount = 0;
+      let detailRequestCount = 0;
       let categoryIsActive = true;
       let resolvePatchResponse!: (response: Response) => void;
+      let resolveCheckDetail!: (response: Response) => void;
 
       server.use(
         http.get(categoriesUrl, ({ request }) => {
@@ -875,7 +968,12 @@ describe("category status actions", () => {
             pagination: { total: rows.length, page: 1, limit: 15 },
           });
         }),
-        http.get(categoryUrl, () => HttpResponse.json({ data: category(false) })),
+        http.get(categoryUrl, () => {
+          detailRequestCount += 1;
+          return new Promise<Response>((resolve) => {
+            resolveCheckDetail = resolve;
+          });
+        }),
         http.patch(categoryUrl, () => {
           patchRequestCount += 1;
           return new Promise<Response>((resolve) => {
@@ -911,9 +1009,32 @@ describe("category status actions", () => {
       expect(document.activeElement).toBe(focusAfterNavigation);
       expect(listRequestCount).toBe(0);
 
+      if (status === 503) {
+        await waitFor(() => expect(detailRequestCount).toBe(1));
+        resolveCheckDetail(HttpResponse.json({ data: category(false) }));
+        await waitFor(() =>
+          expect(
+            queryClient
+              .getQueryCache()
+              .findAll({
+                queryKey: ["categories", "management-list", categoryStatusSessionId],
+              })
+              .some((query) => query.state.isInvalidated),
+          ).toBe(true),
+        );
+      }
+
       await user.click(screen.getByRole("link", { name: "Categorías" }));
       expect(await screen.findByText("No hay categorías para mostrar.")).toBeVisible();
       expect(router.state.location.pathname).toBe("/categories");
+      await waitFor(() => {
+        const managementQueries = queryClient
+          .getQueryCache()
+          .findAll({ queryKey: ["categories", "management-list", categoryStatusSessionId] });
+        expect(managementQueries.length).toBeGreaterThan(0);
+        expect(managementQueries.every((query) => query.state.fetchStatus === "idle")).toBe(true);
+        expect(managementQueries.every((query) => !query.state.isInvalidated)).toBe(true);
+      });
       expect(listRequestCount).toBe(1);
       expect(patchRequestCount).toBe(1);
       expect(homeHeading).not.toHaveFocus();

@@ -20,6 +20,8 @@ import {
   isCategoryHasAssociatedProductsError,
   isCategoryNotFoundError,
   isCategoryRateLimitedError,
+  isCategoryResponseContractError,
+  isUncertainCategoryMutationError,
 } from "../utils/category-api-errors";
 import {
   isCategoryListSortField,
@@ -245,9 +247,11 @@ export const CategoryListPage = () => {
       } catch (error: unknown) {
         if (!isCategoryListMounted.current && sessionId !== null && isCurrentSession(sessionId)) {
           toast.show({ kind: "error", message: getLateStatusFailureMessage(error) });
-          void queryClient.invalidateQueries({
-            queryKey: ["categories", "management-list", sessionId],
-          });
+          if (!isUncertainCategoryMutationError(error) && !isCategoryResponseContractError(error)) {
+            void queryClient.invalidateQueries({
+              queryKey: ["categories", "management-list", sessionId],
+            });
+          }
         }
 
         throw error;

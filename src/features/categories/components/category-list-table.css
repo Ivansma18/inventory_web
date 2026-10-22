@@ -31,7 +31,8 @@
 }
 
 .category-list-table__status-confirmation > [role="alert"],
-.category-list-table__status-error {
+.category-list-table__status-error,
+.category-list-table__row-status-error {
   background-color: var(--ui-color-error-surface);
   border: var(--ui-border-width) solid var(--ui-color-error);
   border-radius: var(--ui-radius-md);
@@ -45,6 +46,12 @@
 
 .category-list-table__status-error {
   margin-block: var(--ui-space-3) 0;
+}
+
+.category-list-table__row-status-error {
+  flex-basis: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .category-list-table__retry {
