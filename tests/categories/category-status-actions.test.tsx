@@ -980,6 +980,82 @@ describe("category status actions", () => {
     expect(listRequestCount).toBe(1);
   });
 
+  it("requires a new status confirmation after the detail check observes the previous state", async () => {
+    const user = userEvent.setup();
+    let patchRequestCount = 0;
+    let detailRequestCount = 0;
+    let listRequestCount = 0;
+    let categoryIsActive = true;
+    const requestBodies: unknown[] = [];
+
+    renderCategoryList("OPERATOR", true);
+    let row = await screen.findByRole("row", { name: /Herramientas/ });
+    server.use(
+      http.get(categoriesUrl, ({ request }) => {
+        listRequestCount += 1;
+        const requestedIsActive = new URL(request.url).searchParams.get("isActive") === "true";
+        const rows = requestedIsActive === categoryIsActive ? [category(categoryIsActive)] : [];
+        return HttpResponse.json({
+          data: rows,
+          pagination: { total: rows.length, page: 1, limit: 15 },
+        });
+      }),
+      http.get(categoryUrl, () => {
+        detailRequestCount += 1;
+        return HttpResponse.json({ data: category(categoryIsActive) });
+      }),
+      http.patch(categoryUrl, async ({ request }) => {
+        patchRequestCount += 1;
+        requestBodies.push(await request.json());
+        if (patchRequestCount === 1) {
+          return HttpResponse.json(
+            { error: { code: "SERVICE_UNAVAILABLE", message: "Internal details." } },
+            { status: 503 },
+          );
+        }
+
+        categoryIsActive = false;
+        return HttpResponse.json({ data: category(false) });
+      }),
+    );
+
+    await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+    const uncertainConfirmation = await screen.findByRole("dialog", {
+      name: "Confirmar desactivación",
+    });
+    await user.click(within(uncertainConfirmation).getByRole("button", { name: "Desactivar" }));
+
+    expect(await within(uncertainConfirmation).findByRole("alert")).toHaveTextContent(
+      "No se pudo confirmar el cambio de estado. Revisa el estado de la categoría antes de volver a intentarlo.",
+    );
+    expect(detailRequestCount).toBe(1);
+    await waitFor(() => expect(listRequestCount).toBe(1));
+    expect(patchRequestCount).toBe(1);
+    expect(screen.queryByText("Categoría desactivada correctamente.")).not.toBeInTheDocument();
+    expect(
+      within(uncertainConfirmation).queryByRole("button", { name: "Desactivar" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(uncertainConfirmation).getByRole("button", { name: "Cerrar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    row = screen.getByRole("row", { name: /Herramientas/ });
+    expect(within(row).getByText("Activa")).toBeVisible();
+    expect(within(row).getByRole("button", { name: "Desactivar" })).toBeEnabled();
+    expect(patchRequestCount).toBe(1);
+
+    await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+    const newConfirmation = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    expect(patchRequestCount).toBe(1);
+    await user.click(within(newConfirmation).getByRole("button", { name: "Desactivar" }));
+
+    expect(await screen.findByText("Categoría desactivada correctamente.")).toBeVisible();
+    expect(await screen.findByText("No hay categorías para mostrar.")).toBeVisible();
+    expect(requestBodies).toEqual([{ isActive: false }, { isActive: false }]);
+    expect(patchRequestCount).toBe(2);
+    expect(detailRequestCount).toBe(1);
+    expect(listRequestCount).toBe(2);
+  });
+
   it.each([
     {
       outcome: "success",
