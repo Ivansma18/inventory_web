@@ -19,6 +19,7 @@ describe("category list table empty states", () => {
         onPageChange={vi.fn()}
         onPageCorrection={vi.fn()}
         onRetry={vi.fn()}
+        checkingCategoryUuids={[]}
         pendingCategoryUuids={[]}
         result={{ status: "ready", rows: [], page: 1, total: 0 }}
       />,
@@ -41,6 +42,7 @@ describe("category list table empty states", () => {
         onPageChange={vi.fn()}
         onPageCorrection={vi.fn()}
         onRetry={vi.fn()}
+        checkingCategoryUuids={[]}
         pendingCategoryUuids={[]}
         result={{ status: "ready", rows: [], page: 1, total: 0 }}
       />,

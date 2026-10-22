@@ -75,7 +75,7 @@ export const CategoryListPage = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const toast = useToast();
-  const { operations, requestStatusChange } = useCategoryOperations();
+  const { operations, removeOperation, requestStatusChange } = useCategoryOperations();
   const isCategoryListMounted = useRef(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const serializedSearchParams = searchParams.toString();
@@ -98,7 +98,14 @@ export const CategoryListPage = () => {
   const pendingCategoryUuids = useMemo(
     () =>
       operations
-        .filter((operation) => operation.phase === "pending")
+        .filter((operation) => operation.phase === "pending" || operation.phase === "checking")
+        .map((operation) => operation.uuid),
+    [operations],
+  );
+  const checkingCategoryUuids = useMemo(
+    () =>
+      operations
+        .filter((operation) => operation.phase === "checking")
         .map((operation) => operation.uuid),
     [operations],
   );
@@ -109,6 +116,30 @@ export const CategoryListPage = () => {
       isCategoryListMounted.current = false;
     };
   }, []);
+  useEffect(() => {
+    if (
+      sessionId === null ||
+      !isCurrentSession(sessionId) ||
+      !categoryList.isSuccess ||
+      categoryList.isFetching ||
+      categoryList.isStale
+    ) {
+      return;
+    }
+
+    for (const operation of operations) {
+      if (operation.sessionId === sessionId && operation.phase === "confirmed") {
+        removeOperation(operation.id);
+      }
+    }
+  }, [
+    categoryList.isFetching,
+    categoryList.isStale,
+    categoryList.isSuccess,
+    operations,
+    removeOperation,
+    sessionId,
+  ]);
   const snapshot: DataTableSnapshot<Category> | undefined = categoryList.data
     ? {
         rows: categoryList.data.data,
@@ -293,6 +324,7 @@ export const CategoryListPage = () => {
         onPageChange={changePage}
         onPageCorrection={correctPage}
         onRetry={() => void categoryList.refetch()}
+        checkingCategoryUuids={checkingCategoryUuids}
         pendingCategoryUuids={pendingCategoryUuids}
         result={result}
       />

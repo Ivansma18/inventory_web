@@ -44,14 +44,20 @@ const CategoryListRowActions = ({
   onRequestStatusChange,
 }: CategoryListRowActionsProps) => {
   const { getOperationForCategory } = useCategoryOperations();
-  const isPending = getOperationForCategory(category.uuid)?.phase === "pending";
+  const operation = getOperationForCategory(category.uuid);
+  const isPending = operation?.phase === "pending" || operation?.phase === "checking";
 
   return (
     <div className="category-list-table__row-actions">
-      <Button disabled={isPending} onClick={() => onEditCategory(category)} variant="secondary">
+      <Button
+        disabled={operation?.phase === "pending"}
+        onClick={() => onEditCategory(category)}
+        variant="secondary"
+      >
         Editar
       </Button>
       <Button
+        disabled={operation !== undefined && !isPending}
         loading={isPending}
         onClick={() => onRequestStatusChange(category)}
         variant="secondary"
@@ -70,6 +76,7 @@ export interface CategoryListTableProps {
   onPageChange: (page: number) => void;
   onPageCorrection: (page: number) => void;
   onRetry: () => void;
+  checkingCategoryUuids: readonly string[];
   pendingCategoryUuids: readonly string[];
   result: DataTableResult<Category>;
 }
@@ -82,6 +89,7 @@ export const CategoryListTable = ({
   onPageChange,
   onPageCorrection,
   onRetry,
+  checkingCategoryUuids,
   pendingCategoryUuids,
   result,
 }: CategoryListTableProps) => {
@@ -193,6 +201,8 @@ export const CategoryListTable = ({
   );
   const isStatusPending =
     categoryToConfirm !== null && pendingCategoryUuids.includes(categoryToConfirm.uuid);
+  const isStatusChecking =
+    categoryToConfirm !== null && checkingCategoryUuids.includes(categoryToConfirm.uuid);
   const isManualRetryPending =
     categoryToConfirm !== null && retryingCategoryUuid === categoryToConfirm.uuid;
   const canSubmitStatusChange = statusError === null || statusError.canRetryManually;
@@ -257,9 +267,11 @@ export const CategoryListTable = ({
             ) : null}
             {isStatusPending ? (
               <p role="status">
-                {isManualRetryPending
-                  ? "Reintentando el cambio de estado…"
-                  : "Actualizando el estado de la categoría…"}
+                {isStatusChecking
+                  ? "Comprobando el estado vigente de la categoría…"
+                  : isManualRetryPending
+                    ? "Reintentando el cambio de estado…"
+                    : "Actualizando el estado de la categoría…"}
               </p>
             ) : null}
             {statusError ? <p role="alert">{statusError.message}</p> : null}

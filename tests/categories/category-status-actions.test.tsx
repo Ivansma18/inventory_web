@@ -10,10 +10,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { appRoutes } from "@/app/router/router";
 import { UiProvider } from "@/app/providers/ui.provider";
 import { createQueryClient } from "@/shared/api/query-client";
+import { categoryDetailQueryKey } from "@/features/categories/hooks/use-category";
 import { server } from "../mocks/server";
 
 const categoriesUrl = "https://inventory.test/api/categories";
 const categoryUuid = "550e8400-e29b-41d4-a716-446655440000";
+const categoryStatusSessionId = "category-status-session";
 const categoryUrl = `${categoriesUrl}/${categoryUuid}`;
 
 const publicAuthResponse = (
@@ -370,6 +372,7 @@ describe("category status actions", () => {
   it("keeps the confirmation and existing state when the response cannot confirm the requested status", async () => {
     const user = userEvent.setup();
     let patchRequestCount = 0;
+    let detailRequestCount = 0;
     let listRequestCount = 0;
 
     renderCategoryList("OPERATOR", true);
@@ -381,6 +384,10 @@ describe("category status actions", () => {
           data: [category(true)],
           pagination: { total: 1, page: 1, limit: 15 },
         });
+      }),
+      http.get(categoryUrl, () => {
+        detailRequestCount += 1;
+        return HttpResponse.json({ data: category(true) });
       }),
       http.patch(categoryUrl, () => {
         patchRequestCount += 1;
@@ -398,7 +405,8 @@ describe("category status actions", () => {
     expect(within(row).getByText("Activa")).toBeVisible();
     expect(screen.queryByText("Categoría desactivada correctamente.")).not.toBeInTheDocument();
     expect(patchRequestCount).toBe(1);
-    expect(listRequestCount).toBe(0);
+    await waitFor(() => expect(detailRequestCount).toBe(1));
+    await waitFor(() => expect(listRequestCount).toBe(1));
   });
 
   it.each([
@@ -612,53 +620,90 @@ describe("category status actions", () => {
       scenario: "a 404 category-not-found response",
       status: 404,
       body: { error: { code: "CATEGORY_NOT_FOUND", message: "Not found." } },
+      expectedDetailRequests: 0,
+      expectedListRequests: 0,
     },
     {
       scenario: "a 5xx uncertain response",
       status: 503,
       body: { error: { code: "SERVICE_UNAVAILABLE", message: "Unavailable." } },
+      expectedDetailRequests: 1,
+      expectedListRequests: 1,
     },
     {
       scenario: "an invalid successful response with uncertain outcome",
       status: 200,
       body: { data: category(true) },
+      expectedDetailRequests: 1,
+      expectedListRequests: 1,
     },
-  ])("does not offer manual retry for $scenario", async ({ status, body }) => {
-    const user = userEvent.setup();
-    let patchRequestCount = 0;
+  ])(
+    "does not offer manual retry for $scenario",
+    async ({ status, body, expectedDetailRequests, expectedListRequests }) => {
+      const user = userEvent.setup();
+      let patchRequestCount = 0;
+      let detailRequestCount = 0;
+      let listRequestCount = 0;
 
-    renderCategoryList("OPERATOR", true);
-    const row = await screen.findByRole("row", { name: /Herramientas/ });
-    server.use(
-      http.patch(categoryUrl, () => {
-        patchRequestCount += 1;
-        return HttpResponse.json(body, { status });
-      }),
-    );
+      renderCategoryList("OPERATOR", true);
+      const row = await screen.findByRole("row", { name: /Herramientas/ });
+      server.use(
+        http.get(categoriesUrl, () => {
+          listRequestCount += 1;
+          return HttpResponse.json({
+            data: [category(true)],
+            pagination: { total: 1, page: 1, limit: 15 },
+          });
+        }),
+        http.get(categoryUrl, () => {
+          detailRequestCount += 1;
+          return HttpResponse.json({ data: category(true) });
+        }),
+        http.patch(categoryUrl, () => {
+          patchRequestCount += 1;
+          return HttpResponse.json(body, { status });
+        }),
+      );
 
-    await user.click(within(row).getByRole("button", { name: "Desactivar" }));
-    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
-    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+      await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+      const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+      await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
 
-    expect(await within(dialog).findByRole("alert")).toBeVisible();
-    expect(within(dialog).queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: "Desactivar" })).not.toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Cerrar" })).toBeVisible();
-    expect(within(row).getByText("Activa")).toBeVisible();
-    expect(patchRequestCount).toBe(1);
+      expect(await within(dialog).findByRole("alert")).toBeVisible();
+      expect(within(dialog).queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
+      expect(within(dialog).queryByRole("button", { name: "Desactivar" })).not.toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "Cerrar" })).toBeVisible();
+      expect(within(row).getByText("Activa")).toBeVisible();
+      expect(patchRequestCount).toBe(1);
+      await waitFor(() => expect(detailRequestCount).toBe(expectedDetailRequests));
+      await waitFor(() => expect(listRequestCount).toBe(expectedListRequests));
 
-    await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(patchRequestCount).toBe(1);
-  });
+      await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(patchRequestCount).toBe(1);
+    },
+  );
 
   it("does not offer manual retry for a network result with uncertain outcome", async () => {
     const user = userEvent.setup();
     let patchRequestCount = 0;
+    let detailRequestCount = 0;
+    let listRequestCount = 0;
 
     renderCategoryList("OPERATOR", true);
     const row = await screen.findByRole("row", { name: /Herramientas/ });
     server.use(
+      http.get(categoriesUrl, () => {
+        listRequestCount += 1;
+        return HttpResponse.json({
+          data: [category(true)],
+          pagination: { total: 1, page: 1, limit: 15 },
+        });
+      }),
+      http.get(categoryUrl, () => {
+        detailRequestCount += 1;
+        return HttpResponse.json({ data: category(true) });
+      }),
       http.patch(categoryUrl, () => {
         patchRequestCount += 1;
         return HttpResponse.error();
@@ -674,7 +719,123 @@ describe("category status actions", () => {
     expect(within(dialog).getByRole("button", { name: "Cerrar" })).toBeVisible();
     expect(within(row).getByText("Activa")).toBeVisible();
     expect(patchRequestCount).toBe(1);
+    await waitFor(() => expect(detailRequestCount).toBe(1));
+    await waitFor(() => expect(listRequestCount).toBe(1));
   });
+
+  it.each([
+    {
+      scenario: "a network failure",
+      responseKind: "network" as const,
+      status: 0,
+      body: undefined,
+    },
+    {
+      scenario: "a 5xx response",
+      responseKind: "http" as const,
+      status: 503,
+      body: { error: { code: "SERVICE_UNAVAILABLE", message: "Internal details." } },
+    },
+    {
+      scenario: "a successful response that does not confirm the requested status",
+      responseKind: "http" as const,
+      status: 200,
+      body: { data: category(true) },
+    },
+  ])(
+    "requires a fresh detail read after $scenario and blocks further PATCH requests until it completes",
+    async ({ responseKind, status, body }) => {
+      const user = userEvent.setup();
+      const queryClient = createQueryClient();
+      queryClient.setQueryData(
+        categoryDetailQueryKey(categoryStatusSessionId, categoryUuid),
+        category(true),
+      );
+      const { queryClient: renderedQueryClient } = renderCategoryList(
+        "OPERATOR",
+        true,
+        undefined,
+        queryClient,
+      );
+      const row = await screen.findByRole("row", { name: /Herramientas/ });
+      let patchRequestCount = 0;
+      let detailRequestCount = 0;
+      let listRequestCount = 0;
+      let resolveDetailResponse!: (response: Response) => void;
+
+      server.use(
+        http.get(categoriesUrl, ({ request }) => {
+          listRequestCount += 1;
+          const url = new URL(request.url);
+          expect(url.searchParams.get("isActive")).toBe("true");
+          return HttpResponse.json({
+            data: [category(true)],
+            pagination: { total: 1, page: 1, limit: 15 },
+          });
+        }),
+        http.get(categoryUrl, () => {
+          detailRequestCount += 1;
+          return new Promise<Response>((resolve) => {
+            resolveDetailResponse = resolve;
+          });
+        }),
+        http.patch(categoryUrl, () => {
+          patchRequestCount += 1;
+          if (responseKind === "network") {
+            return HttpResponse.error();
+          }
+
+          return HttpResponse.json(body, { status });
+        }),
+      );
+
+      await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+      const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+      await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+
+      await waitFor(() => {
+        expect(patchRequestCount).toBe(1);
+        expect(detailRequestCount).toBe(1);
+      });
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+        "No se pudo confirmar el cambio de estado. Revisa el estado de la categoría antes de volver a intentarlo.",
+      );
+      expect(await within(dialog).findByRole("status")).toHaveTextContent(
+        "Comprobando el estado vigente de la categoría…",
+      );
+      expect(
+        renderedQueryClient.getQueryData(
+          categoryDetailQueryKey(categoryStatusSessionId, categoryUuid),
+        ),
+      ).toEqual(category(true));
+
+      await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      const lockedRow = screen.getByRole("row", { name: /Herramientas/ });
+      const lockedAction = within(lockedRow).getByRole("button", { name: "Desactivar" });
+      expect(lockedAction).toBeDisabled();
+      await user.click(lockedAction);
+      expect(patchRequestCount).toBe(1);
+      expect(listRequestCount).toBe(0);
+
+      resolveDetailResponse(HttpResponse.json({ data: category(true) }));
+      await waitFor(() => expect(listRequestCount).toBe(1));
+      expect(
+        renderedQueryClient.getQueryData(
+          categoryDetailQueryKey(categoryStatusSessionId, categoryUuid),
+        ),
+      ).toEqual(category(true));
+      await waitFor(() => {
+        expect(
+          within(screen.getByRole("row", { name: /Herramientas/ })).getByRole("button", {
+            name: "Desactivar",
+          }),
+        ).toBeEnabled();
+      });
+      expect(patchRequestCount).toBe(1);
+      expect(screen.queryByText("Categoría desactivada correctamente.")).not.toBeInTheDocument();
+    },
+  );
 
   it.each([
     {
@@ -714,6 +875,7 @@ describe("category status actions", () => {
             pagination: { total: rows.length, page: 1, limit: 15 },
           });
         }),
+        http.get(categoryUrl, () => HttpResponse.json({ data: category(false) })),
         http.patch(categoryUrl, () => {
           patchRequestCount += 1;
           return new Promise<Response>((resolve) => {

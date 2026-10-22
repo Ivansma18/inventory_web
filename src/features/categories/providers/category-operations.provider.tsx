@@ -2,7 +2,15 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { isCurrentSession, useSession } from "@/features/auth";
+import { useQueryClient } from "@tanstack/react-query";
 
+import { getCategory } from "../api/categories-api";
+import {
+  isCategoryNotFoundError,
+  isCategoryResponseContractError,
+  isUncertainCategoryMutationError,
+} from "../utils/category-api-errors";
+import { categoryDetailQueryKey } from "../hooks/use-category";
 import { useChangeCategoryStatus } from "../hooks/use-change-category-status";
 import { CategoryOperationsContext } from "./category-operations.context";
 import type { CategoryOperation, CategoryOperationPhase } from "./category-operations.context";
@@ -22,7 +30,9 @@ const SessionScopedCategoryOperations = ({
 }: SessionScopedCategoryOperationsProps) => {
   const [operations, setOperations] = useState<CategoryOperation[]>([]);
   const statusLocks = useRef(new Set<string>());
+  const operationUuidsById = useRef(new Map<string, string>());
   const operationSequence = useRef(0);
+  const queryClient = useQueryClient();
   const { mutateAsync: mutateStatus } = useChangeCategoryStatus(sessionId);
 
   const registerOperation = useCallback(
@@ -31,6 +41,7 @@ const SessionScopedCategoryOperations = ({
         return;
       }
 
+      operationUuidsById.current.set(operation.id, operation.uuid);
       setOperations((current) => {
         if (current.some((registered) => registered.id === operation.id)) {
           return current;
@@ -63,6 +74,12 @@ const SessionScopedCategoryOperations = ({
         return;
       }
 
+      const uuid = operationUuidsById.current.get(operationId);
+      if (uuid !== undefined) {
+        statusLocks.current.delete(uuid);
+        operationUuidsById.current.delete(operationId);
+      }
+
       setOperations((current) => current.filter((operation) => operation.id !== operationId));
     },
     [sessionId],
@@ -71,6 +88,57 @@ const SessionScopedCategoryOperations = ({
   const getOperationForCategory = useCallback(
     (uuid: string) => operations.find((operation) => operation.uuid === uuid),
     [operations],
+  );
+
+  const checkUncertainStatus = useCallback(
+    async (operationId: string, uuid: string) => {
+      if (sessionId === null || !isCurrentSession(sessionId)) {
+        return;
+      }
+
+      setOperationPhase(operationId, "checking");
+
+      try {
+        const detailKey = categoryDetailQueryKey(sessionId, uuid);
+        await queryClient.cancelQueries({ queryKey: detailKey, exact: true });
+        if (!isCurrentSession(sessionId)) {
+          return;
+        }
+
+        await queryClient.fetchQuery({
+          queryKey: detailKey,
+          queryFn: ({ signal }) => getCategory({ uuid }, signal),
+          staleTime: 0,
+          retry: false,
+        });
+
+        if (!isCurrentSession(sessionId)) {
+          return;
+        }
+
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: ["categories", "management-list", sessionId],
+          }),
+          queryClient.invalidateQueries({
+            queryKey: ["categories", "active-list", sessionId],
+            refetchType: "none",
+          }),
+        ]);
+
+        if (isCurrentSession(sessionId)) {
+          setOperationPhase(operationId, "confirmed");
+        }
+      } catch (error: unknown) {
+        if (isCurrentSession(sessionId)) {
+          setOperationPhase(
+            operationId,
+            isCategoryNotFoundError(error) ? "not-found" : "check-failed",
+          );
+        }
+      }
+    },
+    [queryClient, sessionId, setOperationPhase],
   );
 
   const requestStatusChange = useCallback(
@@ -102,6 +170,8 @@ const SessionScopedCategoryOperations = ({
         phase: "pending",
       });
 
+      let preserveOperation = false;
+
       try {
         const category = await mutateStatus({
           uuid,
@@ -115,12 +185,29 @@ const SessionScopedCategoryOperations = ({
 
         setOperationPhase(operationId, "confirmed");
         return category;
+      } catch (error: unknown) {
+        if (isUncertainCategoryMutationError(error) || isCategoryResponseContractError(error)) {
+          preserveOperation = true;
+          setOperationPhase(operationId, "uncertain");
+          void checkUncertainStatus(operationId, uuid);
+        }
+
+        throw error;
       } finally {
-        statusLocks.current.delete(uuid);
-        removeOperation(operationId);
+        if (!preserveOperation) {
+          removeOperation(operationId);
+        }
       }
     },
-    [operations, registerOperation, removeOperation, sessionId, setOperationPhase, mutateStatus],
+    [
+      checkUncertainStatus,
+      operations,
+      registerOperation,
+      removeOperation,
+      sessionId,
+      setOperationPhase,
+      mutateStatus,
+    ],
   );
 
   const contextValue = useMemo(
