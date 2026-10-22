@@ -675,4 +675,86 @@ describe("category status actions", () => {
     expect(within(row).getByText("Activa")).toBeVisible();
     expect(patchRequestCount).toBe(1);
   });
+
+  it.each([
+    {
+      outcome: "success",
+      status: 200,
+      response: { data: category(false) },
+      expectedAnnouncement: "Categoría desactivada correctamente.",
+      announcementRole: "status",
+    },
+    {
+      outcome: "failure",
+      status: 503,
+      response: { error: { code: "SERVICE_UNAVAILABLE", message: "Internal details." } },
+      expectedAnnouncement:
+        "No se pudo confirmar el resultado del cambio de estado. Revisa la categoría al regresar a Categorías.",
+      announcementRole: "alert",
+    },
+  ] as const)(
+    "announces a delayed $outcome after leaving the list without changing route or focus and refreshes on return",
+    async ({ status, response, expectedAnnouncement, announcementRole }) => {
+      const user = userEvent.setup();
+      const { router } = renderCategoryList("OPERATOR", true);
+      const categoryRow = await screen.findByRole("row", { name: /Herramientas/ });
+      let listRequestCount = 0;
+      let patchRequestCount = 0;
+      let categoryIsActive = true;
+      let resolvePatchResponse!: (response: Response) => void;
+
+      server.use(
+        http.get(categoriesUrl, ({ request }) => {
+          listRequestCount += 1;
+          const url = new URL(request.url);
+          const requestedIsActive = url.searchParams.get("isActive") === "true";
+          const rows = requestedIsActive === categoryIsActive ? [category(categoryIsActive)] : [];
+          return HttpResponse.json({
+            data: rows,
+            pagination: { total: rows.length, page: 1, limit: 15 },
+          });
+        }),
+        http.patch(categoryUrl, () => {
+          patchRequestCount += 1;
+          return new Promise<Response>((resolve) => {
+            resolvePatchResponse = (patchResponse) => {
+              categoryIsActive = false;
+              resolve(patchResponse);
+            };
+          });
+        }),
+      );
+
+      await user.click(within(categoryRow).getByRole("button", { name: "Desactivar" }));
+      const confirmation = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+      await user.click(within(confirmation).getByRole("button", { name: "Desactivar" }));
+      await waitFor(() => expect(patchRequestCount).toBe(1));
+      await user.click(within(confirmation).getByRole("button", { name: "Cerrar" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+      await user.click(screen.getByRole("link", { name: "Inicio" }));
+      const homeHeading = await screen.findByRole("heading", {
+        level: 1,
+        name: "Bienvenido a Inventory",
+      });
+      const focusAfterNavigation = document.activeElement;
+      expect(router.state.location.pathname).toBe("/");
+      expect(homeHeading).toBeVisible();
+
+      resolvePatchResponse(HttpResponse.json(response, { status }));
+
+      expect(await screen.findByText(expectedAnnouncement)).toBeVisible();
+      expect(screen.getByRole(announcementRole)).toHaveTextContent(expectedAnnouncement);
+      expect(router.state.location.pathname).toBe("/");
+      expect(document.activeElement).toBe(focusAfterNavigation);
+      expect(listRequestCount).toBe(0);
+
+      await user.click(screen.getByRole("link", { name: "Categorías" }));
+      expect(await screen.findByText("No hay categorías para mostrar.")).toBeVisible();
+      expect(router.state.location.pathname).toBe("/categories");
+      expect(listRequestCount).toBe(1);
+      expect(patchRequestCount).toBe(1);
+      expect(homeHeading).not.toHaveFocus();
+    },
+  );
 });

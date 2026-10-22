@@ -1,6 +1,7 @@
 import "./category-list.page.css";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { isCurrentSession, useSession } from "@/features/auth";
@@ -12,6 +13,14 @@ import { CategoryListTable } from "../components/category-list-table";
 import { CategoryPageShell } from "../components/category-page-shell";
 import { useCategoryOperations } from "../hooks/use-category-operations";
 import { useCategoryList } from "../hooks/use-category-list";
+import {
+  categoryHasAssociatedProductsMessage,
+  categoryStatusForbiddenMessage,
+  isCategoryForbiddenError,
+  isCategoryHasAssociatedProductsError,
+  isCategoryNotFoundError,
+  isCategoryRateLimitedError,
+} from "../utils/category-api-errors";
 import {
   isCategoryListSortField,
   parseCategoryListUrlState,
@@ -36,6 +45,26 @@ const categoryOrderOptions: SelectOption[] = [
   { label: "Descendente", value: "desc" },
 ];
 
+const getLateStatusFailureMessage = (error: unknown): string => {
+  if (isCategoryHasAssociatedProductsError(error)) {
+    return categoryHasAssociatedProductsMessage;
+  }
+
+  if (isCategoryForbiddenError(error)) {
+    return categoryStatusForbiddenMessage;
+  }
+
+  if (isCategoryRateLimitedError(error)) {
+    return "El servidor rechazó temporalmente el cambio por límite de solicitudes. Vuelve a Categorías para comprobar su estado e intentarlo de nuevo.";
+  }
+
+  if (isCategoryNotFoundError(error)) {
+    return "La categoría ya no está disponible. El listado se actualizará al regresar a Categorías.";
+  }
+
+  return "No se pudo confirmar el resultado del cambio de estado. Revisa la categoría al regresar a Categorías.";
+};
+
 interface CategoryListSearchDraftState {
   serializedSearchParams: string;
   value: string;
@@ -43,9 +72,11 @@ interface CategoryListSearchDraftState {
 
 export const CategoryListPage = () => {
   const session = useSession();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const toast = useToast();
   const { operations, requestStatusChange } = useCategoryOperations();
+  const isCategoryListMounted = useRef(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const serializedSearchParams = searchParams.toString();
   const urlState = useMemo(
@@ -72,6 +103,12 @@ export const CategoryListPage = () => {
     [operations],
   );
   const categoryList = useCategoryList(sessionId, page, criteria);
+  useEffect(() => {
+    isCategoryListMounted.current = true;
+    return () => {
+      isCategoryListMounted.current = false;
+    };
+  }, []);
   const snapshot: DataTableSnapshot<Category> | undefined = categoryList.data
     ? {
         rows: categoryList.data.data,
@@ -161,20 +198,31 @@ export const CategoryListPage = () => {
   );
   const confirmCategoryStatusChange = useCallback(
     async (category: Category) => {
-      await requestStatusChange({
-        uuid: category.uuid,
-        previousIsActive: category.isActive,
-        requestedIsActive: !category.isActive,
-      });
-
-      if (sessionId !== null && isCurrentSession(sessionId)) {
-        toast.show({
-          kind: "success",
-          message: `Categoría ${category.isActive ? "desactivada" : "activada"} correctamente.`,
+      try {
+        await requestStatusChange({
+          uuid: category.uuid,
+          previousIsActive: category.isActive,
+          requestedIsActive: !category.isActive,
         });
+
+        if (sessionId !== null && isCurrentSession(sessionId)) {
+          toast.show({
+            kind: "success",
+            message: `Categoría ${category.isActive ? "desactivada" : "activada"} correctamente.`,
+          });
+        }
+      } catch (error: unknown) {
+        if (!isCategoryListMounted.current && sessionId !== null && isCurrentSession(sessionId)) {
+          toast.show({ kind: "error", message: getLateStatusFailureMessage(error) });
+          void queryClient.invalidateQueries({
+            queryKey: ["categories", "management-list", sessionId],
+          });
+        }
+
+        throw error;
       }
     },
-    [requestStatusChange, sessionId, toast],
+    [queryClient, requestStatusChange, sessionId, toast],
   );
 
   return (
