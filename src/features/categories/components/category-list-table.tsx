@@ -100,6 +100,32 @@ export const CategoryListTable = ({
       return;
     }
 
+    if (result.status === "ready") {
+      const currentCategory = result.rows.find(
+        (listedCategory) => listedCategory.uuid === category.uuid,
+      );
+
+      if (!currentCategory) {
+        setStatusError({
+          message:
+            "La categoría ya no aparece en la consulta actual. Se actualizará el listado; comprueba su disponibilidad antes de iniciar otra acción.",
+          canRetryManually: false,
+        });
+        void onRetry();
+        return;
+      }
+
+      if (currentCategory.isActive !== category.isActive) {
+        setStatusError({
+          message:
+            "El estado de la categoría cambió desde que abriste la confirmación. Se actualizará el listado; revisa su estado antes de iniciar otra acción.",
+          canRetryManually: false,
+        });
+        void onRetry();
+        return;
+      }
+    }
+
     const isManualRetry = statusError?.canRetryManually === true;
     setStatusError(null);
     setRetryingCategoryUuid(isManualRetry ? category.uuid : null);
@@ -126,7 +152,14 @@ export const CategoryListTable = ({
         setRetryingCategoryUuid((current) => (current === category.uuid ? null : current));
       }
     }
-  }, [categoryToConfirm, onConfirmStatusChange, pendingCategoryUuids, statusError]);
+  }, [
+    categoryToConfirm,
+    onConfirmStatusChange,
+    onRetry,
+    pendingCategoryUuids,
+    result,
+    statusError,
+  ]);
   const columns = useMemo<DataTableColumn<Category>[]>(
     () => [
       { key: "name", header: "Nombre", sortable: false },

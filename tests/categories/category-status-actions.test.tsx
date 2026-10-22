@@ -172,6 +172,83 @@ describe("category status actions", () => {
 
   it.each([
     {
+      scenario: "the category is no longer present in the current query",
+      updatedRows: [],
+      message:
+        "La categoría ya no aparece en la consulta actual. Se actualizará el listado; comprueba su disponibilidad antes de iniciar otra acción.",
+      updatedBadge: null,
+    },
+    {
+      scenario: "the category now has a different status",
+      updatedRows: [category(false)],
+      message:
+        "El estado de la categoría cambió desde que abriste la confirmación. Se actualizará el listado; revisa su estado antes de iniciar otra acción.",
+      updatedBadge: "Inactiva",
+    },
+  ])(
+    "blocks a stale confirmation when refreshed information shows that $scenario",
+    async ({ updatedRows, message, updatedBadge }) => {
+      const user = userEvent.setup();
+      const { queryClient, router } = renderCategoryList("OPERATOR", true);
+      const row = await screen.findByRole("row", { name: /Herramientas/ });
+      let listRequestCount = 0;
+      let patchRequestCount = 0;
+
+      server.use(
+        http.get(categoriesUrl, ({ request }) => {
+          listRequestCount += 1;
+          const url = new URL(request.url);
+          expect(url.searchParams.get("isActive")).toBe("true");
+          return HttpResponse.json({
+            data: updatedRows,
+            pagination: { total: updatedRows.length, page: 1, limit: 15 },
+          });
+        }),
+        http.patch(categoryUrl, () => {
+          patchRequestCount += 1;
+          return HttpResponse.json({ data: category(false) });
+        }),
+      );
+
+      await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+      const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+
+      await act(async () => {
+        await queryClient.invalidateQueries({
+          queryKey: ["categories", "management-list", "category-status-session"],
+        });
+      });
+
+      expect(listRequestCount).toBe(1);
+      expect(
+        queryClient
+          .getQueryCache()
+          .findAll({ queryKey: ["categories", "management-list", "category-status-session"] })
+          .at(0)?.state.data,
+      ).toMatchObject({ data: updatedRows });
+      await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent(message);
+      expect(within(dialog).getByRole("button", { name: "Cerrar" })).toBeVisible();
+      expect(within(dialog).queryByRole("button", { name: "Desactivar" })).not.toBeInTheDocument();
+      await waitFor(() => expect(listRequestCount).toBe(2));
+      expect(patchRequestCount).toBe(0);
+      expect(router.state.location.pathname).toBe("/categories");
+      expect(screen.queryByText("Categoría desactivada correctamente.")).not.toBeInTheDocument();
+
+      await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      if (updatedBadge) {
+        const refreshedRow = await screen.findByRole("row", { name: /Herramientas/ });
+        expect(within(refreshedRow).getByText(updatedBadge)).toBeVisible();
+      } else {
+        expect(await screen.findByText("No hay categorías para mostrar.")).toBeVisible();
+      }
+    },
+  );
+
+  it.each([
+    {
       initialIsActive: true,
       targetIsActive: false,
       action: "Desactivar",
