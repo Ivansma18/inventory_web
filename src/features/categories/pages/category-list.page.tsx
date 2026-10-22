@@ -13,6 +13,7 @@ import { CategoryListTable } from "../components/category-list-table";
 import { CategoryPageShell } from "../components/category-page-shell";
 import { useCategoryOperations } from "../hooks/use-category-operations";
 import { useCategoryList } from "../hooks/use-category-list";
+import { CategoryStatusCheckCompletedError } from "../providers/category-operations.context";
 import {
   categoryHasAssociatedProductsMessage,
   categoryStatusForbiddenMessage,
@@ -77,7 +78,8 @@ export const CategoryListPage = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const toast = useToast();
-  const { operations, removeOperation, requestStatusChange } = useCategoryOperations();
+  const { operations, removeOperation, requestStatusChange, retryStatusCheck } =
+    useCategoryOperations();
   const isCategoryListMounted = useRef(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const serializedSearchParams = searchParams.toString();
@@ -246,8 +248,16 @@ export const CategoryListPage = () => {
         }
       } catch (error: unknown) {
         if (!isCategoryListMounted.current && sessionId !== null && isCurrentSession(sessionId)) {
-          toast.show({ kind: "error", message: getLateStatusFailureMessage(error) });
-          if (!isUncertainCategoryMutationError(error) && !isCategoryResponseContractError(error)) {
+          const statusCheckCompleted = error instanceof CategoryStatusCheckCompletedError;
+          toast.show({
+            kind: statusCheckCompleted ? "info" : "error",
+            message: statusCheckCompleted ? error.message : getLateStatusFailureMessage(error),
+          });
+          if (
+            !statusCheckCompleted &&
+            !isUncertainCategoryMutationError(error) &&
+            !isCategoryResponseContractError(error)
+          ) {
             void queryClient.invalidateQueries({
               queryKey: ["categories", "management-list", sessionId],
             });
@@ -258,6 +268,29 @@ export const CategoryListPage = () => {
       }
     },
     [queryClient, requestStatusChange, sessionId, toast],
+  );
+  const retryCategoryStatusCheck = useCallback(
+    async (operationId: string) => {
+      const operation = operations.find((candidate) => candidate.id === operationId);
+      if (operation === undefined) {
+        return;
+      }
+
+      const observedCategory = await retryStatusCheck(operationId);
+      if (
+        observedCategory?.isActive === operation.requestedIsActive &&
+        sessionId !== null &&
+        isCurrentSession(sessionId)
+      ) {
+        toast.show({
+          kind: "info",
+          message: `La categoría "${observedCategory.name}" está ${
+            observedCategory.isActive ? "activa" : "inactiva"
+          } actualmente. Esta lectura no confirma si la solicitud anterior causó el cambio.`,
+        });
+      }
+    },
+    [operations, retryStatusCheck, sessionId, toast],
   );
 
   return (
@@ -328,6 +361,7 @@ export const CategoryListPage = () => {
         onPageChange={changePage}
         onPageCorrection={correctPage}
         onRetry={() => void categoryList.refetch()}
+        onRetryStatusCheck={(operationId) => void retryCategoryStatusCheck(operationId)}
         checkingCategoryUuids={checkingCategoryUuids}
         pendingCategoryUuids={pendingCategoryUuids}
         result={result}

@@ -798,7 +798,7 @@ describe("category status actions", () => {
         expect(detailRequestCount).toBe(1);
       });
       expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-        "No se pudo confirmar el cambio de estado. Revisa el estado de la categoría antes de volver a intentarlo.",
+        "No se pudo confirmar el cambio de estado. Se está comprobando el estado vigente antes de permitir otro cambio.",
       );
       expect(await within(dialog).findByRole("status")).toHaveTextContent(
         "Comprobando el estado vigente de la categoría…",
@@ -928,6 +928,58 @@ describe("category status actions", () => {
     expect(patchRequestCount).toBe(1);
   });
 
+  it("announces a status observed by the detail check without attributing it to the uncertain PATCH", async () => {
+    const user = userEvent.setup();
+    let patchRequestCount = 0;
+    let detailRequestCount = 0;
+    let listRequestCount = 0;
+    let categoryIsActive = true;
+
+    renderCategoryList("OPERATOR", true);
+    const row = await screen.findByRole("row", { name: /Herramientas/ });
+    server.use(
+      http.get(categoriesUrl, ({ request }) => {
+        listRequestCount += 1;
+        const requestedIsActive = new URL(request.url).searchParams.get("isActive") === "true";
+        const rows = requestedIsActive === categoryIsActive ? [category(categoryIsActive)] : [];
+        return HttpResponse.json({
+          data: rows,
+          pagination: { total: rows.length, page: 1, limit: 15 },
+        });
+      }),
+      http.patch(categoryUrl, () => {
+        patchRequestCount += 1;
+        categoryIsActive = false;
+        return HttpResponse.json(
+          { error: { code: "SERVICE_UNAVAILABLE", message: "Internal details." } },
+          { status: 503 },
+        );
+      }),
+      http.get(categoryUrl, () => {
+        detailRequestCount += 1;
+        return HttpResponse.json({ data: category(false) });
+      }),
+    );
+
+    await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+
+    const observedStatusMessage =
+      'La categoría "Herramientas" está inactiva actualmente. Esta lectura no confirma si la solicitud anterior causó el cambio.';
+    expect(await screen.findByText(observedStatusMessage)).toBeVisible();
+    expect(
+      screen
+        .getAllByRole("status")
+        .some((announcement) => announcement.textContent?.includes(observedStatusMessage)),
+    ).toBe(true);
+    expect(screen.queryByText("Categoría desactivada correctamente.")).not.toBeInTheDocument();
+    expect(await screen.findByText("No hay categorías para mostrar.")).toBeVisible();
+    expect(patchRequestCount).toBe(1);
+    expect(detailRequestCount).toBe(1);
+    expect(listRequestCount).toBe(1);
+  });
+
   it.each([
     {
       outcome: "success",
@@ -941,8 +993,8 @@ describe("category status actions", () => {
       status: 503,
       response: { error: { code: "SERVICE_UNAVAILABLE", message: "Internal details." } },
       expectedAnnouncement:
-        "No se pudo confirmar el resultado del cambio de estado. Revisa la categoría al regresar a Categorías.",
-      announcementRole: "alert",
+        'La categoría "Herramientas" está inactiva actualmente. Esta lectura no confirma si la solicitud anterior causó el cambio.',
+      announcementRole: "status",
     },
   ] as const)(
     "announces a delayed $outcome after leaving the list without changing route or focus and refreshes on return",
@@ -1003,12 +1055,6 @@ describe("category status actions", () => {
 
       resolvePatchResponse(HttpResponse.json(response, { status }));
 
-      expect(await screen.findByText(expectedAnnouncement)).toBeVisible();
-      expect(screen.getByRole(announcementRole)).toHaveTextContent(expectedAnnouncement);
-      expect(router.state.location.pathname).toBe("/");
-      expect(document.activeElement).toBe(focusAfterNavigation);
-      expect(listRequestCount).toBe(0);
-
       if (status === 503) {
         await waitFor(() => expect(detailRequestCount).toBe(1));
         resolveCheckDetail(HttpResponse.json({ data: category(false) }));
@@ -1023,6 +1069,12 @@ describe("category status actions", () => {
           ).toBe(true),
         );
       }
+
+      expect(await screen.findByText(expectedAnnouncement)).toBeVisible();
+      expect(screen.getByRole(announcementRole)).toHaveTextContent(expectedAnnouncement);
+      expect(router.state.location.pathname).toBe("/");
+      expect(document.activeElement).toBe(focusAfterNavigation);
+      expect(listRequestCount).toBe(0);
 
       await user.click(screen.getByRole("link", { name: "Categorías" }));
       expect(await screen.findByText("No hay categorías para mostrar.")).toBeVisible();

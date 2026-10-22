@@ -13,6 +13,7 @@ import {
 import { categoryDetailQueryKey } from "../hooks/use-category";
 import { useChangeCategoryStatus } from "../hooks/use-change-category-status";
 import { CategoryOperationsContext } from "./category-operations.context";
+import { CategoryStatusCheckCompletedError } from "./category-operations.context";
 import type { CategoryOperation, CategoryOperationPhase } from "./category-operations.context";
 import type { CategoryStatusChangeRequest } from "./category-operations.context";
 
@@ -94,7 +95,7 @@ const SessionScopedCategoryOperations = ({
   const checkUncertainStatus = useCallback(
     async (operationId: string, uuid: string) => {
       if (sessionId === null || !isCurrentSession(sessionId) || checksInFlight.current.has(uuid)) {
-        return;
+        return undefined;
       }
 
       checksInFlight.current.add(uuid);
@@ -107,7 +108,7 @@ const SessionScopedCategoryOperations = ({
           return;
         }
 
-        await queryClient.fetchQuery({
+        const observedCategory = await queryClient.fetchQuery({
           queryKey: detailKey,
           queryFn: ({ signal }) => getCategory({ uuid }, signal),
           staleTime: 0,
@@ -130,7 +131,10 @@ const SessionScopedCategoryOperations = ({
 
         if (isCurrentSession(sessionId)) {
           setOperationPhase(operationId, "confirmed");
+          return observedCategory;
         }
+
+        return undefined;
       } catch (error: unknown) {
         if (isCurrentSession(sessionId)) {
           setOperationPhase(
@@ -138,6 +142,8 @@ const SessionScopedCategoryOperations = ({
             isCategoryNotFoundError(error) ? "not-found" : "check-failed",
           );
         }
+
+        return undefined;
       } finally {
         checksInFlight.current.delete(uuid);
       }
@@ -148,17 +154,17 @@ const SessionScopedCategoryOperations = ({
   const retryStatusCheck = useCallback(
     async (operationId: string) => {
       if (sessionId === null || !isCurrentSession(sessionId)) {
-        return;
+        return undefined;
       }
 
       const operation = operations.find(
         (candidate) => candidate.id === operationId && candidate.sessionId === sessionId,
       );
       if (operation?.phase !== "check-failed") {
-        return;
+        return undefined;
       }
 
-      await checkUncertainStatus(operation.id, operation.uuid);
+      return checkUncertainStatus(operation.id, operation.uuid);
     },
     [checkUncertainStatus, operations, sessionId],
   );
@@ -211,7 +217,10 @@ const SessionScopedCategoryOperations = ({
         if (isUncertainCategoryMutationError(error) || isCategoryResponseContractError(error)) {
           preserveOperation = true;
           setOperationPhase(operationId, "uncertain");
-          void checkUncertainStatus(operationId, uuid);
+          const observedCategory = await checkUncertainStatus(operationId, uuid);
+          if (observedCategory?.isActive === requestedIsActive) {
+            throw new CategoryStatusCheckCompletedError(observedCategory);
+          }
         }
 
         throw error;

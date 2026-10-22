@@ -8,6 +8,7 @@ import type { DataTableColumn, DataTableResult } from "@/shared/ui";
 import { CATEGORY_LIST_PAGE_SIZE } from "../api/categories-api";
 import type { Category } from "../api/category-contract";
 import { useCategoryOperations } from "../hooks/use-category-operations";
+import { CategoryStatusCheckCompletedError } from "../providers/category-operations.context";
 import {
   categoryHasAssociatedProductsMessage,
   categoryStatusForbiddenMessage,
@@ -30,10 +31,12 @@ const getCategoryListFocusFallback = (): HTMLElement => {
 interface CategoryListRowActionsProps {
   category: Category;
   onEditCategory: (category: Category) => void;
+  onRetryStatusCheck: (operationId: string) => void;
   onRequestStatusChange: (category: Category) => void;
 }
 
-interface CategoryStatusFailure {
+interface CategoryStatusFeedback {
+  kind: "alert" | "status";
   message: string;
   canRetryManually: boolean;
 }
@@ -41,9 +44,10 @@ interface CategoryStatusFailure {
 const CategoryListRowActions = ({
   category,
   onEditCategory,
+  onRetryStatusCheck,
   onRequestStatusChange,
 }: CategoryListRowActionsProps) => {
-  const { getOperationForCategory, retryStatusCheck } = useCategoryOperations();
+  const { getOperationForCategory } = useCategoryOperations();
   const operation = getOperationForCategory(category.uuid);
   const isPending = operation?.phase === "pending" || operation?.phase === "checking";
   const isCheckFailed = operation?.phase === "check-failed";
@@ -62,7 +66,7 @@ const CategoryListRowActions = ({
         loading={isPending}
         onClick={() => {
           if (isCheckFailed && operation) {
-            void retryStatusCheck(operation.id);
+            onRetryStatusCheck(operation.id);
             return;
           }
 
@@ -95,6 +99,7 @@ export interface CategoryListTableProps {
   onPageChange: (page: number) => void;
   onPageCorrection: (page: number) => void;
   onRetry: () => void;
+  onRetryStatusCheck: (operationId: string) => void;
   checkingCategoryUuids: readonly string[];
   pendingCategoryUuids: readonly string[];
   result: DataTableResult<Category>;
@@ -108,13 +113,14 @@ export const CategoryListTable = ({
   onPageChange,
   onPageCorrection,
   onRetry,
+  onRetryStatusCheck,
   checkingCategoryUuids,
   pendingCategoryUuids,
   result,
 }: CategoryListTableProps) => {
   const hasAppliedSearch = criteria.search.trim().length > 0;
   const [categoryToConfirm, setCategoryToConfirm] = useState<Category | null>(null);
-  const [statusError, setStatusError] = useState<CategoryStatusFailure | null>(null);
+  const [statusError, setStatusError] = useState<CategoryStatusFeedback | null>(null);
   const [retryingCategoryUuid, setRetryingCategoryUuid] = useState<string | null>(null);
   const openStatusConfirmation = useCallback((category: Category) => {
     setStatusError(null);
@@ -134,6 +140,7 @@ export const CategoryListTable = ({
 
       if (!currentCategory) {
         setStatusError({
+          kind: "alert",
           message:
             "La categoría ya no aparece en la consulta actual. Se actualizará el listado; comprueba su disponibilidad antes de iniciar otra acción.",
           canRetryManually: false,
@@ -144,6 +151,7 @@ export const CategoryListTable = ({
 
       if (currentCategory.isActive !== category.isActive) {
         setStatusError({
+          kind: "alert",
           message:
             "El estado de la categoría cambió desde que abriste la confirmación. Se actualizará el listado; revisa su estado antes de iniciar otra acción.",
           canRetryManually: false,
@@ -161,14 +169,29 @@ export const CategoryListTable = ({
       setStatusError(null);
       setCategoryToConfirm((current) => (current?.uuid === category.uuid ? null : current));
     } catch (error: unknown) {
-      if (isCategoryHasAssociatedProductsError(error)) {
-        setStatusError({ message: categoryHasAssociatedProductsMessage, canRetryManually: false });
+      if (error instanceof CategoryStatusCheckCompletedError) {
+        setStatusError({ kind: "status", message: error.message, canRetryManually: false });
+      } else if (isCategoryHasAssociatedProductsError(error)) {
+        setStatusError({
+          kind: "alert",
+          message: categoryHasAssociatedProductsMessage,
+          canRetryManually: false,
+        });
       } else if (isCategoryForbiddenError(error)) {
-        setStatusError({ message: categoryStatusForbiddenMessage, canRetryManually: false });
+        setStatusError({
+          kind: "alert",
+          message: categoryStatusForbiddenMessage,
+          canRetryManually: false,
+        });
       } else if (isCategoryRateLimitedError(error)) {
-        setStatusError({ message: categoryStatusRateLimitedMessage, canRetryManually: true });
+        setStatusError({
+          kind: "alert",
+          message: categoryStatusRateLimitedMessage,
+          canRetryManually: true,
+        });
       } else {
         setStatusError({
+          kind: "alert",
           message:
             "No se pudo confirmar el cambio de estado. Revisa el estado de la categoría antes de volver a intentarlo.",
           canRetryManually: false,
@@ -210,13 +233,14 @@ export const CategoryListTable = ({
           <CategoryListRowActions
             category={category}
             onEditCategory={onEditCategory}
+            onRetryStatusCheck={onRetryStatusCheck}
             onRequestStatusChange={openStatusConfirmation}
           />
         ),
         sortable: false,
       },
     ],
-    [onEditCategory, openStatusConfirmation],
+    [onEditCategory, onRetryStatusCheck, openStatusConfirmation],
   );
   const isStatusPending =
     categoryToConfirm !== null && pendingCategoryUuids.includes(categoryToConfirm.uuid);
@@ -293,7 +317,14 @@ export const CategoryListTable = ({
                     : "Actualizando el estado de la categoría…"}
               </p>
             ) : null}
-            {statusError ? <p role="alert">{statusError.message}</p> : null}
+            {isStatusChecking ? (
+              <p role="alert">
+                No se pudo confirmar el cambio de estado. Se está comprobando el estado vigente
+                antes de permitir otro cambio.
+              </p>
+            ) : statusError ? (
+              <p role={statusError.kind}>{statusError.message}</p>
+            ) : null}
           </div>
         ) : null}
       </Dialog>
