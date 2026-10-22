@@ -323,4 +323,123 @@ describe("category status actions", () => {
     expect(patchRequestCount).toBe(1);
     expect(listRequestCount).toBe(0);
   });
+
+  it.each([
+    { associatedProductStatus: "activo", associatedProductIsActive: true },
+    { associatedProductStatus: "inactivo", associatedProductIsActive: false },
+  ])(
+    "explains that an associated $associatedProductStatus product prevents deactivation without changing the category or offering direct retry",
+    async ({ associatedProductIsActive }) => {
+      const user = userEvent.setup();
+      let patchRequestCount = 0;
+      let deleteRequestCount = 0;
+      let listRequestCount = 0;
+
+      renderCategoryList("OPERATOR", true);
+      const row = await screen.findByRole("row", { name: /Herramientas/ });
+      server.use(
+        http.get(categoriesUrl, () => {
+          listRequestCount += 1;
+          return HttpResponse.json({
+            data: [category(true)],
+            pagination: { total: 1, page: 1, limit: 15 },
+          });
+        }),
+        http.patch(categoryUrl, () => {
+          patchRequestCount += 1;
+          return HttpResponse.json(
+            {
+              error: {
+                code: "CATEGORY_HAS_ASSOCIATED_PRODUCTS",
+                message: associatedProductIsActive
+                  ? "Category has an active associated product."
+                  : "Category has an inactive associated product.",
+              },
+            },
+            { status: 409 },
+          );
+        }),
+        http.delete(categoryUrl, () => {
+          deleteRequestCount += 1;
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+      const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+      await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+        "No se puede desactivar la categoría porque tiene productos asociados.",
+      );
+      expect(dialog).toHaveTextContent("La categoría seguirá activa.");
+      expect(dialog).toHaveTextContent("Esta acción no reasigna productos.");
+      expect(dialog).not.toHaveTextContent("Category has an");
+      expect(within(dialog).queryByRole("button", { name: "Desactivar" })).not.toBeInTheDocument();
+      expect(within(dialog).queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "Cerrar" })).toBeVisible();
+      expect(within(row).getByText("Activa")).toBeVisible();
+      expect(screen.queryByText("Categoría desactivada correctamente.")).not.toBeInTheDocument();
+      expect(patchRequestCount).toBe(1);
+      expect(deleteRequestCount).toBe(0);
+      expect(listRequestCount).toBe(0);
+
+      await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(within(row).getByText("Activa")).toBeVisible();
+      expect(patchRequestCount).toBe(1);
+    },
+  );
+
+  it("reports insufficient permission without success or a direct retry", async () => {
+    const user = userEvent.setup();
+    let patchRequestCount = 0;
+    let deleteRequestCount = 0;
+    let listRequestCount = 0;
+
+    renderCategoryList("OPERATOR", true);
+    const row = await screen.findByRole("row", { name: /Herramientas/ });
+    server.use(
+      http.get(categoriesUrl, () => {
+        listRequestCount += 1;
+        return HttpResponse.json({
+          data: [category(true)],
+          pagination: { total: 1, page: 1, limit: 15 },
+        });
+      }),
+      http.patch(categoryUrl, () => {
+        patchRequestCount += 1;
+        return HttpResponse.json(
+          { error: { code: "FORBIDDEN", message: "Sensitive backend authorization details." } },
+          { status: 403 },
+        );
+      }),
+      http.delete(categoryUrl, () => {
+        deleteRequestCount += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "No tienes permiso para cambiar el estado de esta categoría. No se realizaron cambios.",
+    );
+    expect(dialog).not.toHaveTextContent("Sensitive backend authorization details");
+    expect(within(dialog).queryByRole("button", { name: "Desactivar" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Cerrar" })).toBeVisible();
+    expect(within(row).getByText("Activa")).toBeVisible();
+    expect(screen.queryByText("Categoría desactivada correctamente.")).not.toBeInTheDocument();
+    expect(patchRequestCount).toBe(1);
+    expect(deleteRequestCount).toBe(0);
+    expect(listRequestCount).toBe(0);
+
+    await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(within(row).getByText("Activa")).toBeVisible();
+    expect(patchRequestCount).toBe(1);
+  });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isCategoryHasAssociatedProductsError,
   isCategoryNotFoundError,
   isDuplicateCategoryNameError,
 } from "@/features/categories/utils/category-api-errors";
@@ -59,5 +60,30 @@ describe("category API error classification", () => {
     },
   ])("recognizes only $description", ({ error, expected }) => {
     expect(isCategoryNotFoundError(error)).toBe(expected);
+  });
+
+  it.each([
+    {
+      description: "the associated-products conflict code and status",
+      error: { kind: "http", status: 409, code: "CATEGORY_HAS_ASSOCIATED_PRODUCTS" },
+      expected: true,
+    },
+    {
+      description: "a different conflict code with status 409",
+      error: { kind: "http", status: 409, code: "CATEGORY_NAME_ALREADY_EXISTS" },
+      expected: false,
+    },
+    {
+      description: "the associated-products code with another status",
+      error: { kind: "http", status: 403, code: "CATEGORY_HAS_ASSOCIATED_PRODUCTS" },
+      expected: false,
+    },
+    {
+      description: "a network failure",
+      error: { kind: "network", message: "Unable to reach the server." },
+      expected: false,
+    },
+  ])("recognizes only $description", ({ error, expected }) => {
+    expect(isCategoryHasAssociatedProductsError(error)).toBe(expected);
   });
 });

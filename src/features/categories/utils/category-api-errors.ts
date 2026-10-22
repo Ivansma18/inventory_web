@@ -41,6 +41,11 @@ export const isCategoryValidationError = (error: unknown): boolean => {
 export const isCategoryForbiddenError = (error: unknown): boolean =>
   getCategoryHttpError(error)?.status === 403;
 
+export const isCategoryHasAssociatedProductsError = (error: unknown): boolean => {
+  const httpError = getCategoryHttpError(error);
+  return httpError?.status === 409 && httpError.code === "CATEGORY_HAS_ASSOCIATED_PRODUCTS";
+};
+
 export const isCategoryNotFoundError = (error: unknown): boolean => {
   const httpError = getCategoryHttpError(error);
   return httpError?.status === 404 || httpError?.code === "CATEGORY_NOT_FOUND";
@@ -68,3 +73,9 @@ export const invalidCategoryNameMessage = "El nombre no es válido. Revísalo e 
 
 export const categoryValidationMessage =
   "El servidor rechazó los datos enviados. Revisa el formulario e inténtalo de nuevo.";
+
+export const categoryHasAssociatedProductsMessage =
+  "No se puede desactivar la categoría porque tiene productos asociados. La categoría seguirá activa. Esta acción no reasigna productos.";
+
+export const categoryStatusForbiddenMessage =
+  "No tienes permiso para cambiar el estado de esta categoría. No se realizaron cambios.";

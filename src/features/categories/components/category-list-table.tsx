@@ -8,6 +8,12 @@ import type { DataTableColumn, DataTableResult } from "@/shared/ui";
 import { CATEGORY_LIST_PAGE_SIZE } from "../api/categories-api";
 import type { Category } from "../api/category-contract";
 import { useCategoryOperations } from "../hooks/use-category-operations";
+import {
+  categoryHasAssociatedProductsMessage,
+  categoryStatusForbiddenMessage,
+  isCategoryForbiddenError,
+  isCategoryHasAssociatedProductsError,
+} from "../utils/category-api-errors";
 import type { CategoryListCriteria } from "../utils/category-list-url-state";
 
 const getCategoryListFocusFallback = (): HTMLElement => {
@@ -23,6 +29,11 @@ interface CategoryListRowActionsProps {
   category: Category;
   onEditCategory: (category: Category) => void;
   onRequestStatusChange: (category: Category) => void;
+}
+
+interface CategoryStatusFailure {
+  message: string;
+  directRetryBlocked: boolean;
 }
 
 const CategoryListRowActions = ({
@@ -74,7 +85,7 @@ export const CategoryListTable = ({
 }: CategoryListTableProps) => {
   const hasAppliedSearch = criteria.search.trim().length > 0;
   const [categoryToConfirm, setCategoryToConfirm] = useState<Category | null>(null);
-  const [statusError, setStatusError] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<CategoryStatusFailure | null>(null);
   const openStatusConfirmation = useCallback((category: Category) => {
     setStatusError(null);
     setCategoryToConfirm(category);
@@ -90,10 +101,18 @@ export const CategoryListTable = ({
     try {
       await onConfirmStatusChange(category);
       setCategoryToConfirm((current) => (current?.uuid === category.uuid ? null : current));
-    } catch {
-      setStatusError(
-        "No se pudo confirmar el cambio de estado. Revisa el estado de la categoría antes de volver a intentarlo.",
-      );
+    } catch (error: unknown) {
+      if (isCategoryHasAssociatedProductsError(error)) {
+        setStatusError({ message: categoryHasAssociatedProductsMessage, directRetryBlocked: true });
+      } else if (isCategoryForbiddenError(error)) {
+        setStatusError({ message: categoryStatusForbiddenMessage, directRetryBlocked: true });
+      } else {
+        setStatusError({
+          message:
+            "No se pudo confirmar el cambio de estado. Revisa el estado de la categoría antes de volver a intentarlo.",
+          directRetryBlocked: false,
+        });
+      }
     }
   }, [categoryToConfirm, onConfirmStatusChange, pendingCategoryUuids]);
   const columns = useMemo<DataTableColumn<Category>[]>(
@@ -161,11 +180,13 @@ export const CategoryListTable = ({
           categoryToConfirm ? (
             <div className="category-list-table__status-confirmation-actions">
               <Button onClick={closeStatusConfirmation} variant="secondary">
-                {isStatusPending ? "Cerrar" : "Cancelar"}
+                {isStatusPending || statusError?.directRetryBlocked ? "Cerrar" : "Cancelar"}
               </Button>
-              <Button loading={isStatusPending} onClick={() => void confirmStatusChange()}>
-                {categoryToConfirm.isActive ? "Desactivar" : "Activar"}
-              </Button>
+              {!statusError?.directRetryBlocked ? (
+                <Button loading={isStatusPending} onClick={() => void confirmStatusChange()}>
+                  {categoryToConfirm.isActive ? "Desactivar" : "Activar"}
+                </Button>
+              ) : null}
             </div>
           ) : undefined
         }
@@ -183,13 +204,13 @@ export const CategoryListTable = ({
               <p>La categoría se conservará en el catálogo; desactivarla no la elimina.</p>
             ) : null}
             {isStatusPending ? <p role="status">Actualizando el estado de la categoría…</p> : null}
-            {statusError ? <p role="alert">{statusError}</p> : null}
+            {statusError ? <p role="alert">{statusError.message}</p> : null}
           </div>
         ) : null}
       </Dialog>
       {statusError && categoryToConfirm === null ? (
         <p className="category-list-table__status-error" role="alert">
-          {statusError}
+          {statusError.message}
         </p>
       ) : null}
       {result.status === "error" ? (
