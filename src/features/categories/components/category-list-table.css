@@ -4,6 +4,31 @@
   white-space: nowrap;
 }
 
+.category-list-table__row-actions,
+.category-list-table__status-confirmation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+
+.category-list-table__status-confirmation {
+  display: grid;
+  gap: var(--ui-space-3);
+  min-inline-size: 0;
+}
+
+.category-list-table__status-confirmation > p {
+  margin: 0;
+  color: var(--ui-color-text);
+  font-size: var(--ui-font-size-sm);
+  line-height: var(--ui-line-height-relaxed);
+}
+
+.category-list-table__status-confirmation-actions {
+  justify-content: flex-end;
+}
+
 .category-list-table__retry {
   display: flex;
   justify-content: center;
