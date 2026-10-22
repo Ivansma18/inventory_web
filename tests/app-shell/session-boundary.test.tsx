@@ -1,3 +1,4 @@
+import { QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -11,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { appRoutes } from "@/app/router/router";
 import { SessionBoundary } from "@/app/layouts/session-boundary";
+import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
 interface Deferred<T> {
@@ -50,6 +52,7 @@ const unauthenticatedResponse = () =>
 const beginCompactSessionRefresh = async () => {
   const refreshResponse = deferred<Response>();
   const refreshRequestStarted = deferred<void>();
+  const queryClient = createQueryClient();
   let holdRefresh = false;
   let refetch: UseSessionResult["refetch"] | undefined;
 
@@ -79,10 +82,12 @@ const beginCompactSessionRefresh = async () => {
     return null;
   };
   const { container } = render(
-    <>
-      <RouterProvider router={router} />
-      <SessionRefreshDriver />
-    </>,
+    <QueryClientProvider client={queryClient}>
+      <>
+        <RouterProvider router={router} />
+        <SessionRefreshDriver />
+      </>
+    </QueryClientProvider>,
   );
 
   let initialRefresh!: Promise<AuthSessionQueryResult>;
@@ -102,7 +107,7 @@ const beginCompactSessionRefresh = async () => {
   });
   await refreshRequestStarted.promise;
 
-  return { container, refreshResponse, refreshResult, router };
+  return { container, queryClient, refreshResponse, refreshResult, router };
 };
 
 afterEach(() => {
@@ -250,7 +255,7 @@ describe("SessionBoundary", () => {
   });
 
   it("closes compact navigation, unlocks the page, and focuses the pending session heading", async () => {
-    const { container, refreshResponse, refreshResult, router } =
+    const { container, queryClient, refreshResponse, refreshResult, router } =
       await beginCompactSessionRefresh();
 
     const heading = await screen.findByRole("heading", {
@@ -265,10 +270,11 @@ describe("SessionBoundary", () => {
     refreshResponse.resolve(unauthenticatedResponse());
     await act(async () => refreshResult);
     router.dispose();
+    queryClient.clear();
   });
 
   it("keeps focus on the session heading when a refresh settles with an error", async () => {
-    const { container, refreshResponse, refreshResult, router } =
+    const { container, queryClient, refreshResponse, refreshResult, router } =
       await beginCompactSessionRefresh();
 
     refreshResponse.resolve(
@@ -288,10 +294,11 @@ describe("SessionBoundary", () => {
     expect(container).not.toHaveAttribute("inert");
     expect(container).not.toHaveAttribute("aria-hidden");
     router.dispose();
+    queryClient.clear();
   });
 
   it("keeps focus on the session heading when a refresh confirms no session", async () => {
-    const { container, refreshResponse, refreshResult, router } =
+    const { container, queryClient, refreshResponse, refreshResult, router } =
       await beginCompactSessionRefresh();
 
     refreshResponse.resolve(unauthenticatedResponse());
@@ -303,5 +310,6 @@ describe("SessionBoundary", () => {
     expect(container).not.toHaveAttribute("inert");
     expect(container).not.toHaveAttribute("aria-hidden");
     router.dispose();
+    queryClient.clear();
   });
 });

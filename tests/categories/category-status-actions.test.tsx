@@ -42,10 +42,12 @@ const routeResources: Array<{
 const renderCategoryList = (
   role: components["schemas"]["PublicAuthResponse"]["data"]["user"]["role"],
   isActive: boolean,
+  initialEntry?: string,
 ) => {
   const queryClient = createQueryClient();
-  const initialEntry = isActive ? "/categories" : "/categories?status=inactive";
-  const router = createMemoryRouter(appRoutes, { initialEntries: [initialEntry] });
+  const router = createMemoryRouter(appRoutes, {
+    initialEntries: [initialEntry ?? (isActive ? "/categories" : "/categories?status=inactive")],
+  });
   routeResources.push({ queryClient, router });
 
   server.use(
@@ -150,4 +152,175 @@ describe("category status actions", () => {
       expect(router.state.location.pathname).toBe("/categories");
     },
   );
+
+  it("opens category editing with the current list criteria as its safe return location", async () => {
+    const user = userEvent.setup();
+    const sourceSearch = "?page=1&search=almacen&status=active&sort=updatedAt&order=desc";
+    const { router } = renderCategoryList("OPERATOR", true, `/categories${sourceSearch}`);
+    const row = await screen.findByRole("row", { name: /Herramientas/ });
+
+    server.use(http.get(categoryUrl, () => HttpResponse.json({ data: category(true) })));
+    await user.click(within(row).getByRole("button", { name: "Editar" }));
+
+    expect(await screen.findByRole("heading", { name: "Editar categoría" })).toBeVisible();
+    expect(router.state.location.pathname).toBe(`/categories/${categoryUuid}/edit`);
+    expect(new URLSearchParams(router.state.location.search).get("returnTo")).toBe(
+      `/categories${sourceSearch}`,
+    );
+    expect(screen.getByRole("textbox", { name: /Nombre/ })).toHaveValue("Herramientas");
+  });
+
+  it.each([
+    {
+      initialIsActive: true,
+      targetIsActive: false,
+      action: "Desactivar",
+      confirmAction: "Desactivar",
+      expectedState: "Activa",
+      status: "active",
+    },
+    {
+      initialIsActive: false,
+      targetIsActive: true,
+      action: "Activar",
+      confirmAction: "Activar",
+      expectedState: "Inactiva",
+      status: "inactive",
+    },
+  ])(
+    "keeps $expectedState while the $confirmAction request is pending, blocks duplicate/edit actions, then refreshes the applied query",
+    async ({ initialIsActive, targetIsActive, action, confirmAction, expectedState, status }) => {
+      const user = userEvent.setup();
+      const sourceSearch = `?page=1&search=almacen&status=${status}&sort=updatedAt&order=desc`;
+      const { router } = renderCategoryList(
+        "OPERATOR",
+        initialIsActive,
+        `/categories${sourceSearch}`,
+      );
+      const row = await screen.findByRole("row", { name: /Herramientas/ });
+      const listRequests: URL[] = [];
+      let patchRequestCount = 0;
+      let patchBody: unknown;
+      let deleteRequestCount = 0;
+      let currentIsActive = initialIsActive;
+      let resolvePatchResponse!: (response: Response) => void;
+
+      server.use(
+        http.get(categoriesUrl, ({ request }) => {
+          const url = new URL(request.url);
+          listRequests.push(url);
+          const requestedIsActive = url.searchParams.get("isActive") === "true";
+          const rows = requestedIsActive === currentIsActive ? [category(currentIsActive)] : [];
+
+          return HttpResponse.json({
+            data: rows,
+            pagination: { total: rows.length, page: 1, limit: 15 },
+          });
+        }),
+        http.patch(categoryUrl, async ({ request }) => {
+          patchRequestCount += 1;
+          patchBody = await request.json();
+
+          return new Promise<Response>((resolve) => {
+            resolvePatchResponse = (response) => {
+              currentIsActive = targetIsActive;
+              resolve(response);
+            };
+          });
+        }),
+        http.delete(categoryUrl, () => {
+          deleteRequestCount += 1;
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      await user.click(within(row).getByRole("button", { name: action }));
+      const dialog = await screen.findByRole("dialog", {
+        name: initialIsActive ? "Confirmar desactivación" : "Confirmar activación",
+      });
+      await user.click(within(dialog).getByRole("button", { name: confirmAction }));
+
+      await waitFor(() => expect(patchRequestCount).toBe(1));
+      expect(patchBody).toEqual({ isActive: targetIsActive });
+      expect(within(row).getByText(expectedState)).toBeVisible();
+      expect(dialog).toHaveTextContent("Actualizando el estado de la categoría…");
+
+      const pendingConfirmButton = within(dialog).getByRole("button", {
+        name: confirmAction,
+      });
+      expect(pendingConfirmButton).toBeDisabled();
+      expect(pendingConfirmButton).toHaveAttribute("aria-busy", "true");
+      await user.click(pendingConfirmButton);
+      expect(patchRequestCount).toBe(1);
+
+      await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      const pendingRow = screen.getByRole("row", { name: /Herramientas/ });
+      expect(within(pendingRow).getByText(expectedState)).toBeVisible();
+
+      const pendingAction = within(pendingRow).getByRole("button", { name: action });
+      const editAction = within(pendingRow).getByRole("button", { name: "Editar" });
+      expect(pendingAction).toBeDisabled();
+      expect(pendingAction).toHaveAttribute("aria-busy", "true");
+      expect(editAction).toBeDisabled();
+      await user.click(pendingAction);
+      await user.click(editAction);
+      expect(patchRequestCount).toBe(1);
+      expect(router.state.location.pathname).toBe("/categories");
+      expect(router.state.location.search).toBe(sourceSearch);
+
+      resolvePatchResponse(HttpResponse.json({ data: category(targetIsActive) }));
+
+      expect(
+        await screen.findByText(
+          `Categoría ${targetIsActive ? "activada" : "desactivada"} correctamente.`,
+        ),
+      ).toBeVisible();
+      await screen.findByText("No se encontraron categorías con esta búsqueda.");
+      await waitFor(() => expect(listRequests.length).toBeGreaterThan(0));
+
+      const refreshedRequest = listRequests.at(-1);
+      expect(refreshedRequest?.searchParams.get("page")).toBe("1");
+      expect(refreshedRequest?.searchParams.get("search")).toBe("almacen");
+      expect(refreshedRequest?.searchParams.get("isActive")).toBe(String(initialIsActive));
+      expect(refreshedRequest?.searchParams.get("sort")).toBe("updatedAt");
+      expect(refreshedRequest?.searchParams.get("order")).toBe("desc");
+      expect(deleteRequestCount).toBe(0);
+      expect(router.state.location.search).toBe(sourceSearch);
+    },
+  );
+
+  it("keeps the confirmation and existing state when the response cannot confirm the requested status", async () => {
+    const user = userEvent.setup();
+    let patchRequestCount = 0;
+    let listRequestCount = 0;
+
+    renderCategoryList("OPERATOR", true);
+    const row = await screen.findByRole("row", { name: /Herramientas/ });
+    server.use(
+      http.get(categoriesUrl, () => {
+        listRequestCount += 1;
+        return HttpResponse.json({
+          data: [category(true)],
+          pagination: { total: 1, page: 1, limit: 15 },
+        });
+      }),
+      http.patch(categoryUrl, () => {
+        patchRequestCount += 1;
+        return HttpResponse.json({ data: category(true) });
+      }),
+    );
+
+    await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "No se pudo confirmar el cambio de estado. Revisa el estado de la categoría antes de volver a intentarlo.",
+    );
+    expect(within(row).getByText("Activa")).toBeVisible();
+    expect(screen.queryByText("Categoría desactivada correctamente.")).not.toBeInTheDocument();
+    expect(patchRequestCount).toBe(1);
+    expect(listRequestCount).toBe(0);
+  });
 });

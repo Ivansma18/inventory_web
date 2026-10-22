@@ -1,15 +1,16 @@
 import "./category-list.page.css";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useSearchParams } from "react-router";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useNavigate, useSearchParams } from "react-router";
 
-import { useSession } from "@/features/auth";
-import { Button, Input, Select } from "@/shared/ui";
+import { isCurrentSession, useSession } from "@/features/auth";
+import { Button, Input, Select, useToast } from "@/shared/ui";
 import type { DataTableResult, DataTableSnapshot, SelectOption } from "@/shared/ui";
 
 import type { Category } from "../api/category-contract";
 import { CategoryListTable } from "../components/category-list-table";
 import { CategoryPageShell } from "../components/category-page-shell";
+import { useCategoryOperations } from "../hooks/use-category-operations";
 import { useCategoryList } from "../hooks/use-category-list";
 import {
   isCategoryListSortField,
@@ -42,6 +43,9 @@ interface CategoryListSearchDraftState {
 
 export const CategoryListPage = () => {
   const session = useSession();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { operations, requestStatusChange } = useCategoryOperations();
   const [searchParams, setSearchParams] = useSearchParams();
   const serializedSearchParams = searchParams.toString();
   const urlState = useMemo(
@@ -60,6 +64,13 @@ export const CategoryListPage = () => {
   }
   const pendingPageCorrection = useRef<number | null>(null);
   const sessionId = session.status === "authenticated" ? session.session.id : null;
+  const pendingCategoryUuids = useMemo(
+    () =>
+      operations
+        .filter((operation) => operation.phase === "pending")
+        .map((operation) => operation.uuid),
+    [operations],
+  );
   const categoryList = useCategoryList(sessionId, page, criteria);
   const snapshot: DataTableSnapshot<Category> | undefined = categoryList.data
     ? {
@@ -134,6 +145,37 @@ export const CategoryListPage = () => {
   const updateSearchDraft = (value: string) => {
     setSearchDraftState({ serializedSearchParams, value });
   };
+  const editCategory = useCallback(
+    (category: Category) => {
+      if (pendingCategoryUuids.includes(category.uuid)) {
+        return;
+      }
+
+      const returnTo = `/categories?${serializeCategoryListUrlState(urlState).toString()}`;
+      const editSearchParams = new URLSearchParams({ returnTo });
+      void navigate(
+        `/categories/${encodeURIComponent(category.uuid)}/edit?${editSearchParams.toString()}`,
+      );
+    },
+    [navigate, pendingCategoryUuids, urlState],
+  );
+  const confirmCategoryStatusChange = useCallback(
+    async (category: Category) => {
+      await requestStatusChange({
+        uuid: category.uuid,
+        previousIsActive: category.isActive,
+        requestedIsActive: !category.isActive,
+      });
+
+      if (sessionId !== null && isCurrentSession(sessionId)) {
+        toast.show({
+          kind: "success",
+          message: `Categoría ${category.isActive ? "desactivada" : "activada"} correctamente.`,
+        });
+      }
+    },
+    [requestStatusChange, sessionId, toast],
+  );
 
   return (
     <CategoryPageShell
@@ -198,9 +240,12 @@ export const CategoryListPage = () => {
       <CategoryListTable
         criteria={criteria}
         onClearSearch={clearSearch}
+        onConfirmStatusChange={confirmCategoryStatusChange}
+        onEditCategory={editCategory}
         onPageChange={changePage}
         onPageCorrection={correctPage}
         onRetry={() => void categoryList.refetch()}
+        pendingCategoryUuids={pendingCategoryUuids}
         result={result}
       />
     </CategoryPageShell>

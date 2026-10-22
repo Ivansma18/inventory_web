@@ -14,9 +14,12 @@ describe("category list table empty states", () => {
       <CategoryListTable
         criteria={{ ...DEFAULT_CATEGORY_LIST_CRITERIA, search: "teclado" }}
         onClearSearch={onClearSearch}
+        onConfirmStatusChange={vi.fn()}
+        onEditCategory={vi.fn()}
         onPageChange={vi.fn()}
         onPageCorrection={vi.fn()}
         onRetry={vi.fn()}
+        pendingCategoryUuids={[]}
         result={{ status: "ready", rows: [], page: 1, total: 0 }}
       />,
     );
@@ -33,9 +36,12 @@ describe("category list table empty states", () => {
       <CategoryListTable
         criteria={DEFAULT_CATEGORY_LIST_CRITERIA}
         onClearSearch={vi.fn()}
+        onConfirmStatusChange={vi.fn()}
+        onEditCategory={vi.fn()}
         onPageChange={vi.fn()}
         onPageCorrection={vi.fn()}
         onRetry={vi.fn()}
+        pendingCategoryUuids={[]}
         result={{ status: "ready", rows: [], page: 1, total: 0 }}
       />,
     );

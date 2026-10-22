@@ -4,6 +4,7 @@ export { CategoryOperationsProvider } from "./providers/category-operations.prov
 export type {
   CategoryOperation,
   CategoryOperationPhase,
+  CategoryStatusChangeRequest,
 } from "./providers/category-operations.context";
 export type { CategoryOperationsProviderProps } from "./providers/category-operations.provider";
 export { useCategoryOperations } from "./hooks/use-category-operations";

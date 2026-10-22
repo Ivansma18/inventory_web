@@ -9,6 +9,7 @@ import {
   type CategoryCreatePayload,
   type CategoryInformationUpdatePayload,
   type CategoryListResponse,
+  type CategoryUpdatePayload,
 } from "./category-contract";
 
 export type CategoryListQuery = NonNullable<paths["/categories"]["get"]["parameters"]["query"]>;
@@ -20,6 +21,11 @@ export interface CategoryUpdateVariables {
   uuid: CategoryDetailPath["uuid"];
   isActive: boolean;
   payload: CategoryInformationUpdatePayload;
+}
+
+export interface CategoryStatusVariables {
+  uuid: CategoryDetailPath["uuid"];
+  isActive: NonNullable<CategoryUpdatePayload["isActive"]>;
 }
 
 export interface ActiveCategoryListCriteria {
@@ -104,6 +110,16 @@ export const updateCategory = async ({ uuid, isActive, payload }: CategoryUpdate
     path: `/categories/${encodeURIComponent(uuid)}`,
     method: "PATCH",
     data: payload,
+  });
+
+  return parseCategoryDataResponse(response, { uuid, isActive });
+};
+
+export const changeCategoryStatus = async ({ uuid, isActive }: CategoryStatusVariables) => {
+  const response = await httpClient.request<unknown, Pick<CategoryUpdatePayload, "isActive">>({
+    path: `/categories/${encodeURIComponent(uuid)}`,
+    method: "PATCH",
+    data: { isActive },
   });
 
   return parseCategoryDataResponse(response, { uuid, isActive });

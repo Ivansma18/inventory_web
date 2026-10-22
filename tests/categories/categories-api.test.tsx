@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { useActiveCategories, useCategory } from "@/features/categories";
 import { CategoryResponseContractError } from "@/features/categories/api/category-contract";
 import { useCreateCategory } from "@/features/categories/hooks/use-create-category";
+import { useChangeCategoryStatus } from "@/features/categories/hooks/use-change-category-status";
 import { useUpdateCategory } from "@/features/categories/hooks/use-update-category";
 import { useCategoryList } from "@/features/categories/hooks/use-category-list";
 import { createQueryClient } from "@/shared/api/query-client";
@@ -399,6 +400,74 @@ describe("category update mutation", () => {
       ).rejects.toBeDefined();
     });
 
+    expect(requestCount).toBe(1);
+  });
+});
+
+describe("category status mutation", () => {
+  it.each([true, false])(
+    "patches only the requested isActive value and validates the resulting status (%s)",
+    async (isActive) => {
+      let requestMethod: string | undefined;
+      let requestBody: unknown;
+      let deleteRequestCount = 0;
+      const expectedCategory = { ...category("Herramientas"), isActive };
+      const queryClient = createQueryClient();
+      queryClients.push(queryClient);
+
+      server.use(
+        http.patch(`https://inventory.test/api/categories/${categoryUuid}`, async ({ request }) => {
+          requestMethod = request.method;
+          requestBody = await request.json();
+          return HttpResponse.json({ data: expectedCategory });
+        }),
+        http.delete(`https://inventory.test/api/categories/${categoryUuid}`, () => {
+          deleteRequestCount += 1;
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      const { result } = renderHook(() => useChangeCategoryStatus(sessionId), {
+        wrapper: createWrapper(queryClient),
+      });
+
+      await act(async () => {
+        await expect(
+          result.current.mutateAsync({ uuid: categoryUuid, isActive, sessionId }),
+        ).resolves.toEqual(expectedCategory);
+      });
+
+      expect(requestMethod).toBe("PATCH");
+      expect(requestBody).toEqual({ isActive });
+      expect(deleteRequestCount).toBe(0);
+    },
+  );
+
+  it("does not confirm an invalid response or resend a failed PATCH automatically", async () => {
+    let requestCount = 0;
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: 3, retryDelay: 0 } },
+    });
+    queryClients.push(queryClient);
+
+    server.use(
+      http.patch(`https://inventory.test/api/categories/${categoryUuid}`, () => {
+        requestCount += 1;
+        return HttpResponse.json({ data: category("Herramientas") });
+      }),
+    );
+
+    const { result } = renderHook(() => useChangeCategoryStatus(sessionId), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({ uuid: categoryUuid, isActive: false, sessionId }),
+      ).rejects.toBeInstanceOf(CategoryResponseContractError);
+    });
+
+    expect(result.current.isError).toBe(true);
     expect(requestCount).toBe(1);
   });
 });

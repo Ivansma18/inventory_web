@@ -1,3 +1,4 @@
+import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -6,6 +7,7 @@ import { RouterProvider } from "react-router/dom";
 import { describe, expect, it } from "vitest";
 
 import { appRoutes } from "@/app/router/router";
+import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
 interface Deferred<T> {
@@ -49,8 +51,13 @@ describe("App Shell logout", () => {
     );
 
     const router = createMemoryRouter(appRoutes, { initialEntries: ["/"] });
+    const queryClient = createQueryClient();
     const user = userEvent.setup();
-    render(<RouterProvider router={router} />);
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
 
     const signOutButton = await screen.findByRole("button", { name: "Cerrar sesión" });
     expect(screen.getByRole("heading", { name: "Bienvenido a Inventory" })).toBeVisible();
@@ -89,5 +96,6 @@ describe("App Shell logout", () => {
     expect(screen.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
     expect(signOutRequests).toBe(2);
     router.dispose();
+    queryClient.clear();
   });
 });

@@ -1,12 +1,13 @@
 import "./category-list-table.css";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { Badge, Button, DataTable, Dialog } from "@/shared/ui";
 import type { DataTableColumn, DataTableResult } from "@/shared/ui";
 
 import { CATEGORY_LIST_PAGE_SIZE } from "../api/categories-api";
 import type { Category } from "../api/category-contract";
+import { useCategoryOperations } from "../hooks/use-category-operations";
 import type { CategoryListCriteria } from "../utils/category-list-url-state";
 
 const getCategoryListFocusFallback = (): HTMLElement => {
@@ -18,25 +19,83 @@ const getCategoryListFocusFallback = (): HTMLElement => {
   return heading;
 };
 
+interface CategoryListRowActionsProps {
+  category: Category;
+  onEditCategory: (category: Category) => void;
+  onRequestStatusChange: (category: Category) => void;
+}
+
+const CategoryListRowActions = ({
+  category,
+  onEditCategory,
+  onRequestStatusChange,
+}: CategoryListRowActionsProps) => {
+  const { getOperationForCategory } = useCategoryOperations();
+  const isPending = getOperationForCategory(category.uuid)?.phase === "pending";
+
+  return (
+    <div className="category-list-table__row-actions">
+      <Button disabled={isPending} onClick={() => onEditCategory(category)} variant="secondary">
+        Editar
+      </Button>
+      <Button
+        loading={isPending}
+        onClick={() => onRequestStatusChange(category)}
+        variant="secondary"
+      >
+        {category.isActive ? "Desactivar" : "Activar"}
+      </Button>
+    </div>
+  );
+};
+
 export interface CategoryListTableProps {
   criteria: CategoryListCriteria;
   onClearSearch: () => void;
+  onConfirmStatusChange: (category: Category) => Promise<void>;
+  onEditCategory: (category: Category) => void;
   onPageChange: (page: number) => void;
   onPageCorrection: (page: number) => void;
   onRetry: () => void;
+  pendingCategoryUuids: readonly string[];
   result: DataTableResult<Category>;
 }
 
 export const CategoryListTable = ({
   criteria,
   onClearSearch,
+  onConfirmStatusChange,
+  onEditCategory,
   onPageChange,
   onPageCorrection,
   onRetry,
+  pendingCategoryUuids,
   result,
 }: CategoryListTableProps) => {
   const hasAppliedSearch = criteria.search.trim().length > 0;
   const [categoryToConfirm, setCategoryToConfirm] = useState<Category | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const openStatusConfirmation = useCallback((category: Category) => {
+    setStatusError(null);
+    setCategoryToConfirm(category);
+  }, []);
+  const closeStatusConfirmation = useCallback(() => setCategoryToConfirm(null), []);
+  const confirmStatusChange = useCallback(async () => {
+    const category = categoryToConfirm;
+    if (category === null || pendingCategoryUuids.includes(category.uuid)) {
+      return;
+    }
+
+    setStatusError(null);
+    try {
+      await onConfirmStatusChange(category);
+      setCategoryToConfirm((current) => (current?.uuid === category.uuid ? null : current));
+    } catch {
+      setStatusError(
+        "No se pudo confirmar el cambio de estado. Revisa el estado de la categoría antes de volver a intentarlo.",
+      );
+    }
+  }, [categoryToConfirm, onConfirmStatusChange, pendingCategoryUuids]);
   const columns = useMemo<DataTableColumn<Category>[]>(
     () => [
       { key: "name", header: "Nombre", sortable: false },
@@ -57,19 +116,19 @@ export const CategoryListTable = ({
         key: "uuid",
         header: "Acciones",
         render: (category) => (
-          <div className="category-list-table__row-actions">
-            <Button onClick={() => setCategoryToConfirm(category)} variant="secondary">
-              {category.isActive ? "Desactivar" : "Activar"}
-            </Button>
-          </div>
+          <CategoryListRowActions
+            category={category}
+            onEditCategory={onEditCategory}
+            onRequestStatusChange={openStatusConfirmation}
+          />
         ),
         sortable: false,
       },
     ],
-    [],
+    [onEditCategory, openStatusConfirmation],
   );
-  const closeStatusConfirmation = () => setCategoryToConfirm(null);
-  const confirmStatusChange = () => setCategoryToConfirm(null);
+  const isStatusPending =
+    categoryToConfirm !== null && pendingCategoryUuids.includes(categoryToConfirm.uuid);
 
   return (
     <>
@@ -102,9 +161,9 @@ export const CategoryListTable = ({
           categoryToConfirm ? (
             <div className="category-list-table__status-confirmation-actions">
               <Button onClick={closeStatusConfirmation} variant="secondary">
-                Cancelar
+                {isStatusPending ? "Cerrar" : "Cancelar"}
               </Button>
-              <Button onClick={confirmStatusChange}>
+              <Button loading={isStatusPending} onClick={() => void confirmStatusChange()}>
                 {categoryToConfirm.isActive ? "Desactivar" : "Activar"}
               </Button>
             </div>
@@ -123,9 +182,16 @@ export const CategoryListTable = ({
             {categoryToConfirm.isActive ? (
               <p>La categoría se conservará en el catálogo; desactivarla no la elimina.</p>
             ) : null}
+            {isStatusPending ? <p role="status">Actualizando el estado de la categoría…</p> : null}
+            {statusError ? <p role="alert">{statusError}</p> : null}
           </div>
         ) : null}
       </Dialog>
+      {statusError && categoryToConfirm === null ? (
+        <p className="category-list-table__status-error" role="alert">
+          {statusError}
+        </p>
+      ) : null}
       {result.status === "error" ? (
         <div className="category-list-table__retry">
           <Button onClick={onRetry} variant="secondary">
