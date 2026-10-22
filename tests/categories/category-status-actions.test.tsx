@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
@@ -43,8 +43,8 @@ const renderCategoryList = (
   role: components["schemas"]["PublicAuthResponse"]["data"]["user"]["role"],
   isActive: boolean,
   initialEntry?: string,
+  queryClient = createQueryClient(),
 ) => {
-  const queryClient = createQueryClient();
   const router = createMemoryRouter(appRoutes, {
     initialEntries: [initialEntry ?? (isActive ? "/categories" : "/categories?status=inactive")],
   });
@@ -439,6 +439,162 @@ describe("category status actions", () => {
 
     await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(within(row).getByText("Activa")).toBeVisible();
+    expect(patchRequestCount).toBe(1);
+  });
+
+  it("offers manual retry for HTTP 429 only while the active category remains available", async () => {
+    const user = userEvent.setup();
+    const queryClient = createQueryClient();
+    queryClient.setMutationDefaults(
+      ["categories", "mutation", "category-status-session", "status"],
+      { retry: 3, retryDelay: 1 },
+    );
+    renderCategoryList("OPERATOR", true, undefined, queryClient);
+    let patchRequestCount = 0;
+    let deleteRequestCount = 0;
+    let listRequestCount = 0;
+    let isActive = true;
+    const requestBodies: unknown[] = [];
+    let resolveRetryResponse!: (response: Response) => void;
+
+    const row = await screen.findByRole("row", { name: /Herramientas/ });
+    server.use(
+      http.get(categoriesUrl, ({ request }) => {
+        listRequestCount += 1;
+        const requestedIsActive = new URL(request.url).searchParams.get("isActive") === "true";
+        const rows = requestedIsActive === isActive ? [category(isActive)] : [];
+
+        return HttpResponse.json({
+          data: rows,
+          pagination: { total: rows.length, page: 1, limit: 15 },
+        });
+      }),
+      http.patch(categoryUrl, async ({ request }) => {
+        patchRequestCount += 1;
+        requestBodies.push(await request.json());
+
+        if (patchRequestCount === 1) {
+          return HttpResponse.json(
+            { error: { code: "RATE_LIMITED", message: "Internal rate-limit details." } },
+            { status: 429 },
+          );
+        }
+
+        return new Promise<Response>((resolve) => {
+          resolveRetryResponse = (response) => {
+            isActive = false;
+            resolve(response);
+          };
+        });
+      }),
+      http.delete(categoryUrl, () => {
+        deleteRequestCount += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "El servidor rechazó temporalmente el cambio por límite de solicitudes. Puedes reintentarlo manualmente.",
+    );
+    expect(dialog).not.toHaveTextContent("Internal rate-limit details.");
+    expect(within(dialog).getByRole("button", { name: "Reintentar" })).toBeVisible();
+    expect(within(row).getByText("Activa")).toBeVisible();
+    expect(screen.queryByText("Categoría desactivada correctamente.")).not.toBeInTheDocument();
+    expect(patchRequestCount).toBe(1);
+    expect(listRequestCount).toBe(0);
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(patchRequestCount).toBe(1);
+
+    await user.click(within(dialog).getByRole("button", { name: "Reintentar" }));
+    await waitFor(() => expect(patchRequestCount).toBe(2));
+    expect(within(dialog).getByRole("button", { name: "Reintentar" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Reintentar" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+
+    resolveRetryResponse(HttpResponse.json({ data: category(false) }));
+    expect(await screen.findByText("Categoría desactivada correctamente.")).toBeVisible();
+    expect(await screen.findByText("No hay categorías para mostrar.")).toBeVisible();
+    expect(requestBodies).toEqual([{ isActive: false }, { isActive: false }]);
+    expect(patchRequestCount).toBe(2);
+    expect(deleteRequestCount).toBe(0);
+    expect(listRequestCount).toBeGreaterThan(0);
+  });
+
+  it.each([
+    {
+      scenario: "a 404 category-not-found response",
+      status: 404,
+      body: { error: { code: "CATEGORY_NOT_FOUND", message: "Not found." } },
+    },
+    {
+      scenario: "a 5xx uncertain response",
+      status: 503,
+      body: { error: { code: "SERVICE_UNAVAILABLE", message: "Unavailable." } },
+    },
+    {
+      scenario: "an invalid successful response with uncertain outcome",
+      status: 200,
+      body: { data: category(true) },
+    },
+  ])("does not offer manual retry for $scenario", async ({ status, body }) => {
+    const user = userEvent.setup();
+    let patchRequestCount = 0;
+
+    renderCategoryList("OPERATOR", true);
+    const row = await screen.findByRole("row", { name: /Herramientas/ });
+    server.use(
+      http.patch(categoryUrl, () => {
+        patchRequestCount += 1;
+        return HttpResponse.json(body, { status });
+      }),
+    );
+
+    await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+
+    expect(await within(dialog).findByRole("alert")).toBeVisible();
+    expect(within(dialog).queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Desactivar" })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Cerrar" })).toBeVisible();
+    expect(within(row).getByText("Activa")).toBeVisible();
+    expect(patchRequestCount).toBe(1);
+
+    await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(patchRequestCount).toBe(1);
+  });
+
+  it("does not offer manual retry for a network result with uncertain outcome", async () => {
+    const user = userEvent.setup();
+    let patchRequestCount = 0;
+
+    renderCategoryList("OPERATOR", true);
+    const row = await screen.findByRole("row", { name: /Herramientas/ });
+    server.use(
+      http.patch(categoryUrl, () => {
+        patchRequestCount += 1;
+        return HttpResponse.error();
+      }),
+    );
+
+    await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+
+    expect(await within(dialog).findByRole("alert")).toBeVisible();
+    expect(within(dialog).queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Cerrar" })).toBeVisible();
     expect(within(row).getByText("Activa")).toBeVisible();
     expect(patchRequestCount).toBe(1);
   });

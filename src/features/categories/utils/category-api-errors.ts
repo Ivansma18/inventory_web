@@ -46,6 +46,9 @@ export const isCategoryHasAssociatedProductsError = (error: unknown): boolean =>
   return httpError?.status === 409 && httpError.code === "CATEGORY_HAS_ASSOCIATED_PRODUCTS";
 };
 
+export const isCategoryRateLimitedError = (error: unknown): boolean =>
+  getCategoryHttpError(error)?.status === 429;
+
 export const isCategoryNotFoundError = (error: unknown): boolean => {
   const httpError = getCategoryHttpError(error);
   return httpError?.status === 404 || httpError?.code === "CATEGORY_NOT_FOUND";
@@ -79,3 +82,6 @@ export const categoryHasAssociatedProductsMessage =
 
 export const categoryStatusForbiddenMessage =
   "No tienes permiso para cambiar el estado de esta categoría. No se realizaron cambios.";
+
+export const categoryStatusRateLimitedMessage =
+  "El servidor rechazó temporalmente el cambio por límite de solicitudes. Puedes reintentarlo manualmente.";

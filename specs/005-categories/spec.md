@@ -132,7 +132,7 @@ El listado inicial mostrará categorías activas, quince elementos por página y
 - RF-80: SI el backend rechaza la desactivación por productos asociados, ENTONCES EL SISTEMA explicará ese motivo.
 - RF-81: SI el backend rechaza la desactivación por productos asociados, ENTONCES EL SISTEMA conservará la categoría activa.
 - RF-82: SI el backend rechaza la desactivación por productos asociados, ENTONCES EL SISTEMA excluirá la reasignación de productos de ese flujo.
-- RF-83: SI un cambio de estado falla por una causa recuperable distinta de permisos insuficientes, categoría inexistente, productos asociados o resultado incierto, ENTONCES EL SISTEMA ofrecerá un reintento manual mientras la categoría siga disponible para la operación.
+- RF-83: SI un cambio de estado es rechazado con HTTP 429 (Too Many Requests), ENTONCES EL SISTEMA ofrecerá un reintento manual, sin reenvío automático, mientras la categoría siga disponible para la operación.
 - RF-84: MIENTRAS un cambio de estado esté pendiente, EL SISTEMA permitirá navegar fuera del listado.
 - RF-85: CUANDO llegue una respuesta de cambio de estado después de abandonar el listado, EL SISTEMA conservará la página actual.
 - RF-86: CUANDO llegue una respuesta de cambio de estado después de abandonar el listado, EL SISTEMA conservará el foco actual.
@@ -206,7 +206,7 @@ El listado inicial mostrará categorías activas, quince elementos por página y
 - RF-139: SI una categoría seleccionada no aparece en una página o búsqueda de opciones sin confirmación de inexistencia o inactividad, ENTONCES EL SISTEMA conservará esa selección.
 - RF-140: SI falla la comprobación de existencia o actividad de una nueva categoría seleccionada, ENTONCES EL SISTEMA conservará esa selección sin considerarla inválida por ese fallo.
 
-RF-92 excluye el reenvío automático tras la comprobación de un resultado incierto. Si la comprobación informa que la categoría no existe, se aplican RF-95 y RF-98. RF-127 no garantiza detectar cambios concurrentes aún desconocidos por la aplicación; el backend conserva la autoridad sobre la modificación. RF-120 y RF-139–RF-140 no sustituyen la autorización del backend al guardar una asignación ni modifican el tratamiento de la categoría original definido en RF-108.
+RF-92 excluye el reenvío automático tras la comprobación de un resultado incierto. HTTP 429 es el único rechazo de cambio de estado habilitado para reintento manual en RF-83; 403, 404, el conflicto de productos asociados y los resultados inciertos no permiten reintento directo. Si la comprobación informa que la categoría no existe, se aplican RF-95 y RF-98. RF-127 no garantiza detectar cambios concurrentes aún desconocidos por la aplicación; el backend conserva la autoridad sobre la modificación. RF-120 y RF-139–RF-140 no sustituyen la autorización del backend al guardar una asignación ni modifican el tratamiento de la categoría original definido en RF-108.
 
 ## Requisitos no funcionales
 

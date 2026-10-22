@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   isCategoryHasAssociatedProductsError,
   isCategoryNotFoundError,
+  isCategoryRateLimitedError,
   isDuplicateCategoryNameError,
 } from "@/features/categories/utils/category-api-errors";
 
@@ -85,5 +86,30 @@ describe("category API error classification", () => {
     },
   ])("recognizes only $description", ({ error, expected }) => {
     expect(isCategoryHasAssociatedProductsError(error)).toBe(expected);
+  });
+
+  it.each([
+    {
+      description: "HTTP 429 even when the server omits an error code",
+      error: { kind: "http", status: 429, message: "The request was rate limited." },
+      expected: true,
+    },
+    {
+      description: "HTTP 429 with a public error code",
+      error: { kind: "http", status: 429, code: "RATE_LIMITED" },
+      expected: true,
+    },
+    {
+      description: "an uncertain server failure",
+      error: { kind: "http", status: 503, code: "SERVICE_UNAVAILABLE" },
+      expected: false,
+    },
+    {
+      description: "a network failure",
+      error: { kind: "network", message: "Unable to reach the server." },
+      expected: false,
+    },
+  ])("recognizes only $description as manually retryable", ({ error, expected }) => {
+    expect(isCategoryRateLimitedError(error)).toBe(expected);
   });
 });

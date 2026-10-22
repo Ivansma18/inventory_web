@@ -11,8 +11,10 @@ import { useCategoryOperations } from "../hooks/use-category-operations";
 import {
   categoryHasAssociatedProductsMessage,
   categoryStatusForbiddenMessage,
+  categoryStatusRateLimitedMessage,
   isCategoryForbiddenError,
   isCategoryHasAssociatedProductsError,
+  isCategoryRateLimitedError,
 } from "../utils/category-api-errors";
 import type { CategoryListCriteria } from "../utils/category-list-url-state";
 
@@ -33,7 +35,7 @@ interface CategoryListRowActionsProps {
 
 interface CategoryStatusFailure {
   message: string;
-  directRetryBlocked: boolean;
+  canRetryManually: boolean;
 }
 
 const CategoryListRowActions = ({
@@ -86,6 +88,7 @@ export const CategoryListTable = ({
   const hasAppliedSearch = criteria.search.trim().length > 0;
   const [categoryToConfirm, setCategoryToConfirm] = useState<Category | null>(null);
   const [statusError, setStatusError] = useState<CategoryStatusFailure | null>(null);
+  const [retryingCategoryUuid, setRetryingCategoryUuid] = useState<string | null>(null);
   const openStatusConfirmation = useCallback((category: Category) => {
     setStatusError(null);
     setCategoryToConfirm(category);
@@ -97,24 +100,33 @@ export const CategoryListTable = ({
       return;
     }
 
+    const isManualRetry = statusError?.canRetryManually === true;
     setStatusError(null);
+    setRetryingCategoryUuid(isManualRetry ? category.uuid : null);
     try {
       await onConfirmStatusChange(category);
+      setStatusError(null);
       setCategoryToConfirm((current) => (current?.uuid === category.uuid ? null : current));
     } catch (error: unknown) {
       if (isCategoryHasAssociatedProductsError(error)) {
-        setStatusError({ message: categoryHasAssociatedProductsMessage, directRetryBlocked: true });
+        setStatusError({ message: categoryHasAssociatedProductsMessage, canRetryManually: false });
       } else if (isCategoryForbiddenError(error)) {
-        setStatusError({ message: categoryStatusForbiddenMessage, directRetryBlocked: true });
+        setStatusError({ message: categoryStatusForbiddenMessage, canRetryManually: false });
+      } else if (isCategoryRateLimitedError(error)) {
+        setStatusError({ message: categoryStatusRateLimitedMessage, canRetryManually: true });
       } else {
         setStatusError({
           message:
             "No se pudo confirmar el cambio de estado. Revisa el estado de la categoría antes de volver a intentarlo.",
-          directRetryBlocked: false,
+          canRetryManually: false,
         });
       }
+    } finally {
+      if (isManualRetry) {
+        setRetryingCategoryUuid((current) => (current === category.uuid ? null : current));
+      }
     }
-  }, [categoryToConfirm, onConfirmStatusChange, pendingCategoryUuids]);
+  }, [categoryToConfirm, onConfirmStatusChange, pendingCategoryUuids, statusError]);
   const columns = useMemo<DataTableColumn<Category>[]>(
     () => [
       { key: "name", header: "Nombre", sortable: false },
@@ -148,6 +160,9 @@ export const CategoryListTable = ({
   );
   const isStatusPending =
     categoryToConfirm !== null && pendingCategoryUuids.includes(categoryToConfirm.uuid);
+  const isManualRetryPending =
+    categoryToConfirm !== null && retryingCategoryUuid === categoryToConfirm.uuid;
+  const canSubmitStatusChange = statusError === null || statusError.canRetryManually;
 
   return (
     <>
@@ -180,11 +195,15 @@ export const CategoryListTable = ({
           categoryToConfirm ? (
             <div className="category-list-table__status-confirmation-actions">
               <Button onClick={closeStatusConfirmation} variant="secondary">
-                {isStatusPending || statusError?.directRetryBlocked ? "Cerrar" : "Cancelar"}
+                {isStatusPending || statusError !== null ? "Cerrar" : "Cancelar"}
               </Button>
-              {!statusError?.directRetryBlocked ? (
+              {canSubmitStatusChange ? (
                 <Button loading={isStatusPending} onClick={() => void confirmStatusChange()}>
-                  {categoryToConfirm.isActive ? "Desactivar" : "Activar"}
+                  {statusError?.canRetryManually || isManualRetryPending
+                    ? "Reintentar"
+                    : categoryToConfirm.isActive
+                      ? "Desactivar"
+                      : "Activar"}
                 </Button>
               ) : null}
             </div>
@@ -203,7 +222,13 @@ export const CategoryListTable = ({
             {categoryToConfirm.isActive ? (
               <p>La categoría se conservará en el catálogo; desactivarla no la elimina.</p>
             ) : null}
-            {isStatusPending ? <p role="status">Actualizando el estado de la categoría…</p> : null}
+            {isStatusPending ? (
+              <p role="status">
+                {isManualRetryPending
+                  ? "Reintentando el cambio de estado…"
+                  : "Actualizando el estado de la categoría…"}
+              </p>
+            ) : null}
             {statusError ? <p role="alert">{statusError.message}</p> : null}
           </div>
         ) : null}

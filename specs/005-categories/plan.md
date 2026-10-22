@@ -108,6 +108,7 @@ Los metadatos de operación contienen identificador, sesión, categoría, estado
 | Nombre inválido | `INVALID_CATEGORY_DATA`, 400 | Error del nombre cuando el código identifica esa regla. |
 | Validación no específica | `VALIDATION_ERROR`, 400 | Error general; no inferir campos del texto interno. |
 | Productos asociados | `CATEGORY_HAS_ASSOCIATED_PRODUCTS`, 409 | Explicar bloqueo, conservar estado, sin reasignación ni retry directo. |
+| Limitación temporal | HTTP 429 | Rechazo recuperable: ofrecer reintento manual explícito mientras la categoría siga disponible; nunca reintentar automáticamente. |
 | Inexistente | `CATEGORY_NOT_FOUND`, 404 | Estado específico y retorno actualizado; sin retry de escritura. |
 | Permisos | 403 | Operación no permitida, nunca éxito ni retry directo de estado. |
 | Sesión | 401 | Reconsultar Auth; SessionBoundary prevalece. |
@@ -116,6 +117,8 @@ Los metadatos de operación contienen identificador, sesión, categoría, estado
 | Escritura confirmada y lectura fallida | 2xx válido seguido de fallo de consulta | Conservar éxito; retry solo de lectura. |
 
 Los códigos/status determinan los mensajes españoles. No renderizar directamente mensajes del servidor ni registrar cuerpos sensibles. En toda respuesta tardía comprobar sesión antes de cachear o anunciar.
+
+El contrato OpenAPI actual no anuncia HTTP 429 para `PATCH /categories/:uuid`; la implementación de RF-83 acepta explícitamente ese status como recuperable y lo verifica con MSW. El backend debe publicar/emitir ese status para que el flujo aparezca en producción.
 
 ### Recuperación de un cambio de estado incierto
 
