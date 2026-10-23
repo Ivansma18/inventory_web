@@ -1,0 +1,258 @@
+import "./category-selector.css";
+
+import { useState } from "react";
+
+import { Button, Input, Select } from "@/shared/ui";
+import type { SelectOption } from "@/shared/ui";
+
+import { CATEGORY_LIST_PAGE_SIZE } from "../api/categories-api";
+import type { Category } from "../api/category-contract";
+import { useActiveCategories } from "../hooks/use-active-categories";
+import { useCategory } from "../hooks/use-category";
+
+export interface CategorySelectorProps {
+  sessionId: string | null;
+  value: string | null;
+  onValueChange: (value: string | null) => void;
+  originalCategoryUuid?: string | null;
+  disabled?: boolean;
+  error?: string;
+  label?: string;
+  required?: boolean;
+  allowEmptySelection?: boolean;
+  emptyMessage?: string;
+  onBlur?: () => void;
+  onActiveCategorySelected?: () => void;
+  onOptionsRefreshed?: () => void;
+}
+
+interface CategoryOption extends SelectOption {
+  category?: Category;
+}
+
+export const CategorySelector = ({
+  sessionId,
+  value,
+  onValueChange,
+  originalCategoryUuid = null,
+  disabled = false,
+  error,
+  label = "Categoría",
+  required = false,
+  allowEmptySelection = originalCategoryUuid === null,
+  emptyMessage,
+  onBlur,
+  onActiveCategorySelected,
+  onOptionsRefreshed,
+}: CategorySelectorProps) => {
+  const [searchDraft, setSearchDraft] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [retainedCategory, setRetainedCategory] = useState<Category | null>(null);
+  const categories = useActiveCategories(sessionId, { page, search });
+  const visibleCategories = categories.data?.data ?? [];
+  const originalCategoryIsVisible = visibleCategories.some(
+    (category) => category.uuid === originalCategoryUuid,
+  );
+  const shouldLoadOriginalCategory =
+    originalCategoryUuid !== null &&
+    (categories.isError || (categories.isSuccess && !originalCategoryIsVisible));
+  const originalCategoryQuery = useCategory(
+    sessionId,
+    shouldLoadOriginalCategory ? originalCategoryUuid : null,
+  );
+  const originalCategory =
+    visibleCategories.find((category) => category.uuid === originalCategoryUuid) ??
+    (originalCategoryQuery.data?.uuid === originalCategoryUuid ? originalCategoryQuery.data : null);
+
+  const categoryOptions: CategoryOption[] = visibleCategories.map((category) => ({
+    label: category.name,
+    value: category.uuid,
+    category,
+  }));
+  const addOption = (option: CategoryOption) => {
+    if (!categoryOptions.some((current) => current.value === option.value)) {
+      categoryOptions.push(option);
+    }
+  };
+
+  if (
+    retainedCategory !== null &&
+    retainedCategory.uuid === value &&
+    retainedCategory.uuid !== originalCategoryUuid
+  ) {
+    addOption({
+      label: retainedCategory.name,
+      value: retainedCategory.uuid,
+      category: retainedCategory,
+    });
+  }
+
+  if (originalCategoryUuid !== null) {
+    addOption({
+      label: originalCategory
+        ? `${originalCategory.name}${originalCategory.isActive ? "" : " (categoría actual)"}`
+        : "Categoría actual",
+      value: originalCategoryUuid,
+      category: originalCategory ?? undefined,
+    });
+  }
+
+  if (value !== null) {
+    addOption({ label: "Categoría seleccionada", value });
+  }
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(
+      (categories.data?.pagination.total ?? 0) /
+        (categories.data?.pagination.limit ?? CATEGORY_LIST_PAGE_SIZE),
+    ),
+  );
+  const resolvedEmptyMessage =
+    emptyMessage ??
+    (categories.isPending
+      ? "Cargando categorías activas…"
+      : categories.isError
+        ? "No se pudieron cargar las categorías activas."
+        : search
+          ? "No se encontraron categorías activas."
+          : originalCategoryUuid === null
+            ? "No hay categorías activas."
+            : "No hay categorías activas para reemplazar la categoría actual.");
+
+  const applySearch = () => {
+    setPage(1);
+    setSearch(searchDraft.trim());
+  };
+
+  const handleValueChange = (nextValue: string | null) => {
+    onValueChange(nextValue);
+
+    if (nextValue === null) {
+      setRetainedCategory(null);
+      return;
+    }
+
+    const nextActiveCategory = visibleCategories.find((category) => category.uuid === nextValue);
+    const nextRetainedCategory =
+      nextActiveCategory ??
+      (retainedCategory?.uuid === nextValue ? retainedCategory : null) ??
+      (originalCategory?.uuid === nextValue ? originalCategory : null);
+
+    setRetainedCategory(nextRetainedCategory);
+
+    if (nextActiveCategory) {
+      onActiveCategorySelected?.();
+    }
+  };
+
+  const refreshOptions = async () => {
+    const result = await categories.refetch();
+
+    if (result.isSuccess) {
+      onOptionsRefreshed?.();
+    }
+  };
+
+  return (
+    <div className="category-selector">
+      <div className="category-selector__search">
+        <Input
+          disabled={disabled}
+          helpText="Busca por nombre entre categorías activas."
+          label="Buscar categorías activas"
+          onValueChange={setSearchDraft}
+          type="search"
+          value={searchDraft}
+        />
+        <Button disabled={disabled} onClick={applySearch} type="button" variant="secondary">
+          Buscar categorías
+        </Button>
+      </div>
+
+      {categories.isFetching && visibleCategories.length > 0 ? (
+        <p className="category-selector__status" role="status">
+          Consultando categorías activas…
+        </p>
+      ) : null}
+
+      {categories.isError ? (
+        <div className="category-selector__error" role="alert">
+          <p>No se pudieron cargar las categorías activas.</p>
+          <Button
+            disabled={disabled}
+            loading={categories.isFetching}
+            onClick={() => void refreshOptions()}
+            type="button"
+            variant="secondary"
+          >
+            Reintentar
+          </Button>
+        </div>
+      ) : null}
+
+      {originalCategoryQuery.isFetching ? (
+        <p className="category-selector__status" role="status">
+          Consultando la categoría actual…
+        </p>
+      ) : null}
+
+      {originalCategoryQuery.isError ? (
+        <div className="category-selector__error" role="alert">
+          <p>La categoría actual no está disponible. Se conservará mientras no elijas otra.</p>
+          <Button
+            disabled={disabled}
+            loading={originalCategoryQuery.isFetching}
+            onClick={() => void originalCategoryQuery.refetch()}
+            type="button"
+            variant="secondary"
+          >
+            Reintentar categoría actual
+          </Button>
+        </div>
+      ) : null}
+
+      <Select
+        allowEmptySelection={allowEmptySelection}
+        disabled={disabled || categories.isPending || categories.isError}
+        emptyMessage={resolvedEmptyMessage}
+        error={error}
+        key={`${value ?? "empty"}:${
+          categoryOptions.find((option) => option.value === value)?.label ?? ""
+        }`}
+        label={label}
+        onBlur={onBlur}
+        onValueChange={handleValueChange}
+        options={categoryOptions}
+        placeholder={required ? "Selecciona una categoría" : "Sin categoría"}
+        required={required}
+        value={value}
+      />
+
+      {categories.data && categories.data.pagination.total > categories.data.pagination.limit ? (
+        <div className="category-selector__pagination">
+          <Button
+            disabled={disabled || page <= 1}
+            onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+            type="button"
+            variant="secondary"
+          >
+            Página anterior de categorías
+          </Button>
+          <span aria-live="polite">
+            Página {categories.data.pagination.page} de {totalPages}
+          </span>
+          <Button
+            disabled={disabled || page >= totalPages}
+            onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
+            type="button"
+            variant="secondary"
+          >
+            Página siguiente de categorías
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+};

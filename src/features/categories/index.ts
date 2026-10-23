@@ -1,5 +1,7 @@
 export { useActiveCategories } from "./hooks/use-active-categories";
 export { useCategory } from "./hooks/use-category";
+export { CategorySelector } from "./components/category-selector";
+export type { CategorySelectorProps } from "./components/category-selector";
 export { CategoryOperationsProvider } from "./providers/category-operations.provider";
 export type {
   CategoryOperation,
