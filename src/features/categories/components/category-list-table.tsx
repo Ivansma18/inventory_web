@@ -117,6 +117,7 @@ export interface CategoryListTableProps {
   checkingCategoryUuids: readonly string[];
   notFoundCategoryUuids: readonly string[];
   pendingCategoryUuids: readonly string[];
+  retryLabel?: string;
   result: DataTableResult<Category>;
 }
 
@@ -132,6 +133,7 @@ export const CategoryListTable = ({
   checkingCategoryUuids,
   notFoundCategoryUuids,
   pendingCategoryUuids,
+  retryLabel = "Reintentar",
   result,
 }: CategoryListTableProps) => {
   const hasAppliedSearch = criteria.search.trim().length > 0;
@@ -413,7 +415,7 @@ export const CategoryListTable = ({
       {result.status === "error" ? (
         <div className="category-list-table__retry">
           <Button onClick={onRetry} variant="secondary">
-            Reintentar
+            {retryLabel}
           </Button>
         </div>
       ) : null}

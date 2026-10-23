@@ -615,6 +615,66 @@ describe("category status actions", () => {
     expect(listRequestCount).toBeGreaterThan(0);
   });
 
+  it("keeps the confirmed status change visible when list refresh fails and retries only the read", async () => {
+    const user = userEvent.setup();
+    const { router } = renderCategoryList("OPERATOR", true);
+    const row = await screen.findByRole("row", { name: /Herramientas/ });
+    let patchRequestCount = 0;
+    let listRequestCount = 0;
+
+    server.use(
+      http.patch(categoryUrl, () => {
+        patchRequestCount += 1;
+        return HttpResponse.json({ data: category(false) });
+      }),
+      http.get(categoriesUrl, () => {
+        listRequestCount += 1;
+        if (listRequestCount === 1) {
+          return HttpResponse.json(
+            { error: { code: "INTERNAL_ERROR", message: "Refresh failed." } },
+            { status: 503 },
+          );
+        }
+
+        return HttpResponse.json({
+          data: [category(false)],
+          pagination: { total: 1, page: 1, limit: 15 },
+        });
+      }),
+    );
+
+    await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
+
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("status")
+          .some((status) => status.textContent?.includes("escritura ya fue confirmada")),
+      ).toBe(true),
+    );
+    expect(
+      screen
+        .getAllByRole("status")
+        .find((status) => status.textContent?.includes("escritura ya fue confirmada")),
+    ).toHaveTextContent(
+      "Categoría desactivada correctamente.No se pudo actualizar el listado. Reintenta únicamente la consulta; la escritura ya fue confirmada y no se volverá a enviar.",
+    );
+    expect(
+      await screen.findByRole("button", { name: "Reintentar solo la consulta" }),
+    ).toBeEnabled();
+    expect(patchRequestCount).toBe(1);
+    await waitFor(() => expect(listRequestCount).toBe(1));
+
+    await user.click(screen.getByRole("button", { name: "Reintentar solo la consulta" }));
+
+    expect(await screen.findByRole("row", { name: /Herramientas/ })).toHaveTextContent("Inactiva");
+    expect(patchRequestCount).toBe(1);
+    expect(listRequestCount).toBe(2);
+    expect(router.state.location.pathname).toBe("/categories");
+  });
+
   it.each([
     {
       scenario: "a 404 category-not-found response",

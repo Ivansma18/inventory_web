@@ -446,6 +446,13 @@ describe("category edit form", () => {
       }),
       http.get(categoriesUrl, ({ request }) => {
         listRequests.push(new URL(request.url));
+        if (listRequests.length === 1) {
+          return HttpResponse.json(
+            { error: { code: "INTERNAL_ERROR", message: "Refresh failed." } },
+            { status: 503 },
+          );
+        }
+
         return HttpResponse.json({
           data: [category("Herramientas actualizadas")],
           pagination: { total: 46, page: 3, limit: 15 },
@@ -482,11 +489,19 @@ describe("category edit form", () => {
       patchResponse.resolve(HttpResponse.json({ data: category("Herramientas actualizadas") }));
     });
 
-    expect(await screen.findByText("Categoría actualizada correctamente.")).toBeVisible();
+    expect(
+      await screen.findByText("Categoría actualizada correctamente.", {
+        selector: ".p-toast-detail",
+      }),
+    ).toBeVisible();
     await waitFor(() => expect(router.state.location.pathname).toBe("/categories"));
     expect(router.state.location.search).toBe(
       "?page=3&search=tools&status=inactive&sort=updatedAt&order=desc",
     );
+    expect(router.state.location.state).toEqual({
+      categoryWriteConfirmed: "updated",
+      categoryWriteLocation: sourceListUrl,
+    });
     expect(await screen.findByRole("heading", { level: 1, name: "Categorías" })).toBeVisible();
     await waitFor(() => expect(listRequests).toHaveLength(1));
     expect(Object.fromEntries(listRequests[0]!.searchParams)).toEqual({
@@ -497,6 +512,27 @@ describe("category edit form", () => {
       sort: "updatedAt",
       order: "desc",
     });
+    expect(patchBodies).toHaveLength(1);
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("status")
+          .some((status) => status.textContent?.includes("escritura ya fue confirmada")),
+      ).toBe(true),
+    );
+    expect(
+      screen
+        .getAllByRole("status")
+        .find((status) => status.textContent?.includes("escritura ya fue confirmada")),
+    ).toHaveTextContent(
+      "Categoría actualizada correctamente.No se pudo actualizar el listado. Reintenta únicamente la consulta; la escritura ya fue confirmada y no se volverá a enviar.",
+    );
+    expect(screen.getByRole("button", { name: "Reintentar solo la consulta" })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "Reintentar solo la consulta" }));
+
+    expect(await screen.findByRole("row", { name: /Herramientas actualizadas/ })).toBeVisible();
+    expect(listRequests).toHaveLength(2);
     expect(patchBodies).toHaveLength(1);
   });
 

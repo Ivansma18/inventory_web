@@ -139,7 +139,13 @@ export const CategoryCreatePage = () => {
       page: 1,
       criteria: DEFAULT_CATEGORY_LIST_CRITERIA,
     });
-    void navigate(`/categories?${defaultListSearch}`, { replace: true });
+    void navigate(`/categories?${defaultListSearch}`, {
+      replace: true,
+      state: {
+        categoryWriteConfirmed: "created",
+        categoryWriteLocation: `/categories?${defaultListSearch}`,
+      },
+    });
   };
 
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {

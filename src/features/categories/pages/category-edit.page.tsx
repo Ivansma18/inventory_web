@@ -193,7 +193,10 @@ const LoadedCategoryFields = ({ category, returnTo, sessionId }: LoadedCategoryF
     navigationGuard.dismissProtection();
     navigationGuard.resetBlockedNavigation();
     toast.show({ kind: "success", message: "Categoría actualizada correctamente." });
-    void navigate(returnTo, { replace: true });
+    void navigate(returnTo, {
+      replace: true,
+      state: { categoryWriteConfirmed: "updated", categoryWriteLocation: returnTo },
+    });
   };
 
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {

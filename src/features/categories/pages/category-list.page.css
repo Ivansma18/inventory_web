@@ -21,6 +21,23 @@
   font-weight: var(--ui-font-weight-medium);
 }
 
+.category-list__write-confirmation {
+  display: grid;
+  gap: var(--ui-space-1);
+  margin-block: var(--ui-space-3);
+  padding: var(--ui-space-3);
+  border: var(--ui-border-width) solid var(--ui-color-success);
+  border-radius: var(--ui-radius-md);
+  background-color: var(--ui-color-success-surface);
+  color: var(--ui-color-success-ink);
+  font-size: var(--ui-font-size-sm);
+  line-height: var(--ui-line-height-relaxed);
+}
+
+.category-list__write-confirmation > strong {
+  font-weight: var(--ui-font-weight-semibold);
+}
+
 @media (max-width: 40rem) {
   .category-list__filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));

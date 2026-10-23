@@ -2,7 +2,7 @@ import "./category-list.page.css";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 
 import { isCurrentSession, useSession } from "@/features/auth";
 import { Button, Input, Select, useToast } from "@/shared/ui";
@@ -48,6 +48,28 @@ const categoryOrderOptions: SelectOption[] = [
   { label: "Descendente", value: "desc" },
 ];
 
+const getConfirmedWriteMessage = (state: unknown, currentLocation: string): string | null => {
+  if (
+    typeof state !== "object" ||
+    state === null ||
+    !("categoryWriteConfirmed" in state) ||
+    !("categoryWriteLocation" in state) ||
+    state.categoryWriteLocation !== currentLocation
+  ) {
+    return null;
+  }
+
+  if (state.categoryWriteConfirmed === "created") {
+    return "Categoría creada correctamente.";
+  }
+
+  if (state.categoryWriteConfirmed === "updated") {
+    return "Categoría actualizada correctamente.";
+  }
+
+  return null;
+};
+
 const getLateStatusFailureMessage = (error: unknown): string => {
   if (isCategoryHasAssociatedProductsError(error)) {
     return categoryHasAssociatedProductsMessage;
@@ -76,12 +98,22 @@ interface CategoryListSearchDraftState {
 export const CategoryListPage = () => {
   const session = useSession();
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const currentLocation = `${location.pathname}${location.search}`;
   const navigate = useNavigate();
   const toast = useToast();
   const { operations, removeOperation, requestStatusChange, retryStatusCheck } =
     useCategoryOperations();
   const isCategoryListMounted = useRef(true);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [statusWriteConfirmation, setStatusWriteConfirmation] = useState<{
+    message: string;
+    location: string;
+  } | null>(null);
+  const confirmedWriteMessage =
+    (statusWriteConfirmation?.location === currentLocation
+      ? statusWriteConfirmation.message
+      : null) ?? getConfirmedWriteMessage(location.state, currentLocation);
   const serializedSearchParams = searchParams.toString();
   const urlState = useMemo(
     () => parseCategoryListUrlState(new URLSearchParams(serializedSearchParams)),
@@ -248,6 +280,10 @@ export const CategoryListPage = () => {
         });
 
         if (sessionId !== null && isCurrentSession(sessionId)) {
+          setStatusWriteConfirmation({
+            message: `Categoría ${category.isActive ? "desactivada" : "activada"} correctamente.`,
+            location: currentLocation,
+          });
           toast.show({
             kind: "success",
             message: `Categoría ${category.isActive ? "desactivada" : "activada"} correctamente.`,
@@ -274,7 +310,7 @@ export const CategoryListPage = () => {
         throw error;
       }
     },
-    [queryClient, requestStatusChange, sessionId, toast],
+    [currentLocation, queryClient, requestStatusChange, sessionId, toast],
   );
   const retryCategoryStatusCheck = useCallback(
     async (operationId: string) => {
@@ -360,6 +396,15 @@ export const CategoryListPage = () => {
           {categoryList.data.pagination.total === 1 ? "" : "s"}
         </p>
       ) : null}
+      {confirmedWriteMessage && categoryList.isError ? (
+        <div className="category-list__write-confirmation" role="status">
+          <strong>{confirmedWriteMessage}</strong>
+          <span>
+            No se pudo actualizar el listado. Reintenta únicamente la consulta; la escritura ya fue
+            confirmada y no se volverá a enviar.
+          </span>
+        </div>
+      ) : null}
       <CategoryListTable
         criteria={criteria}
         onClearSearch={clearSearch}
@@ -372,6 +417,7 @@ export const CategoryListPage = () => {
         checkingCategoryUuids={checkingCategoryUuids}
         notFoundCategoryUuids={notFoundCategoryUuids}
         pendingCategoryUuids={pendingCategoryUuids}
+        retryLabel={confirmedWriteMessage ? "Reintentar solo la consulta" : undefined}
         result={result}
       />
     </CategoryPageShell>

@@ -248,6 +248,7 @@ describe("category creation page", () => {
     let createRequestCount = 0;
     let submittedBody: unknown;
     let requestedListUrl: URL | undefined;
+    let listRequestCount = 0;
     let markCreateRequestStarted!: () => void;
     let resolveCreate!: (response: Response) => void;
     const createRequestStarted = new Promise<void>((resolve) => {
@@ -265,7 +266,15 @@ describe("category creation page", () => {
         return deferredCreate;
       }),
       http.get(categoriesUrl, ({ request }) => {
+        listRequestCount += 1;
         requestedListUrl = new URL(request.url);
+        if (listRequestCount === 1) {
+          return HttpResponse.json(
+            { error: { code: "INTERNAL_ERROR", message: "Refresh failed." } },
+            { status: 503 },
+          );
+        }
+
         return HttpResponse.json({
           data: [category("Herramientas", "Para mantenimiento")],
           pagination: { total: 1, page: 1, limit: 15 },
@@ -305,7 +314,9 @@ describe("category creation page", () => {
       );
     });
 
-    expect(await screen.findByText("Categoría creada correctamente.")).toBeVisible();
+    expect(
+      await screen.findByText("Categoría creada correctamente.", { selector: ".p-toast-detail" }),
+    ).toBeVisible();
     await waitFor(() => expect(router.state.location.pathname).toBe("/categories"));
     expect(router.state.location.search).toBe("?page=1&status=active&sort=name&order=asc");
     expect(await screen.findByRole("heading", { level: 1, name: "Categorías" })).toBeVisible();
@@ -318,6 +329,31 @@ describe("category creation page", () => {
       order: "asc",
     });
     expect(createRequestCount).toBe(1);
+    expect(listRequestCount).toBe(1);
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("status")
+          .some((status) => status.textContent?.includes("escritura ya fue confirmada")),
+      ).toBe(true),
+    );
+    expect(
+      screen
+        .getAllByRole("status")
+        .find((status) => status.textContent?.includes("escritura ya fue confirmada")),
+    ).toHaveTextContent(
+      "Categoría creada correctamente.No se pudo actualizar el listado. Reintenta únicamente la consulta; la escritura ya fue confirmada y no se volverá a enviar.",
+    );
+    expect(screen.getByRole("button", { name: "Reintentar solo la consulta" })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "Reintentar solo la consulta" }));
+
+    expect(await screen.findByRole("row", { name: /Herramientas/ })).toBeVisible();
+    expect(createRequestCount).toBe(1);
+    expect(listRequestCount).toBe(2);
+    expect(
+      await screen.findByText("Categoría creada correctamente.", { selector: ".p-toast-detail" }),
+    ).toBeVisible();
   });
 
   it("blocks a link exit during creation and requires a new exit attempt after failure", async () => {
