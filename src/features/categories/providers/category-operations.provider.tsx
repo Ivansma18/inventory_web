@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { isCurrentSession, useSession } from "@/features/auth";
@@ -20,6 +20,13 @@ import type { CategoryStatusChangeRequest } from "./category-operations.context"
 export interface CategoryOperationsProviderProps {
   children: ReactNode;
 }
+
+const isCategoryQueryForSession = (queryKey: readonly unknown[], sessionId: string): boolean =>
+  queryKey[0] === "categories" &&
+  (queryKey[1] === "management-list" ||
+    queryKey[1] === "active-list" ||
+    queryKey[1] === "detail") &&
+  queryKey[2] === sessionId;
 
 interface SessionScopedCategoryOperationsProps extends CategoryOperationsProviderProps {
   sessionId: string | null;
@@ -300,6 +307,21 @@ const SessionScopedCategoryOperations = ({
 export const CategoryOperationsProvider = ({ children }: CategoryOperationsProviderProps) => {
   const session = useSession();
   const sessionId = session.status === "authenticated" ? session.session.id : null;
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (sessionId === null) {
+      return;
+    }
+
+    const predicate = ({ queryKey }: { queryKey: readonly unknown[] }) =>
+      isCategoryQueryForSession(queryKey, sessionId);
+
+    return () => {
+      void queryClient.cancelQueries({ predicate });
+      queryClient.removeQueries({ predicate });
+    };
+  }, [queryClient, sessionId]);
 
   return (
     <SessionScopedCategoryOperations key={sessionId ?? "no-session"} sessionId={sessionId}>
