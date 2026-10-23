@@ -5,10 +5,12 @@ import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import type { components } from "@/shared/api/generated/auth-contracts";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { appRoutes } from "@/app/router/router";
 import { UiProvider } from "@/app/providers/ui.provider";
+import { useSession } from "@/features/auth";
+import type { UseSessionResult } from "@/features/auth";
 import { createQueryClient } from "@/shared/api/query-client";
 import { categoryDetailQueryKey } from "@/features/categories/hooks/use-category";
 import { server } from "../mocks/server";
@@ -20,10 +22,11 @@ const categoryUrl = `${categoriesUrl}/${categoryUuid}`;
 
 const publicAuthResponse = (
   role: components["schemas"]["PublicAuthResponse"]["data"]["user"]["role"],
+  sessionId = categoryStatusSessionId,
 ): components["schemas"]["PublicAuthResponse"] => ({
   data: {
     user: { id: "category-status-user", email: "operator@example.com", role },
-    session: { id: "category-status-session", createdAt: "2026-01-01T00:00:00.000Z" },
+    session: { id: sessionId, createdAt: "2026-01-01T00:00:00.000Z" },
   },
 });
 
@@ -36,6 +39,20 @@ const category = (isActive: boolean, name = "Herramientas") => ({
   updatedAt: "2026-01-02T00:00:00.000Z",
 });
 
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+}
+
+const deferred = <T,>(): Deferred<T> => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+
+  return { promise, resolve };
+};
+
 const routeResources: Array<{
   queryClient: ReturnType<typeof createQueryClient>;
   router: ReturnType<typeof createMemoryRouter>;
@@ -46,14 +63,24 @@ const renderCategoryList = (
   isActive: boolean,
   initialEntry?: string,
   queryClient = createQueryClient(),
+  sessionResponse?: () => Response | Promise<Response>,
+  onSessionRefetch?: (refetch: UseSessionResult["refetch"]) => void,
 ) => {
   const router = createMemoryRouter(appRoutes, {
     initialEntries: [initialEntry ?? (isActive ? "/categories" : "/categories?status=inactive")],
   });
   routeResources.push({ queryClient, router });
+  const SessionRefreshDriver = () => {
+    const session = useSession();
+    onSessionRefetch?.(session.refetch);
+    return null;
+  };
 
   server.use(
-    http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse(role))),
+    http.get(
+      /\/api\/auth\/get-session/,
+      () => sessionResponse?.() ?? HttpResponse.json(publicAuthResponse(role)),
+    ),
     http.get(categoriesUrl, ({ request }) => {
       const isRequestedActive = new URL(request.url).searchParams.get("isActive") !== "false";
 
@@ -67,7 +94,10 @@ const renderCategoryList = (
   render(
     <QueryClientProvider client={queryClient}>
       <UiProvider>
-        <RouterProvider router={router} />
+        <>
+          <RouterProvider router={router} />
+          {onSessionRefetch ? <SessionRefreshDriver /> : null}
+        </>
       </UiProvider>
     </QueryClientProvider>,
   );
@@ -83,6 +113,227 @@ afterEach(() => {
 });
 
 describe("category status actions", () => {
+  it("discards a late status result after the session is replaced", async () => {
+    const patchResponse = deferred<Response>();
+    const patchStarted = deferred<void>();
+    const sessionRefresh = deferred<Response>();
+    const sessionRefreshStarted = deferred<void>();
+    let shouldHoldSessionRefresh = false;
+    let refetchSession: UseSessionResult["refetch"] | undefined;
+    let patchRequestCount = 0;
+    let listRequestCount = 0;
+
+    const { queryClient, router } = renderCategoryList(
+      "OPERATOR",
+      true,
+      undefined,
+      undefined,
+      () => {
+        if (shouldHoldSessionRefresh) {
+          sessionRefreshStarted.resolve();
+          return sessionRefresh.promise;
+        }
+
+        return HttpResponse.json(publicAuthResponse("OPERATOR", categoryStatusSessionId));
+      },
+      (refetch) => {
+        refetchSession = refetch;
+      },
+    );
+    const row = await screen.findByRole("row", { name: /Herramientas/ });
+
+    server.use(
+      http.patch(categoryUrl, () => {
+        patchRequestCount += 1;
+        patchStarted.resolve();
+        return patchResponse.promise;
+      }),
+      http.get(categoriesUrl, ({ request }) => {
+        listRequestCount += 1;
+        const isActive = new URL(request.url).searchParams.get("isActive") !== "false";
+        return HttpResponse.json({
+          data: [category(isActive)],
+          pagination: { total: 1, page: 1, limit: 15 },
+        });
+      }),
+    );
+
+    await userEvent.setup().click(within(row).getByRole("button", { name: "Desactivar" }));
+    const confirmation = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await userEvent.setup().click(within(confirmation).getByRole("button", { name: "Desactivar" }));
+    await patchStarted.promise;
+
+    shouldHoldSessionRefresh = true;
+    if (!refetchSession) {
+      throw new Error("The session refresh driver did not expose refetch.");
+    }
+    let refreshResult!: ReturnType<UseSessionResult["refetch"]>;
+    act(() => {
+      refreshResult = refetchSession!();
+    });
+    await sessionRefreshStarted.promise;
+    expect(await screen.findByRole("heading", { name: "Comprobando tu sesión" })).toBeVisible();
+
+    sessionRefresh.resolve(
+      HttpResponse.json(publicAuthResponse("OPERATOR", "category-status-session-b")),
+    );
+    await act(async () => refreshResult);
+
+    const newSessionRow = await screen.findByRole("row", { name: /Herramientas/ });
+    expect(within(newSessionRow).getByText("Activa")).toBeVisible();
+    expect(within(newSessionRow).getByRole("button", { name: "Desactivar" })).toBeEnabled();
+    expect(router.state.location.pathname).toBe("/categories");
+    expect(listRequestCount).toBeGreaterThan(0);
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    const focusAfterReplacement = document.activeElement;
+
+    await act(async () => {
+      patchResponse.resolve(HttpResponse.json({ data: category(false) }));
+    });
+
+    expect(patchRequestCount).toBe(1);
+    expect(router.state.location.pathname).toBe("/categories");
+    expect(within(newSessionRow).getByText("Activa")).toBeVisible();
+    expect(within(newSessionRow).getByRole("button", { name: "Desactivar" })).toBeEnabled();
+    expect(screen.queryByText("Categoría desactivada correctamente.")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(focusAfterReplacement);
+    expect(
+      queryClient
+        .getQueryCache()
+        .getAll()
+        .filter((query) => query.queryKey[0] === "categories")
+        .every((query) => query.queryKey[2] === "category-status-session-b"),
+    ).toBe(true);
+    expect(
+      invalidateQueries.mock.calls.every(
+        ([filters]) => filters?.queryKey?.[2] !== categoryStatusSessionId,
+      ),
+    ).toBe(true);
+
+    shouldHoldSessionRefresh = false;
+    let restoreSessionResult!: ReturnType<UseSessionResult["refetch"]>;
+    act(() => {
+      restoreSessionResult = refetchSession!();
+    });
+    await act(async () => restoreSessionResult);
+  });
+
+  it("discards a late uncertainty check after the session is replaced and releases the new session action", async () => {
+    const detailResponse = deferred<Response>();
+    const detailStarted = deferred<void>();
+    const sessionRefresh = deferred<Response>();
+    const sessionRefreshStarted = deferred<void>();
+    let shouldHoldSessionRefresh = false;
+    let refetchSession: UseSessionResult["refetch"] | undefined;
+    let patchRequestCount = 0;
+    let detailRequestCount = 0;
+
+    const { queryClient, router } = renderCategoryList(
+      "OPERATOR",
+      true,
+      undefined,
+      undefined,
+      () => {
+        if (shouldHoldSessionRefresh) {
+          sessionRefreshStarted.resolve();
+          return sessionRefresh.promise;
+        }
+
+        return HttpResponse.json(publicAuthResponse("OPERATOR", categoryStatusSessionId));
+      },
+      (refetch) => {
+        refetchSession = refetch;
+      },
+    );
+    const row = await screen.findByRole("row", { name: /Herramientas/ });
+
+    server.use(
+      http.patch(categoryUrl, () => {
+        patchRequestCount += 1;
+        return HttpResponse.json(
+          { error: { code: "SERVICE_UNAVAILABLE", message: "private mutation detail" } },
+          { status: 503 },
+        );
+      }),
+      http.get(categoryUrl, () => {
+        detailRequestCount += 1;
+        detailStarted.resolve();
+        return detailResponse.promise;
+      }),
+    );
+
+    await userEvent.setup().click(within(row).getByRole("button", { name: "Desactivar" }));
+    const confirmation = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await userEvent.setup().click(within(confirmation).getByRole("button", { name: "Desactivar" }));
+    await detailStarted.promise;
+    expect(patchRequestCount).toBe(1);
+    expect(detailRequestCount).toBe(1);
+
+    shouldHoldSessionRefresh = true;
+    if (!refetchSession) {
+      throw new Error("The session refresh driver did not expose refetch.");
+    }
+    let refreshResult!: ReturnType<UseSessionResult["refetch"]>;
+    act(() => {
+      refreshResult = refetchSession!();
+    });
+    await sessionRefreshStarted.promise;
+    expect(await screen.findByRole("heading", { name: "Comprobando tu sesión" })).toBeVisible();
+
+    sessionRefresh.resolve(
+      HttpResponse.json(publicAuthResponse("OPERATOR", "category-status-session-b")),
+    );
+    await act(async () => refreshResult);
+
+    const newSessionRow = await screen.findByRole("row", { name: /Herramientas/ });
+    expect(within(newSessionRow).getByText("Activa")).toBeVisible();
+    expect(within(newSessionRow).getByRole("button", { name: "Desactivar" })).toBeEnabled();
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    const focusAfterReplacement = document.activeElement;
+
+    await act(async () => {
+      detailResponse.resolve(HttpResponse.json({ data: category(false) }));
+      await detailResponse.promise;
+    });
+
+    expect(within(newSessionRow).getByText("Activa")).toBeVisible();
+    expect(within(newSessionRow).getByRole("button", { name: "Desactivar" })).toBeEnabled();
+    expect(screen.queryByText(/Esta lectura no confirma/)).not.toBeInTheDocument();
+    expect(screen.queryByText("private mutation detail")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/categories");
+    expect(document.activeElement).toBe(focusAfterReplacement);
+    expect(
+      queryClient
+        .getQueryCache()
+        .getAll()
+        .filter((query) => query.queryKey[0] === "categories")
+        .every((query) => query.queryKey[2] === "category-status-session-b"),
+    ).toBe(true);
+    expect(
+      invalidateQueries.mock.calls.every(
+        ([filters]) => filters?.queryKey?.[2] !== categoryStatusSessionId,
+      ),
+    ).toBe(true);
+
+    await userEvent
+      .setup()
+      .click(within(newSessionRow).getByRole("button", { name: "Desactivar" }));
+    const newConfirmation = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await userEvent
+      .setup()
+      .click(within(newConfirmation).getByRole("button", { name: "Cancelar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(patchRequestCount).toBe(1);
+
+    shouldHoldSessionRefresh = false;
+    let restoreSessionResult!: ReturnType<UseSessionResult["refetch"]>;
+    act(() => {
+      restoreSessionResult = refetchSession!();
+    });
+    await act(async () => restoreSessionResult);
+  });
+
   it.each(["ADMIN", "MANAGER", "OPERATOR", "VIEWER"] as const)(
     "shows the status-appropriate action to %s for active and inactive categories",
     async (role) => {

@@ -5,7 +5,7 @@ import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import type { components } from "@/shared/api/generated/auth-contracts";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { UiProvider } from "@/app/providers/ui.provider";
 import { appRoutes } from "@/app/router/router";
@@ -421,7 +421,7 @@ describe("category creation page", () => {
     expect(router.state.location.pathname).toBe("/categories/new");
   });
 
-  it("gives the session boundary priority over a pending creation and blocked exit", async () => {
+  it("discards a late creation result after the session is replaced", async () => {
     let refetchSession: UseSessionResult["refetch"] | undefined;
     let shouldHoldSessionRefresh = false;
     let markSessionRefreshRequested!: () => void;
@@ -439,14 +439,19 @@ describe("category creation page", () => {
 
     server.use(http.post(categoriesUrl, () => deferredCreate));
 
-    const { router } = renderCategoryCreateRoute(
+    const { queryClient, router } = renderCategoryCreateRoute(
       undefined,
       () => {
         if (shouldHoldSessionRefresh) {
           markSessionRefreshRequested();
           return sessionRefresh;
         }
-        return HttpResponse.json(publicAuthResponse());
+        return HttpResponse.json(
+          publicAuthResponse(
+            "OPERATOR",
+            shouldHoldSessionRefresh ? "category-create-session-b" : "category-create-session",
+          ),
+        );
       },
       (refetch) => {
         refetchSession = refetch;
@@ -484,21 +489,49 @@ describe("category creation page", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-    resolveCreate(
-      HttpResponse.json(
-        { error: { code: "INTERNAL_ERROR", message: "private details" } },
-        { status: 503 },
-      ),
+    resolveSessionRefresh(
+      HttpResponse.json(publicAuthResponse("OPERATOR", "category-create-session-b")),
     );
-    resolveSessionRefresh(HttpResponse.json(publicAuthResponse()));
     await act(async () => refreshResult);
 
     expect(await screen.findByRole("heading", { level: 1, name: "Crear categoría" })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Nombre (obligatorio)" })).toHaveValue("");
+    expect(screen.queryByText("Borrador de sesión anterior")).not.toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/categories/new");
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    const focusedControlAfterReplacement = document.activeElement;
+    await act(async () => {
+      resolveCreate(
+        HttpResponse.json({ data: category("Creada en la sesión anterior") }, { status: 201 }),
+      );
+    });
+
+    expect(router.state.location.pathname).toBe("/categories/new");
+    expect(screen.getByRole("textbox", { name: "Nombre (obligatorio)" })).toHaveValue("");
     expect(screen.queryByText("Categoría creada correctamente.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Creada en la sesión anterior")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(focusedControlAfterReplacement);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      invalidateQueries.mock.calls.every(
+        ([filters]) => filters?.queryKey?.[2] !== "category-create-session",
+      ),
+    ).toBe(true);
+    expect(
+      queryClient
+        .getQueryCache()
+        .getAll()
+        .every((query) => query.queryKey[2] !== "category-create-session"),
+    ).toBe(true);
+
+    shouldHoldSessionRefresh = false;
+    let restoreSessionResult!: ReturnType<UseSessionResult["refetch"]>;
+    act(() => {
+      restoreSessionResult = refetchSession!();
+    });
+    await act(async () => restoreSessionResult);
   });
 
   it.each([

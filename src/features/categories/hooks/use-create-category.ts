@@ -1,5 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { isCurrentSession } from "@/features/auth";
+
 import { createCategory } from "../api/categories-api";
 
 export const useCreateCategory = (sessionId: string | null) => {
@@ -9,8 +11,12 @@ export const useCreateCategory = (sessionId: string | null) => {
     mutationKey: ["categories", "mutation", sessionId, "create"] as const,
     mutationFn: createCategory,
     retry: false,
-    onSuccess: () =>
-      Promise.all([
+    onSuccess: () => {
+      if (sessionId === null || !isCurrentSession(sessionId)) {
+        return;
+      }
+
+      return Promise.all([
         queryClient.invalidateQueries({
           queryKey: ["categories", "management-list", sessionId],
           refetchType: "none",
@@ -19,6 +25,7 @@ export const useCreateCategory = (sessionId: string | null) => {
           queryKey: ["categories", "active-list", sessionId],
           refetchType: "none",
         }),
-      ]),
+      ]);
+    },
   });
 };

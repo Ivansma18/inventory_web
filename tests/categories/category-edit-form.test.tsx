@@ -5,10 +5,12 @@ import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import type { components } from "@/shared/api/generated/auth-contracts";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { UiProvider } from "@/app/providers/ui.provider";
 import { appRoutes } from "@/app/router/router";
+import { useSession } from "@/features/auth";
+import type { UseSessionResult } from "@/features/auth";
 import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
@@ -100,6 +102,7 @@ const renderCategoryEditRoute = (
   returnTo?: string,
   sessionResponse?: () => Response | Promise<Response>,
   initialEntries?: string[],
+  onSessionRefetch?: (refetch: UseSessionResult["refetch"]) => void,
 ) => {
   const queryClient = createQueryClient();
   const route = `/categories/${categoryUuid}/edit`;
@@ -112,6 +115,11 @@ const renderCategoryEditRoute = (
     initialIndex: entries.indexOf(initialEntry),
   });
   routeResources.push({ queryClient, router });
+  const SessionRefreshDriver = () => {
+    const session = useSession();
+    onSessionRefetch?.(session.refetch);
+    return null;
+  };
 
   server.use(
     http.get(
@@ -123,7 +131,10 @@ const renderCategoryEditRoute = (
   render(
     <QueryClientProvider client={queryClient}>
       <UiProvider>
-        <RouterProvider router={router} />
+        <>
+          <RouterProvider router={router} />
+          {onSessionRefetch ? <SessionRefreshDriver /> : null}
+        </>
       </UiProvider>
     </QueryClientProvider>,
   );
@@ -534,6 +545,107 @@ describe("category edit form", () => {
     expect(await screen.findByRole("row", { name: /Herramientas actualizadas/ })).toBeVisible();
     expect(listRequests).toHaveLength(2);
     expect(patchBodies).toHaveLength(1);
+  });
+
+  it("discards a late update result after the session is replaced", async () => {
+    const updateResponse = deferred<Response>();
+    const updateStarted = deferred<void>();
+    const sessionRefresh = deferred<Response>();
+    const sessionRefreshStarted = deferred<void>();
+    let shouldHoldSessionRefresh = false;
+    let refetchSession: UseSessionResult["refetch"] | undefined;
+    let detailRequests = 0;
+    let patchRequests = 0;
+
+    server.use(
+      http.get(categoryUrl, () => {
+        detailRequests += 1;
+        return HttpResponse.json({
+          data: category(detailRequests === 1 ? "Categoría sesión A" : "Categoría sesión B"),
+        });
+      }),
+      http.patch(categoryUrl, () => {
+        patchRequests += 1;
+        updateStarted.resolve();
+        return updateResponse.promise;
+      }),
+    );
+
+    const { queryClient, router } = renderCategoryEditRoute(
+      undefined,
+      undefined,
+      () => {
+        if (shouldHoldSessionRefresh) {
+          sessionRefreshStarted.resolve();
+          return sessionRefresh.promise;
+        }
+
+        return HttpResponse.json(publicAuthResponse());
+      },
+      undefined,
+      (refetch) => {
+        refetchSession = refetch;
+      },
+    );
+
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    expect(name).toHaveValue("Categoría sesión A");
+    await userEvent.setup().clear(name);
+    await userEvent.setup().type(name, "Actualizada en sesión A");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await updateStarted.promise;
+    expect(patchRequests).toBe(1);
+
+    shouldHoldSessionRefresh = true;
+    if (!refetchSession) {
+      throw new Error("The session refresh driver did not expose refetch.");
+    }
+    let refreshResult!: ReturnType<UseSessionResult["refetch"]>;
+    act(() => {
+      refreshResult = refetchSession!();
+    });
+    await sessionRefreshStarted.promise;
+    expect(await screen.findByRole("heading", { name: "Comprobando tu sesión" })).toBeVisible();
+    expect(screen.queryByRole("form", { name: "Datos de la categoría" })).not.toBeInTheDocument();
+
+    sessionRefresh.resolve(
+      HttpResponse.json(publicAuthResponse("OPERATOR", "category-edit-session-b")),
+    );
+    await act(async () => refreshResult);
+
+    const newSessionName = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    expect(newSessionName).toHaveValue("Categoría sesión B");
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    const focusAfterReplacement = document.activeElement;
+    expect(router.state.location.pathname).toBe(`/categories/${categoryUuid}/edit`);
+
+    updateResponse.resolve(HttpResponse.json({ data: category("Actualizada en sesión A") }));
+    await waitFor(() => expect(patchRequests).toBe(1));
+
+    expect(newSessionName).toHaveValue("Categoría sesión B");
+    expect(router.state.location.pathname).toBe(`/categories/${categoryUuid}/edit`);
+    expect(screen.queryByText("Categoría actualizada correctamente.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Actualizada en sesión A")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(focusAfterReplacement);
+    expect(
+      queryClient
+        .getQueryCache()
+        .getAll()
+        .filter((query) => query.queryKey[0] === "categories")
+        .every((query) => query.queryKey[2] === "category-edit-session-b"),
+    ).toBe(true);
+    expect(
+      invalidateQueries.mock.calls.every(
+        ([filters]) => filters?.queryKey?.[2] !== "category-edit-session",
+      ),
+    ).toBe(true);
+
+    shouldHoldSessionRefresh = false;
+    let restoreSessionResult!: ReturnType<UseSessionResult["refetch"]>;
+    act(() => {
+      restoreSessionResult = refetchSession!();
+    });
+    await act(async () => restoreSessionResult);
   });
 
   it("does not announce success or leave the form when the update response is invalid", async () => {

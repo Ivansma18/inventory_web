@@ -1,5 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { isCurrentSession } from "@/features/auth";
+
 import { updateCategory } from "../api/categories-api";
 import { categoryDetailQueryKey } from "./use-category";
 
@@ -10,8 +12,12 @@ export const useUpdateCategory = (sessionId: string | null) => {
     mutationKey: ["categories", "mutation", sessionId, "update"] as const,
     mutationFn: updateCategory,
     retry: false,
-    onSuccess: (_category, variables) =>
-      Promise.all([
+    onSuccess: (_category, variables) => {
+      if (sessionId === null || !isCurrentSession(sessionId)) {
+        return;
+      }
+
+      return Promise.all([
         queryClient.invalidateQueries({
           queryKey: ["categories", "management-list", sessionId],
           refetchType: "none",
@@ -25,6 +31,7 @@ export const useUpdateCategory = (sessionId: string | null) => {
           exact: true,
           refetchType: "none",
         }),
-      ]),
+      ]);
+    },
   });
 };
