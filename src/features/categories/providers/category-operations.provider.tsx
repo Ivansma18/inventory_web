@@ -137,10 +137,24 @@ const SessionScopedCategoryOperations = ({
         return undefined;
       } catch (error: unknown) {
         if (isCurrentSession(sessionId)) {
-          setOperationPhase(
-            operationId,
-            isCategoryNotFoundError(error) ? "not-found" : "check-failed",
-          );
+          if (isCategoryNotFoundError(error)) {
+            await Promise.all([
+              queryClient.invalidateQueries({
+                queryKey: ["categories", "management-list", sessionId],
+                refetchType: "none",
+              }),
+              queryClient.invalidateQueries({
+                queryKey: ["categories", "active-list", sessionId],
+                refetchType: "none",
+              }),
+            ]);
+
+            if (isCurrentSession(sessionId)) {
+              setOperationPhase(operationId, "not-found");
+            }
+          } else {
+            setOperationPhase(operationId, "check-failed");
+          }
         }
 
         return undefined;

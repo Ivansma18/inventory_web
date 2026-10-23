@@ -32,6 +32,7 @@ interface CategoryListRowActionsProps {
   category: Category;
   onEditCategory: (category: Category) => void;
   onRetryStatusCheck: (operationId: string) => void;
+  onRefreshList: () => void;
   onRequestStatusChange: (category: Category) => void;
 }
 
@@ -45,28 +46,35 @@ const CategoryListRowActions = ({
   category,
   onEditCategory,
   onRetryStatusCheck,
+  onRefreshList,
   onRequestStatusChange,
 }: CategoryListRowActionsProps) => {
   const { getOperationForCategory } = useCategoryOperations();
   const operation = getOperationForCategory(category.uuid);
   const isPending = operation?.phase === "pending" || operation?.phase === "checking";
   const isCheckFailed = operation?.phase === "check-failed";
+  const isNotFound = operation?.phase === "not-found";
 
   return (
     <div className="category-list-table__row-actions">
       <Button
-        disabled={operation?.phase === "pending"}
+        disabled={operation?.phase === "pending" || isNotFound}
         onClick={() => onEditCategory(category)}
         variant="secondary"
       >
         Editar
       </Button>
       <Button
-        disabled={operation !== undefined && !isPending && !isCheckFailed}
+        disabled={operation !== undefined && !isPending && !isCheckFailed && !isNotFound}
         loading={isPending}
         onClick={() => {
           if (isCheckFailed && operation) {
             onRetryStatusCheck(operation.id);
+            return;
+          }
+
+          if (isNotFound) {
+            onRefreshList();
             return;
           }
 
@@ -76,15 +84,21 @@ const CategoryListRowActions = ({
       >
         {isCheckFailed
           ? "Reintentar comprobación"
-          : operation?.phase === "checking"
-            ? "Comprobando estado…"
-            : category.isActive
-              ? "Desactivar"
-              : "Activar"}
+          : isNotFound
+            ? "Actualizar listado"
+            : operation?.phase === "checking"
+              ? "Comprobando estado…"
+              : category.isActive
+                ? "Desactivar"
+                : "Activar"}
       </Button>
       {isCheckFailed ? (
         <p className="category-list-table__row-status-error" role="alert">
           No se pudo comprobar el estado. Reintenta la consulta para habilitar el cambio.
+        </p>
+      ) : isNotFound ? (
+        <p className="category-list-table__row-status-error" role="alert">
+          No se encontró la categoría. Actualiza el listado antes de continuar.
         </p>
       ) : null}
     </div>
@@ -98,9 +112,10 @@ export interface CategoryListTableProps {
   onEditCategory: (category: Category) => void;
   onPageChange: (page: number) => void;
   onPageCorrection: (page: number) => void;
-  onRetry: () => void;
+  onRetry: () => Promise<unknown> | void;
   onRetryStatusCheck: (operationId: string) => void;
   checkingCategoryUuids: readonly string[];
+  notFoundCategoryUuids: readonly string[];
   pendingCategoryUuids: readonly string[];
   result: DataTableResult<Category>;
 }
@@ -115,6 +130,7 @@ export const CategoryListTable = ({
   onRetry,
   onRetryStatusCheck,
   checkingCategoryUuids,
+  notFoundCategoryUuids,
   pendingCategoryUuids,
   result,
 }: CategoryListTableProps) => {
@@ -122,14 +138,29 @@ export const CategoryListTable = ({
   const [categoryToConfirm, setCategoryToConfirm] = useState<Category | null>(null);
   const [statusError, setStatusError] = useState<CategoryStatusFeedback | null>(null);
   const [retryingCategoryUuid, setRetryingCategoryUuid] = useState<string | null>(null);
+  const [isReturningToList, setIsReturningToList] = useState(false);
   const openStatusConfirmation = useCallback((category: Category) => {
     setStatusError(null);
     setCategoryToConfirm(category);
   }, []);
   const closeStatusConfirmation = useCallback(() => setCategoryToConfirm(null), []);
+  const returnToUpdatedList = useCallback(async () => {
+    setIsReturningToList(true);
+    try {
+      await onRetry();
+    } finally {
+      setStatusError(null);
+      setCategoryToConfirm(null);
+      setIsReturningToList(false);
+    }
+  }, [onRetry]);
   const confirmStatusChange = useCallback(async () => {
     const category = categoryToConfirm;
-    if (category === null || pendingCategoryUuids.includes(category.uuid)) {
+    if (
+      category === null ||
+      pendingCategoryUuids.includes(category.uuid) ||
+      notFoundCategoryUuids.includes(category.uuid)
+    ) {
       return;
     }
 
@@ -206,6 +237,7 @@ export const CategoryListTable = ({
     categoryToConfirm,
     onConfirmStatusChange,
     onRetry,
+    notFoundCategoryUuids,
     pendingCategoryUuids,
     result,
     statusError,
@@ -234,18 +266,27 @@ export const CategoryListTable = ({
             category={category}
             onEditCategory={onEditCategory}
             onRetryStatusCheck={onRetryStatusCheck}
+            onRefreshList={() => void onRetry()}
             onRequestStatusChange={openStatusConfirmation}
           />
         ),
         sortable: false,
       },
     ],
-    [onEditCategory, onRetryStatusCheck, openStatusConfirmation],
+    [onEditCategory, onRetry, onRetryStatusCheck, openStatusConfirmation],
   );
   const isStatusPending =
     categoryToConfirm !== null && pendingCategoryUuids.includes(categoryToConfirm.uuid);
   const isStatusChecking =
     categoryToConfirm !== null && checkingCategoryUuids.includes(categoryToConfirm.uuid);
+  const isCategoryNotFound =
+    categoryToConfirm !== null && notFoundCategoryUuids.includes(categoryToConfirm.uuid);
+  const visibleRows = result.status === "ready" ? result.rows : (result.snapshot?.rows ?? []);
+  const hasNotFoundCategoryOutsideCurrentQuery =
+    categoryToConfirm === null &&
+    notFoundCategoryUuids.some(
+      (uuid) => !visibleRows.some((listedCategory) => listedCategory.uuid === uuid),
+    );
   const isManualRetryPending =
     categoryToConfirm !== null && retryingCategoryUuid === categoryToConfirm.uuid;
   const canSubmitStatusChange = statusError === null || statusError.canRetryManually;
@@ -280,54 +321,90 @@ export const CategoryListTable = ({
         footer={
           categoryToConfirm ? (
             <div className="category-list-table__status-confirmation-actions">
-              <Button onClick={closeStatusConfirmation} variant="secondary">
-                {isStatusPending || statusError !== null ? "Cerrar" : "Cancelar"}
-              </Button>
-              {canSubmitStatusChange ? (
-                <Button loading={isStatusPending} onClick={() => void confirmStatusChange()}>
-                  {statusError?.canRetryManually || isManualRetryPending
-                    ? "Reintentar"
-                    : categoryToConfirm.isActive
-                      ? "Desactivar"
-                      : "Activar"}
+              {isCategoryNotFound ? (
+                <Button loading={isReturningToList} onClick={() => void returnToUpdatedList()}>
+                  {isReturningToList ? "Actualizando listado…" : "Volver al listado"}
                 </Button>
+              ) : null}
+              {!isCategoryNotFound ? (
+                <>
+                  <Button onClick={closeStatusConfirmation} variant="secondary">
+                    {isStatusPending || statusError !== null ? "Cerrar" : "Cancelar"}
+                  </Button>
+                  {canSubmitStatusChange ? (
+                    <Button loading={isStatusPending} onClick={() => void confirmStatusChange()}>
+                      {statusError?.canRetryManually || isManualRetryPending
+                        ? "Reintentar"
+                        : categoryToConfirm.isActive
+                          ? "Desactivar"
+                          : "Activar"}
+                    </Button>
+                  ) : null}
+                </>
               ) : null}
             </div>
           ) : undefined
         }
         onCloseRequest={closeStatusConfirmation}
         open={categoryToConfirm !== null}
-        title={categoryToConfirm?.isActive ? "Confirmar desactivación" : "Confirmar activación"}
+        title={
+          isCategoryNotFound
+            ? "Categoría no encontrada"
+            : categoryToConfirm?.isActive
+              ? "Confirmar desactivación"
+              : "Confirmar activación"
+        }
       >
         {categoryToConfirm ? (
           <div className="category-list-table__status-confirmation">
-            <p>
-              ¿Quieres {categoryToConfirm.isActive ? "desactivar" : "activar"} la categoría{" "}
-              <strong>{categoryToConfirm.name}</strong>?
-            </p>
-            {categoryToConfirm.isActive ? (
-              <p>La categoría se conservará en el catálogo; desactivarla no la elimina.</p>
-            ) : null}
-            {isStatusPending ? (
-              <p role="status">
-                {isStatusChecking
-                  ? "Comprobando el estado vigente de la categoría…"
-                  : isManualRetryPending
-                    ? "Reintentando el cambio de estado…"
-                    : "Actualizando el estado de la categoría…"}
-              </p>
-            ) : null}
-            {isStatusChecking ? (
+            {isCategoryNotFound ? (
               <p role="alert">
-                No se pudo confirmar el cambio de estado. Se está comprobando el estado vigente
-                antes de permitir otro cambio.
+                No se encontró la categoría <strong>{categoryToConfirm.name}</strong>. No se puede
+                confirmar su estado y no se volverá a enviar el cambio.
               </p>
-            ) : statusError ? (
-              <p role={statusError.kind}>{statusError.message}</p>
+            ) : null}
+            {!isCategoryNotFound ? (
+              <>
+                <p>
+                  ¿Quieres {categoryToConfirm.isActive ? "desactivar" : "activar"} la categoría{" "}
+                  <strong>{categoryToConfirm.name}</strong>?
+                </p>
+                {categoryToConfirm.isActive ? (
+                  <p>La categoría se conservará en el catálogo; desactivarla no la elimina.</p>
+                ) : null}
+                {isStatusPending ? (
+                  <p role="status">
+                    {isStatusChecking
+                      ? "Comprobando el estado vigente de la categoría…"
+                      : isManualRetryPending
+                        ? "Reintentando el cambio de estado…"
+                        : "Actualizando el estado de la categoría…"}
+                  </p>
+                ) : null}
+                {isStatusChecking ? (
+                  <p role="alert">
+                    No se pudo confirmar el cambio de estado. Se está comprobando el estado vigente
+                    antes de permitir otro cambio.
+                  </p>
+                ) : statusError ? (
+                  <p role={statusError.kind}>{statusError.message}</p>
+                ) : null}
+              </>
             ) : null}
           </div>
         ) : null}
       </Dialog>
+      {hasNotFoundCategoryOutsideCurrentQuery ? (
+        <div className="category-list-table__not-found-return" role="alert">
+          <p>
+            La categoría comprobada ya no aparece en esta consulta. Actualiza el listado para
+            confirmar los resultados vigentes.
+          </p>
+          <Button onClick={() => void onRetry()} variant="secondary">
+            Actualizar listado
+          </Button>
+        </div>
+      ) : null}
       {statusError && categoryToConfirm === null ? (
         <p className="category-list-table__status-error" role="alert">
           {statusError.message}

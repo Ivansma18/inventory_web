@@ -113,6 +113,13 @@ export const CategoryListPage = () => {
         .map((operation) => operation.uuid),
     [operations],
   );
+  const notFoundCategoryUuids = useMemo(
+    () =>
+      operations
+        .filter((operation) => operation.phase === "not-found")
+        .map((operation) => operation.uuid),
+    [operations],
+  );
   const categoryList = useCategoryList(sessionId, page, criteria);
   useEffect(() => {
     isCategoryListMounted.current = true;
@@ -360,9 +367,10 @@ export const CategoryListPage = () => {
         onEditCategory={editCategory}
         onPageChange={changePage}
         onPageCorrection={correctPage}
-        onRetry={() => void categoryList.refetch()}
+        onRetry={() => categoryList.refetch()}
         onRetryStatusCheck={(operationId) => void retryCategoryStatusCheck(operationId)}
         checkingCategoryUuids={checkingCategoryUuids}
+        notFoundCategoryUuids={notFoundCategoryUuids}
         pendingCategoryUuids={pendingCategoryUuids}
         result={result}
       />
