@@ -621,7 +621,9 @@ describe("category status actions", () => {
       status: 404,
       body: { error: { code: "CATEGORY_NOT_FOUND", message: "Not found." } },
       expectedDetailRequests: 0,
-      expectedListRequests: 0,
+      expectedListRequests: 1,
+      expectedDialogTitle: "Categoría no encontrada",
+      returnAction: "Volver al listado",
     },
     {
       scenario: "a 5xx uncertain response",
@@ -629,6 +631,8 @@ describe("category status actions", () => {
       body: { error: { code: "SERVICE_UNAVAILABLE", message: "Unavailable." } },
       expectedDetailRequests: 1,
       expectedListRequests: 1,
+      expectedDialogTitle: "Confirmar desactivación",
+      returnAction: "Cerrar",
     },
     {
       scenario: "an invalid successful response with uncertain outcome",
@@ -636,10 +640,19 @@ describe("category status actions", () => {
       body: { data: category(true) },
       expectedDetailRequests: 1,
       expectedListRequests: 1,
+      expectedDialogTitle: "Confirmar desactivación",
+      returnAction: "Cerrar",
     },
   ])(
     "does not offer manual retry for $scenario",
-    async ({ status, body, expectedDetailRequests, expectedListRequests }) => {
+    async ({
+      status,
+      body,
+      expectedDetailRequests,
+      expectedListRequests,
+      expectedDialogTitle,
+      returnAction,
+    }) => {
       const user = userEvent.setup();
       let patchRequestCount = 0;
       let detailRequestCount = 0;
@@ -669,18 +682,30 @@ describe("category status actions", () => {
       const dialog = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
       await user.click(within(dialog).getByRole("button", { name: "Desactivar" }));
 
+      const resultDialog = await screen.findByRole("dialog", { name: expectedDialogTitle });
       expect(await within(dialog).findByRole("alert")).toBeVisible();
-      expect(within(dialog).queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
-      expect(within(dialog).queryByRole("button", { name: "Desactivar" })).not.toBeInTheDocument();
-      expect(within(dialog).getByRole("button", { name: "Cerrar" })).toBeVisible();
+      expect(
+        within(resultDialog).queryByRole("button", { name: "Reintentar" }),
+      ).not.toBeInTheDocument();
+      expect(
+        within(resultDialog).queryByRole("button", { name: "Desactivar" }),
+      ).not.toBeInTheDocument();
+      expect(within(resultDialog).getByRole("button", { name: returnAction })).toBeVisible();
       expect(within(row).getByText("Activa")).toBeVisible();
       expect(patchRequestCount).toBe(1);
       await waitFor(() => expect(detailRequestCount).toBe(expectedDetailRequests));
-      await waitFor(() => expect(listRequestCount).toBe(expectedListRequests));
+      if (status === 404) {
+        expect(listRequestCount).toBe(0);
+      } else {
+        await waitFor(() => expect(listRequestCount).toBe(expectedListRequests));
+      }
 
-      await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
+      await user.click(within(resultDialog).getByRole("button", { name: returnAction }));
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
       expect(patchRequestCount).toBe(1);
+      if (status === 404) {
+        await waitFor(() => expect(listRequestCount).toBe(expectedListRequests));
+      }
     },
   );
 
@@ -1051,6 +1076,73 @@ describe("category status actions", () => {
     expect(detailRequestCount).toBe(1);
     expect(patchRequestCount).toBe(1);
     expect(listRequestCount).toBe(1);
+  });
+
+  it("shows category not found for a PATCH 404 and returns to the updated origin query without retrying", async () => {
+    const user = userEvent.setup();
+    const sourceSearch = "?page=1&search=almacen&status=active&sort=updatedAt&order=desc";
+    const { router } = renderCategoryList("OPERATOR", true, `/categories${sourceSearch}`);
+    const row = await screen.findByRole("row", { name: /Herramientas/ });
+    let patchRequestCount = 0;
+    let deleteRequestCount = 0;
+    let listRequestCount = 0;
+
+    server.use(
+      http.get(categoriesUrl, ({ request }) => {
+        listRequestCount += 1;
+        const url = new URL(request.url);
+        expect(url.searchParams.get("page")).toBe("1");
+        expect(url.searchParams.get("search")).toBe("almacen");
+        expect(url.searchParams.get("isActive")).toBe("true");
+        expect(url.searchParams.get("sort")).toBe("updatedAt");
+        expect(url.searchParams.get("order")).toBe("desc");
+        return HttpResponse.json({
+          data: [],
+          pagination: { total: 0, page: 1, limit: 15 },
+        });
+      }),
+      http.patch(categoryUrl, () => {
+        patchRequestCount += 1;
+        return HttpResponse.json(
+          { error: { code: "CATEGORY_NOT_FOUND", message: "Internal not-found details." } },
+          { status: 404 },
+        );
+      }),
+      http.delete(categoryUrl, () => {
+        deleteRequestCount += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    await user.click(within(row).getByRole("button", { name: "Desactivar" }));
+    const confirmation = await screen.findByRole("dialog", { name: "Confirmar desactivación" });
+    await user.click(within(confirmation).getByRole("button", { name: "Desactivar" }));
+
+    const notFoundDialog = await screen.findByRole("dialog", { name: "Categoría no encontrada" });
+    expect(await within(notFoundDialog).findByRole("alert")).toHaveTextContent(
+      "No se encontró la categoría Herramientas. No se puede confirmar su estado y no se volverá a enviar el cambio.",
+    );
+    expect(
+      within(notFoundDialog).queryByRole("button", { name: "Desactivar" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(notFoundDialog).queryByRole("button", { name: "Reintentar" }),
+    ).not.toBeInTheDocument();
+    expect(within(notFoundDialog).getByRole("button", { name: "Volver al listado" })).toBeVisible();
+    expect(patchRequestCount).toBe(1);
+    expect(deleteRequestCount).toBe(0);
+    expect(listRequestCount).toBe(0);
+
+    await user.click(within(notFoundDialog).getByRole("button", { name: "Volver al listado" }));
+    expect(
+      await screen.findByText("No se encontraron categorías con esta búsqueda."),
+    ).toBeVisible();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(router.state.location.pathname).toBe("/categories");
+    expect(router.state.location.search).toBe(sourceSearch);
+    expect(listRequestCount).toBe(1);
+    expect(patchRequestCount).toBe(1);
+    expect(deleteRequestCount).toBe(0);
   });
 
   it("requires a new status confirmation after the detail check observes the previous state", async () => {

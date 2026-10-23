@@ -235,6 +235,19 @@ const SessionScopedCategoryOperations = ({
           if (observedCategory?.isActive === requestedIsActive) {
             throw new CategoryStatusCheckCompletedError(observedCategory);
           }
+        } else if (isCategoryNotFoundError(error)) {
+          preserveOperation = true;
+          setOperationPhase(operationId, "not-found");
+          await Promise.all([
+            queryClient.invalidateQueries({
+              queryKey: ["categories", "management-list", sessionId],
+              refetchType: "none",
+            }),
+            queryClient.invalidateQueries({
+              queryKey: ["categories", "active-list", sessionId],
+              refetchType: "none",
+            }),
+          ]);
         }
 
         throw error;
@@ -247,6 +260,7 @@ const SessionScopedCategoryOperations = ({
     [
       checkUncertainStatus,
       operations,
+      queryClient,
       registerOperation,
       removeOperation,
       sessionId,
