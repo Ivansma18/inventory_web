@@ -140,6 +140,9 @@ beforeEach(() => {
   server.use(
     http.get(categoriesUrl, () => HttpResponse.json(categoryListResponse())),
     http.get(categoryUrl, () => HttpResponse.json({ data: category("Oficina") })),
+    http.get(`${categoriesUrl}/:uuid`, ({ params }) =>
+      HttpResponse.json({ data: category("Categoría activa", String(params.uuid)) }),
+    ),
     http.get(productsUrl, () =>
       HttpResponse.json({ data: [product(true)], pagination: { total: 1, page: 1, limit: 15 } }),
     ),
@@ -675,6 +678,92 @@ describe("product edit page", () => {
     expect(detailRequests[0]?.pathname).toBe(`/api/categories/${categoryUuid}`);
     expect(screen.getByRole("searchbox", { name: "Buscar categorías activas" })).toBeVisible();
   });
+
+  it.each([
+    {
+      reason: "inactiva",
+      detailResponse: () =>
+        HttpResponse.json({ data: category("Repuestos", alternativeCategoryUuid, false) }),
+    },
+    {
+      reason: "inexistente",
+      detailResponse: () =>
+        HttpResponse.json(
+          { error: { code: "CATEGORY_NOT_FOUND", message: "private category detail" } },
+          { status: 404 },
+        ),
+    },
+  ])(
+    "invalidates a new selection confirmed $reason while preserving the original and other edits",
+    async ({ detailResponse }) => {
+      const user = userEvent.setup();
+      let categoryRequests = 0;
+      const originalDetailRequests: URL[] = [];
+      const selectedDetailRequests: URL[] = [];
+
+      server.use(
+        http.get(categoriesUrl, () => {
+          categoryRequests += 1;
+          return HttpResponse.json(
+            categoryListResponse(
+              categoryRequests === 1
+                ? [category("Repuestos", alternativeCategoryUuid)]
+                : [category("Papelería", refreshedCategoryUuid)],
+            ),
+          );
+        }),
+        http.get(categoryUrl, ({ request }) => {
+          originalDetailRequests.push(new URL(request.url));
+          return HttpResponse.json({ data: category("Oficina", categoryUuid, false) });
+        }),
+        http.get(`${categoriesUrl}/${alternativeCategoryUuid}`, ({ request }) => {
+          selectedDetailRequests.push(new URL(request.url));
+          return detailResponse();
+        }),
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+      );
+
+      const { router } = renderProductEditRoute();
+      const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+      const getCategorySelect = () => screen.getByRole("textbox", { name: "Categoría" });
+      await waitFor(() => expect(getCategorySelect()).toHaveValue("Oficina (categoría actual)"));
+      expect(originalDetailRequests).toHaveLength(1);
+
+      await user.clear(name);
+      await user.type(name, "Monitor con cambios conservados");
+      getCategorySelect().focus();
+      await user.keyboard("{ArrowDown}{Home}{Enter}");
+
+      expect(
+        await screen.findByText(
+          "La categoría seleccionada ya no está activa o no existe. Se conserva la categoría original.",
+        ),
+      ).toBeVisible();
+      expect(selectedDetailRequests).toHaveLength(1);
+      expect(selectedDetailRequests[0]?.pathname).toBe(
+        `/api/categories/${alternativeCategoryUuid}`,
+      );
+      expect(getCategorySelect()).toHaveValue("Oficina (categoría actual)");
+      expect(getCategorySelect()).toBeDisabled();
+      expect(name).toHaveValue("Monitor con cambios conservados");
+      expect(screen.getByRole("button", { name: "Actualizar categorías activas" })).toBeVisible();
+      const dirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
+      fireEvent(window, dirtyUnloadEvent);
+      expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
+      expect(router.state.location.pathname).toBe(`/products/${productUuid}/edit`);
+
+      await user.click(screen.getByRole("button", { name: "Actualizar categorías activas" }));
+      await waitFor(() => expect(categoryRequests).toBe(2));
+      expect(getCategorySelect()).toBeEnabled();
+      expect(getCategorySelect()).toHaveValue("Oficina (categoría actual)");
+      expect(name).toHaveValue("Monitor con cambios conservados");
+      const dirtyAfterRefreshUnloadEvent = new Event("beforeunload", { cancelable: true });
+      fireEvent(window, dirtyAfterRefreshUnloadEvent);
+      expect(dirtyAfterRefreshUnloadEvent.defaultPrevented).toBe(true);
+      expect(originalDetailRequests).toHaveLength(1);
+    },
+  );
 
   it("identifies a product without a category and leaves the selector optional", async () => {
     server.use(

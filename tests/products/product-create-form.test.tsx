@@ -5,7 +5,7 @@ import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import type { components } from "@/shared/api/generated/auth-contracts";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { appRoutes } from "@/app/router/router";
 import { UiProvider } from "@/app/providers/ui.provider";
@@ -66,6 +66,16 @@ const categoryOptionsResponse = (categories: ReturnType<typeof category>[]) =>
     data: categories,
     pagination: { total: categories.length, page: 1, limit: 15 },
   });
+
+beforeEach(() => {
+  server.use(
+    http.get(`${categoriesUrl}/:uuid`, ({ params }) =>
+      HttpResponse.json({
+        data: { ...category(1, "Categoría activa"), uuid: String(params.uuid) },
+      }),
+    ),
+  );
+});
 
 const activeCategoryQueryKey = [
   "categories",
@@ -1047,6 +1057,84 @@ describe("product creation form", () => {
     expect(screen.getByRole("textbox", { name: "SKU (obligatorio)" })).toHaveValue("SKU-NEW");
     expect(screen.getByRole("button", { name: "Crear producto" })).toBeEnabled();
   });
+
+  it.each([
+    {
+      reason: "inactiva",
+      detailResponse: () =>
+        HttpResponse.json({ data: { ...category(1, "Oficina"), isActive: false } }),
+    },
+    {
+      reason: "inexistente",
+      detailResponse: () =>
+        HttpResponse.json(
+          { error: { code: "CATEGORY_NOT_FOUND", message: "private category detail" } },
+          { status: 404 },
+        ),
+    },
+  ])(
+    "invalidates a new selection confirmed $reason and preserves the remaining product draft",
+    async ({ detailResponse }) => {
+      const user = userEvent.setup();
+      let categoryRequests = 0;
+      const detailRequests: URL[] = [];
+
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(categoriesUrl, () => {
+          categoryRequests += 1;
+          return categoryRequests === 1
+            ? activeCategoryResponse()
+            : categoryOptionsResponse([category(2, "Papelería")]);
+        }),
+        http.get(`${categoriesUrl}/${category(1, "Oficina").uuid}`, ({ request }) => {
+          detailRequests.push(new URL(request.url));
+          return detailResponse();
+        }),
+      );
+
+      const { router } = renderProductCreateRoute();
+      await screen.findByRole("heading", { level: 1, name: "Crear producto" });
+      await fillValidProductForm(user);
+      const categoryError = await screen.findByText(
+        "La categoría seleccionada ya no está activa o no existe. Actualiza las opciones y selecciona otra categoría activa.",
+      );
+      await user.type(
+        screen.getByRole("textbox", { name: "Descripción (opcional)" }),
+        "Pantalla profesional para oficina.",
+      );
+
+      const categorySelect = screen.getByRole("textbox", { name: "Categoría (obligatorio)" });
+      expect(categorySelect).toHaveAttribute("aria-invalid", "true");
+      expect(categorySelect).toHaveAccessibleDescription(categoryError.textContent ?? "");
+      expect(categorySelect).toBeDisabled();
+      expect(categorySelect).not.toHaveValue("Oficina");
+      expect(detailRequests).toHaveLength(1);
+      expect(detailRequests[0]?.pathname).toBe(`/api/categories/${category(1, "Oficina").uuid}`);
+      expect(screen.getByRole("textbox", { name: "SKU (obligatorio)" })).toHaveValue("SKU-NEW");
+      expect(screen.getByRole("textbox", { name: "Nombre (obligatorio)" })).toHaveValue("Monitor");
+      expect(screen.getByRole("textbox", { name: "Descripción (opcional)" })).toHaveValue(
+        "Pantalla profesional para oficina.",
+      );
+      expect(screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" })).toHaveValue(
+        "10,25",
+      );
+      expect(screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" })).toHaveValue(
+        "8.50",
+      );
+      expect(screen.getByRole("button", { name: "Actualizar categorías activas" })).toBeVisible();
+      const dirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
+      fireEvent(window, dirtyUnloadEvent);
+      expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
+      expect(router.state.location.pathname).toBe("/products/new");
+
+      await user.click(screen.getByRole("button", { name: "Actualizar categorías activas" }));
+      await waitFor(() => expect(categoryRequests).toBe(2));
+      expect(await screen.findByText("Selecciona una categoría activa.")).toBeVisible();
+      expect(screen.getByRole("textbox", { name: "Categoría (obligatorio)" })).toBeEnabled();
+      expect(screen.getByRole("textbox", { name: "Nombre (obligatorio)" })).toHaveValue("Monitor");
+    },
+  );
 
   it.each([
     { status: 404, code: "PRODUCT_CATEGORY_NOT_FOUND" },

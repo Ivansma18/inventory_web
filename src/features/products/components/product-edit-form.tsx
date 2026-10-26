@@ -34,6 +34,9 @@ import { formatProductPrice } from "../utils/product-price";
 import { buildProductUpdatePayload } from "../utils/product-update-payload";
 import { ProductUnsavedChangesDialog } from "./product-unsaved-changes-dialog";
 
+const invalidCategorySelectionMessage =
+  "La categoría seleccionada ya no está activa o no existe. Actualiza las opciones antes de elegir otra.";
+
 interface ProductEditFormProps {
   product: Product;
   returnTo: string;
@@ -47,6 +50,7 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
   const [saveError, setSaveError] = useState<string | null>(null);
   const [productNotFound, setProductNotFound] = useState(false);
   const [categoryAssignmentRejected, setCategoryAssignmentRejected] = useState(false);
+  const [categorySelectionInvalidated, setCategorySelectionInvalidated] = useState(false);
   const [categoryRefreshRequired, setCategoryRefreshRequired] = useState(false);
   const session = useSession();
   const navigate = useNavigate();
@@ -303,14 +307,34 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
           render={({ field, fieldState }) => (
             <ProductEditCategoryField
               categoryAssignmentRejected={categoryAssignmentRejected}
+              categorySelectionInvalidated={categorySelectionInvalidated}
               categoryRefreshRequired={categoryRefreshRequired}
               error={fieldState.error?.message}
               disabled={operationPending || productNotFound}
               onActiveCategorySelected={() => {
                 setCategoryAssignmentRejected(false);
+                setCategorySelectionInvalidated(false);
                 setCategoryRefreshRequired(false);
               }}
-              onCategoryOptionsRefreshed={() => setCategoryRefreshRequired(false)}
+              onCategoryOptionsRefreshed={() => {
+                setCategoryRefreshRequired(false);
+                if (categorySelectionInvalidated) {
+                  form.clearErrors("categoryUuid");
+                }
+              }}
+              onCategorySelectionInvalidated={(invalidCategoryUuid) => {
+                if (form.getValues("categoryUuid") !== invalidCategoryUuid) {
+                  return;
+                }
+
+                setCategoryAssignmentRejected(false);
+                setCategorySelectionInvalidated(true);
+                setCategoryRefreshRequired(true);
+                form.setError("categoryUuid", {
+                  type: "server",
+                  message: invalidCategorySelectionMessage,
+                });
+              }}
               onBlur={field.onBlur}
               onValueChange={field.onChange}
               originalCategoryUuid={product.categoryUuid}

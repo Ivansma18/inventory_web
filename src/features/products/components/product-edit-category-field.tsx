@@ -4,11 +4,13 @@ import { CategorySelector } from "@/features/categories";
 
 interface ProductEditCategoryFieldProps {
   categoryAssignmentRejected: boolean;
+  categorySelectionInvalidated: boolean;
   categoryRefreshRequired: boolean;
   disabled?: boolean;
   error?: string;
   onActiveCategorySelected: () => void;
   onCategoryOptionsRefreshed: () => void;
+  onCategorySelectionInvalidated: (categoryUuid: string) => void;
   onBlur: () => void;
   onValueChange: (value: string | null) => void;
   originalCategoryUuid: string | null;
@@ -18,11 +20,13 @@ interface ProductEditCategoryFieldProps {
 
 export const ProductEditCategoryField = ({
   categoryAssignmentRejected,
+  categorySelectionInvalidated,
   categoryRefreshRequired,
   disabled = false,
   error,
   onActiveCategorySelected,
   onCategoryOptionsRefreshed,
+  onCategorySelectionInvalidated,
   onBlur,
   onValueChange,
   originalCategoryUuid,
@@ -58,6 +62,12 @@ export const ProductEditCategoryField = ({
         )
       ) : null}
 
+      {categorySelectionInvalidated ? (
+        <p className="product-edit-category-field__status" role="status">
+          La categoría seleccionada ya no está activa o no existe. {retainedCategoryMessage}
+        </p>
+      ) : null}
+
       <CategorySelector
         allowEmptySelection={originalCategoryUuid === null}
         disabled={disabled}
@@ -70,6 +80,7 @@ export const ProductEditCategoryField = ({
         label="Categoría"
         onActiveCategorySelected={onActiveCategorySelected}
         onBlur={onBlur}
+        onCategorySelectionInvalidated={onCategorySelectionInvalidated}
         onOptionsRefreshed={() => {
           if (categoryRefreshRequired) {
             onCategoryOptionsRefreshed();

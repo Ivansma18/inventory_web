@@ -97,6 +97,9 @@ describe("category selector", () => {
           pagination: { total: search ? 1 : 31, page, limit: 15 },
         });
       }),
+      http.get(`${categoriesUrl}/${categoryUuid(1)}`, () =>
+        HttpResponse.json({ data: category(1, "Oficina") }),
+      ),
     );
 
     renderSelector({ onValueChange });

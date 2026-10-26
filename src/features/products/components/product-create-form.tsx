@@ -32,6 +32,8 @@ import { ProductUnsavedChangesDialog } from "./product-unsaved-changes-dialog";
 
 const rejectedCategoryMessage =
   "No se pudo asignar esta categoría. Actualiza las opciones y selecciona una categoría activa.";
+const invalidCategorySelectionMessage =
+  "La categoría seleccionada ya no está activa o no existe. Actualiza las opciones y selecciona otra categoría activa.";
 const categoryReselectionMessage = "Selecciona una categoría activa.";
 
 export const ProductCreateForm = () => {
@@ -273,6 +275,13 @@ export const ProductCreateForm = () => {
                 onActiveCategorySelected={() => {
                   form.clearErrors("categoryUuid");
                   setCategoryRefreshRequired(false);
+                }}
+                onCategorySelectionInvalidated={() => {
+                  setCategoryRefreshRequired(true);
+                  form.setError("categoryUuid", {
+                    type: "server",
+                    message: invalidCategorySelectionMessage,
+                  });
                 }}
                 onOptionsRefreshed={() => {
                   if (categoryRefreshRequired) {

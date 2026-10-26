@@ -9,7 +9,11 @@ export const categoryDetailQueryKey = (sessionId: string | null, uuid: string | 
   uuid,
 ];
 
-export const useCategory = (sessionId: string | null, uuid: string | null) =>
+export const useCategory = (
+  sessionId: string | null,
+  uuid: string | null,
+  options: { revalidateOnMount?: boolean } = {},
+) =>
   useQuery({
     queryKey: categoryDetailQueryKey(sessionId, uuid),
     queryFn: ({ signal }) => {
@@ -20,4 +24,5 @@ export const useCategory = (sessionId: string | null, uuid: string | null) =>
       return getCategory({ uuid }, signal);
     },
     enabled: sessionId !== null && uuid !== null,
+    ...(options.revalidateOnMount ? { refetchOnMount: "always" as const } : {}),
   });

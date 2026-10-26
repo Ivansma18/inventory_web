@@ -105,6 +105,12 @@ export const productMswWorker = setupWorker(
       pagination: { total: 1, page: 1, limit: 15 },
     });
   }),
+  http.get("/api/backend/categories/:uuid", ({ params, request }) => {
+    recordRequest(request);
+    return params.uuid === categoryUuid
+      ? HttpResponse.json({ data: activeCategory })
+      : HttpResponse.json({ error: { code: "CATEGORY_NOT_FOUND" } }, { status: 404 });
+  }),
   http.get("/api/backend/products", ({ request }) => {
     recordRequest(request);
     return listProducts(request);

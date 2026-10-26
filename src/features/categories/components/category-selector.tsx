@@ -1,6 +1,6 @@
 import "./category-selector.css";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button, Input, Select } from "@/shared/ui";
 import type { SelectOption } from "@/shared/ui";
@@ -9,6 +9,7 @@ import { CATEGORY_LIST_PAGE_SIZE } from "../api/categories-api";
 import type { Category } from "../api/category-contract";
 import { useActiveCategories } from "../hooks/use-active-categories";
 import { useCategory } from "../hooks/use-category";
+import { isCategoryNotFoundError } from "../utils/category-api-errors";
 
 export interface CategorySelectorProps {
   sessionId: string | null;
@@ -25,6 +26,7 @@ export interface CategorySelectorProps {
   onBlur?: () => void;
   onActiveCategorySelected?: () => void;
   onOptionsRefreshed?: () => void;
+  onCategorySelectionInvalidated?: (categoryUuid: string) => void;
 }
 
 interface CategoryOption extends SelectOption {
@@ -46,11 +48,13 @@ export const CategorySelector = ({
   onBlur,
   onActiveCategorySelected,
   onOptionsRefreshed,
+  onCategorySelectionInvalidated,
 }: CategorySelectorProps) => {
   const [searchDraft, setSearchDraft] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [retainedCategory, setRetainedCategory] = useState<Category | null>(null);
+  const handledInvalidSelection = useRef<string | null>(null);
   const categories = useActiveCategories(sessionId, { page, search });
   const visibleCategories = categories.data?.data ?? [];
   const originalCategoryIsVisible = visibleCategories.some(
@@ -63,9 +67,40 @@ export const CategorySelector = ({
     sessionId,
     shouldLoadOriginalCategory ? originalCategoryUuid : null,
   );
+  const isNewCategorySelection = value !== null && value !== originalCategoryUuid;
+  const selectedCategoryUuid = isNewCategorySelection ? value : null;
+  const selectedCategoryQuery = useCategory(sessionId, selectedCategoryUuid, {
+    revalidateOnMount: true,
+  });
+  const selectedCategoryIsUnavailable =
+    selectedCategoryUuid !== null &&
+    ((selectedCategoryQuery.isSuccess && !selectedCategoryQuery.data.isActive) ||
+      (selectedCategoryQuery.isError && isCategoryNotFoundError(selectedCategoryQuery.error)));
   const originalCategory =
     visibleCategories.find((category) => category.uuid === originalCategoryUuid) ??
     (originalCategoryQuery.data?.uuid === originalCategoryUuid ? originalCategoryQuery.data : null);
+
+  useEffect(() => {
+    if (selectedCategoryUuid === null || !selectedCategoryIsUnavailable) {
+      handledInvalidSelection.current = null;
+      return;
+    }
+
+    if (handledInvalidSelection.current === selectedCategoryUuid) {
+      return;
+    }
+
+    handledInvalidSelection.current = selectedCategoryUuid;
+    setRetainedCategory(null);
+    onCategorySelectionInvalidated?.(selectedCategoryUuid);
+    onValueChange(originalCategoryUuid);
+  }, [
+    onCategorySelectionInvalidated,
+    onValueChange,
+    originalCategoryUuid,
+    selectedCategoryIsUnavailable,
+    selectedCategoryUuid,
+  ]);
 
   const categoryOptions: CategoryOption[] = visibleCategories.map((category) => ({
     label: category.name,
@@ -149,7 +184,10 @@ export const CategorySelector = ({
   };
 
   const refreshOptions = async () => {
-    const result = await categories.refetch();
+    const [result] = await Promise.all([
+      categories.refetch(),
+      ...(selectedCategoryUuid === null ? [] : [selectedCategoryQuery.refetch()]),
+    ]);
 
     if (result.isSuccess) {
       onOptionsRefreshed?.();
