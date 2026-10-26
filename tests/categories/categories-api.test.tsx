@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { http, HttpResponse } from "msw";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useActiveCategories, useCategory } from "@/features/categories";
 import { CategoryResponseContractError } from "@/features/categories/api/category-contract";
@@ -13,8 +13,15 @@ import { useCategoryList } from "@/features/categories/hooks/use-category-list";
 import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
+const authSession = vi.hoisted(() => ({ currentSessionId: null as string | null }));
+
+vi.mock("@/features/auth", () => ({
+  isCurrentSession: (currentSessionId: string) => authSession.currentSessionId === currentSessionId,
+}));
+
 const categoriesUrl = "https://inventory.test/api/categories";
 const categoryUuid = "550e8400-e29b-41d4-a716-446655440000";
+const otherCategoryUuid = "650e8400-e29b-41d4-a716-446655440000";
 const sessionId = "categories-test-session";
 const createdCategory = (name: string, description: string | null) => ({
   ...category(name),
@@ -32,6 +39,49 @@ const category = (name: string) => ({
 
 const queryClients: Array<ReturnType<typeof createQueryClient>> = [];
 
+const categoryQueryEntries = (currentSessionId: string, detailUuid = categoryUuid) => ({
+  management: [
+    ["categories", "management-list", currentSessionId, { page: 1 }],
+    ["categories", "management-list", currentSessionId, { page: 2 }],
+  ],
+  options: [
+    ["categories", "active-list", currentSessionId, { page: 1 }],
+    ["categories", "active-list", currentSessionId, { page: 2, search: "taller" }],
+  ],
+  targetDetail: ["categories", "detail", currentSessionId, detailUuid],
+  otherDetail: ["categories", "detail", currentSessionId, otherCategoryUuid],
+});
+
+const seedCategoryQueryEntries = (
+  queryClient: ReturnType<typeof createQueryClient>,
+  currentSessionId: string,
+  detailUuid = categoryUuid,
+) => {
+  const entries = categoryQueryEntries(currentSessionId, detailUuid);
+
+  for (const queryKey of [
+    ...entries.management,
+    ...entries.options,
+    entries.targetDetail,
+    entries.otherDetail,
+  ]) {
+    queryClient.setQueryData(queryKey, { cached: true });
+  }
+
+  return entries;
+};
+
+const expectInvalidationState = (
+  queryClient: ReturnType<typeof createQueryClient>,
+  entries: ReturnType<typeof categoryQueryEntries>,
+  shouldBeInvalidated: boolean,
+) => {
+  for (const queryKey of [...entries.management, ...entries.options, entries.targetDetail]) {
+    expect(queryClient.getQueryState(queryKey)?.isInvalidated).toBe(shouldBeInvalidated);
+  }
+  expect(queryClient.getQueryState(entries.otherDetail)?.isInvalidated).toBe(false);
+};
+
 const createWrapper = (queryClient: ReturnType<typeof createQueryClient>) => {
   const Wrapper = ({ children }: PropsWithChildren) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -41,6 +91,7 @@ const createWrapper = (queryClient: ReturnType<typeof createQueryClient>) => {
 };
 
 afterEach(() => {
+  authSession.currentSessionId = null;
   for (const queryClient of queryClients.splice(0)) {
     queryClient.clear();
   }
@@ -244,6 +295,31 @@ describe("public active categories query", () => {
 });
 
 describe("category creation mutation", () => {
+  it("invalidates management, option and created-detail queries only for the current session", async () => {
+    authSession.currentSessionId = sessionId;
+    const queryClient = createQueryClient();
+    queryClients.push(queryClient);
+    const currentSessionEntries = seedCategoryQueryEntries(queryClient, sessionId);
+    const otherSessionEntries = seedCategoryQueryEntries(queryClient, "another-session");
+
+    server.use(
+      http.post(categoriesUrl, () =>
+        HttpResponse.json({ data: createdCategory("Herramientas", null) }, { status: 201 }),
+      ),
+    );
+
+    const { result } = renderHook(() => useCreateCategory(sessionId), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ name: "Herramientas" });
+    });
+
+    expectInvalidationState(queryClient, currentSessionEntries, true);
+    expectInvalidationState(queryClient, otherSessionEntries, false);
+  });
+
   it.each([
     {
       payload: { name: "Herramientas", description: "Para mantenimiento" },
@@ -312,6 +388,35 @@ describe("category creation mutation", () => {
 });
 
 describe("category update mutation", () => {
+  it("invalidates management, option and updated-detail queries only for the current session", async () => {
+    authSession.currentSessionId = sessionId;
+    const queryClient = createQueryClient();
+    queryClients.push(queryClient);
+    const currentSessionEntries = seedCategoryQueryEntries(queryClient, sessionId);
+    const otherSessionEntries = seedCategoryQueryEntries(queryClient, "another-session");
+
+    server.use(
+      http.patch(`https://inventory.test/api/categories/${categoryUuid}`, () =>
+        HttpResponse.json({ data: category("Herramientas actualizadas") }),
+      ),
+    );
+
+    const { result } = renderHook(() => useUpdateCategory(sessionId), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        uuid: categoryUuid,
+        isActive: true,
+        payload: { name: "Herramientas actualizadas" },
+      });
+    });
+
+    expectInvalidationState(queryClient, currentSessionEntries, true);
+    expectInvalidationState(queryClient, otherSessionEntries, false);
+  });
+
   it("patches only information fields and validates the requested UUID and original state", async () => {
     let requestBody: unknown;
     let requestMethod: string | undefined;
@@ -405,6 +510,31 @@ describe("category update mutation", () => {
 });
 
 describe("category status mutation", () => {
+  it("invalidates management, option and status-detail queries only for the current session", async () => {
+    authSession.currentSessionId = sessionId;
+    const queryClient = createQueryClient();
+    queryClients.push(queryClient);
+    const currentSessionEntries = seedCategoryQueryEntries(queryClient, sessionId);
+    const otherSessionEntries = seedCategoryQueryEntries(queryClient, "another-session");
+
+    server.use(
+      http.patch(`https://inventory.test/api/categories/${categoryUuid}`, () =>
+        HttpResponse.json({ data: { ...category("Herramientas"), isActive: false } }),
+      ),
+    );
+
+    const { result } = renderHook(() => useChangeCategoryStatus(sessionId), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ uuid: categoryUuid, isActive: false, sessionId });
+    });
+
+    await waitFor(() => expectInvalidationState(queryClient, currentSessionEntries, true));
+    expectInvalidationState(queryClient, otherSessionEntries, false);
+  });
+
   it.each([true, false])(
     "patches only the requested isActive value and validates the resulting status (%s)",
     async (isActive) => {
