@@ -495,7 +495,7 @@ describe("product edit page", () => {
     },
   );
 
-  it("keeps the current category selected while searching and paging active options", async () => {
+  it("keeps the original category and dirty product values while searching and paging options", async () => {
     const user = userEvent.setup();
     const requests: URL[] = [];
 
@@ -531,21 +531,29 @@ describe("product edit page", () => {
     await waitFor(() => expect(getCategorySelect()).toHaveValue("Oficina"));
     expect(screen.getByRole("searchbox", { name: "Buscar categorías activas" })).toBeVisible();
 
-    getCategorySelect().focus();
-    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
-    expect(getCategorySelect()).toHaveValue("Repuestos");
+    const name = screen.getByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Monitor con categoría original");
+    const dirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, dirtyUnloadEvent);
+    expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
 
     await user.click(screen.getByRole("button", { name: "Página siguiente de categorías" }));
     await waitFor(() => expect(requests).toHaveLength(2));
     expect(requests[1]?.searchParams.get("page")).toBe("2");
-    expect(getCategorySelect()).toHaveValue("Repuestos");
+    expect(getCategorySelect()).toHaveValue("Oficina");
+    expect(name).toHaveValue("Monitor con categoría original");
 
     const categorySearch = screen.getByRole("searchbox", { name: "Buscar categorías activas" });
     await user.type(categorySearch, "repuesto");
     await user.click(screen.getByRole("button", { name: "Buscar categorías" }));
     await waitFor(() => expect(requests).toHaveLength(3));
     expect(requests[2]?.searchParams.get("search")).toBe("repuesto");
-    expect(getCategorySelect()).toHaveValue("Repuestos");
+    expect(getCategorySelect()).toHaveValue("Oficina");
+    expect(name).toHaveValue("Monitor con categoría original");
+    const dirtyAfterOptionsUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, dirtyAfterOptionsUnloadEvent);
+    expect(dirtyAfterOptionsUnloadEvent.defaultPrevented).toBe(true);
   });
 
   it("loads the original category detail when it is absent from active results", async () => {
@@ -686,9 +694,13 @@ describe("product edit page", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "El backend rechazó la categoría seleccionada.",
     );
+    expect(name).toHaveValue("Monitor actualizado");
     expect(getCategorySelect()).toHaveValue("Oficina");
     expect(getCategorySelect()).toBeDisabled();
     expect(screen.getByRole("button", { name: "Actualizar categorías activas" })).toBeVisible();
+    const rejectedAssignmentUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, rejectedAssignmentUnloadEvent);
+    expect(rejectedAssignmentUnloadEvent.defaultPrevented).toBe(true);
     expect(patchBodies).toEqual([
       { name: "Monitor actualizado", categoryUuid: alternativeCategoryUuid },
     ]);
@@ -697,6 +709,10 @@ describe("product edit page", () => {
     await waitFor(() => expect(categoryRequests).toBe(2));
     expect(getCategorySelect()).toBeEnabled();
     expect(getCategorySelect()).toHaveValue("Oficina");
+    expect(name).toHaveValue("Monitor actualizado");
+    const refreshedOptionsUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, refreshedOptionsUnloadEvent);
+    expect(refreshedOptionsUnloadEvent.defaultPrevented).toBe(true);
 
     await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
     expect(
@@ -721,11 +737,27 @@ describe("product edit page", () => {
   });
 
   it.each([
-    { description: "an original category", originalCategoryUuid: categoryUuid },
-    { description: "no original category", originalCategoryUuid: null },
+    {
+      description: "an active original category",
+      originalCategoryUuid: categoryUuid,
+      originalCategoryActive: true,
+      expectedCategoryLabel: "Oficina",
+    },
+    {
+      description: "an inactive original category",
+      originalCategoryUuid: categoryUuid,
+      originalCategoryActive: false,
+      expectedCategoryLabel: "Oficina (categoría actual)",
+    },
+    {
+      description: "no original category",
+      originalCategoryUuid: null,
+      originalCategoryActive: true,
+      expectedCategoryLabel: "",
+    },
   ])(
     "allows saving other fields while the category options query fails with $description",
-    async ({ originalCategoryUuid }) => {
+    async ({ originalCategoryUuid, originalCategoryActive, expectedCategoryLabel }) => {
       const user = userEvent.setup();
       const patchBodies: unknown[] = [];
 
@@ -746,7 +778,11 @@ describe("product edit page", () => {
         http.get(productUrl, () =>
           HttpResponse.json({ data: product(true, originalCategoryUuid) }),
         ),
-        http.get(categoryUrl, () => HttpResponse.json({ data: category("Oficina") })),
+        http.get(categoryUrl, () =>
+          HttpResponse.json({
+            data: category("Oficina", categoryUuid, originalCategoryActive),
+          }),
+        ),
       );
 
       renderProductEditRoute();
@@ -761,7 +797,7 @@ describe("product edit page", () => {
       if (originalCategoryUuid === null) {
         expect(screen.getByText("Sin categoría", { selector: "p" })).toBeVisible();
       } else {
-        await waitFor(() => expect(getCategorySelect()).toHaveValue("Oficina"));
+        await waitFor(() => expect(getCategorySelect()).toHaveValue(expectedCategoryLabel));
       }
 
       await user.clear(name);
@@ -798,6 +834,9 @@ describe("product edit page", () => {
     renderProductEditRoute();
 
     const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await screen.findByRole("textbox", { name: "Categoría" });
+    const getCategorySelect = () => screen.getByRole("textbox", { name: "Categoría" });
+    await waitFor(() => expect(getCategorySelect()).toHaveValue("Oficina"));
     const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
     const purchasePrice = screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" });
     await user.clear(name);
@@ -805,6 +844,7 @@ describe("product edit page", () => {
     await user.clear(description);
     await user.clear(purchasePrice);
     await user.type(purchasePrice, "130,75");
+    expect(getCategorySelect()).toHaveValue("Oficina");
 
     await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
 

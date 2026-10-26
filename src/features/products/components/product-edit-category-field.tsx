@@ -1,15 +1,6 @@
 import "./product-edit-category-field.css";
 
-import { useState } from "react";
-
-import {
-  CATEGORY_LIST_PAGE_SIZE,
-  useActiveCategories,
-  useCategory,
-  type Category,
-} from "@/features/categories";
-import { Button, Input, Select } from "@/shared/ui";
-import type { SelectOption } from "@/shared/ui";
+import { CategorySelector } from "@/features/categories";
 
 interface ProductEditCategoryFieldProps {
   categoryAssignmentRejected: boolean;
@@ -38,184 +29,26 @@ export const ProductEditCategoryField = ({
   sessionId,
   value,
 }: ProductEditCategoryFieldProps) => {
-  const [categorySearchDraft, setCategorySearchDraft] = useState("");
-  const [categorySearch, setCategorySearch] = useState("");
-  const [categoryPage, setCategoryPage] = useState(1);
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const categories = useActiveCategories(sessionId, { page: categoryPage, search: categorySearch });
-  const visibleCategories = categories.data?.data ?? [];
-  const originalCategoryIsVisible = visibleCategories.some(
-    (category) => category.uuid === originalCategoryUuid,
-  );
-  const shouldLoadOriginalCategory =
-    originalCategoryUuid !== null &&
-    (categories.isError || (categories.isSuccess && !originalCategoryIsVisible));
-  const originalCategoryQuery = useCategory(
-    sessionId,
-    shouldLoadOriginalCategory ? originalCategoryUuid : null,
-  );
-  const originalCategory =
-    visibleCategories.find((category) => category.uuid === originalCategoryUuid) ??
-    (originalCategoryQuery.data?.uuid === originalCategoryUuid ? originalCategoryQuery.data : null);
   const retainedCategoryMessage =
     originalCategoryUuid === null
       ? "El producto seguirá sin categoría."
       : "Se conserva la categoría original.";
 
-  const categoryOptions: SelectOption[] = visibleCategories.map((category) => ({
-    label: category.name,
-    value: category.uuid,
-  }));
-
-  if (
-    selectedCategory?.uuid === value &&
-    !categoryOptions.some((option) => option.value === selectedCategory.uuid)
-  ) {
-    categoryOptions.push({
-      label: selectedCategory.name,
-      value: selectedCategory.uuid,
-    });
-  }
-
-  if (
-    originalCategoryUuid !== null &&
-    !categoryOptions.some((option) => option.value === originalCategoryUuid)
-  ) {
-    categoryOptions.push({
-      label: originalCategory
-        ? `${originalCategory.name}${originalCategory.isActive ? "" : " (categoría actual)"}`
-        : "Categoría actual",
-      value: originalCategoryUuid,
-    });
-  }
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil(
-      (categories.data?.pagination.total ?? 0) /
-        (categories.data?.pagination.limit ?? CATEGORY_LIST_PAGE_SIZE),
-    ),
-  );
-
-  const applyCategorySearch = () => {
-    setCategoryPage(1);
-    setCategorySearch(categorySearchDraft.trim());
-  };
-
-  const handleCategoryChange = (nextCategoryUuid: string | null) => {
-    if (nextCategoryUuid === null && originalCategoryUuid !== null) {
-      return;
-    }
-
-    onValueChange(nextCategoryUuid);
-
-    if (nextCategoryUuid === null) {
-      setSelectedCategory(null);
-      return;
-    }
-
-    const nextActiveCategory = visibleCategories.find(
-      (category) => category.uuid === nextCategoryUuid,
-    );
-    setSelectedCategory(
-      nextActiveCategory ?? (originalCategory?.uuid === nextCategoryUuid ? originalCategory : null),
-    );
-
-    if (nextActiveCategory) {
-      onActiveCategorySelected();
-    }
-  };
-
-  const refreshCategories = async () => {
-    const result = await categories.refetch();
-
-    if (result.isSuccess && categoryRefreshRequired) {
-      onCategoryOptionsRefreshed();
-    }
-  };
-
-  const emptyCategoryMessage = categories.isPending
-    ? "Cargando categorías activas…"
-    : categories.isError
-      ? "No se pudieron cargar las categorías activas."
-      : categorySearch
-        ? "No se encontraron categorías activas."
-        : "No hay categorías activas.";
-
   return (
     <div className="product-edit-category-field">
-      <div className="product-edit-category-field__search">
-        <Input
-          disabled={disabled || categoryRefreshRequired}
-          helpText="Busca por nombre entre categorías activas."
-          label="Buscar categorías activas"
-          onValueChange={setCategorySearchDraft}
-          type="search"
-          value={categorySearchDraft}
-        />
-        <Button
-          disabled={disabled || categoryRefreshRequired}
-          onClick={applyCategorySearch}
-          type="button"
-          variant="secondary"
-        >
-          Buscar categorías
-        </Button>
-      </div>
-
       {originalCategoryUuid === null && value === null ? (
         <p className="product-edit-category-field__status" role="status">
           Sin categoría
         </p>
       ) : null}
 
-      {categories.isPending ? (
-        <p className="product-edit-category-field__status" role="status">
-          Cargando categorías activas…
-        </p>
-      ) : null}
-
-      {categories.isFetching && categories.data ? (
-        <p className="product-edit-category-field__status" role="status">
-          Consultando categorías activas…
-        </p>
-      ) : null}
-
-      {categories.isError ? (
-        <div className="product-edit-category-field__error" role="alert">
-          <p>
-            {categoryAssignmentRejected
-              ? `No se pudieron actualizar las categorías activas. ${retainedCategoryMessage} Vuelve a intentarlo para elegir otra.`
-              : "No se pudieron cargar las categorías activas."}
-          </p>
-          <Button
-            disabled={disabled}
-            loading={categories.isFetching}
-            onClick={() => void refreshCategories()}
-            type="button"
-            variant="secondary"
-          >
-            {categoryRefreshRequired ? "Actualizar categorías activas" : "Reintentar categorías"}
-          </Button>
-        </div>
-      ) : null}
-
-      {categoryAssignmentRejected && !categories.isError ? (
+      {categoryAssignmentRejected ? (
         categoryRefreshRequired ? (
           <div className="product-edit-category-field__error" role="alert">
             <p>
               El backend rechazó la categoría seleccionada. {retainedCategoryMessage} Actualiza las
               opciones antes de elegir otra.
             </p>
-            <Button
-              disabled={disabled || categories.isFetching}
-              loading={categories.isFetching}
-              onClick={() => void refreshCategories()}
-              type="button"
-              variant="secondary"
-            >
-              Actualizar categorías activas
-            </Button>
           </div>
         ) : (
           <p className="product-edit-category-field__status" role="status">
@@ -225,75 +58,30 @@ export const ProductEditCategoryField = ({
         )
       ) : null}
 
-      {originalCategoryQuery.isFetching ? (
-        <p className="product-edit-category-field__status" role="status">
-          Consultando la categoría actual…
-        </p>
-      ) : null}
-
-      {originalCategoryQuery.isError ? (
-        <div className="product-edit-category-field__error" role="alert">
-          <p>La categoría actual no está disponible. Se conservará mientras no elijas otra.</p>
-          <Button
-            disabled={disabled}
-            loading={originalCategoryQuery.isFetching}
-            onClick={() => void originalCategoryQuery.refetch()}
-            type="button"
-            variant="secondary"
-          >
-            Reintentar categoría actual
-          </Button>
-        </div>
-      ) : null}
-
-      {categories.isSuccess && categories.data.pagination.total === 0 ? (
-        <p className="product-edit-category-field__status" role="status">
-          {categorySearch
-            ? "No se encontraron categorías activas."
-            : originalCategoryUuid === null
-              ? "No hay categorías activas; el producto seguirá sin categoría."
-              : "No hay categorías activas para reemplazar la categoría actual."}
-        </p>
-      ) : null}
-
-      <Select
+      <CategorySelector
         allowEmptySelection={originalCategoryUuid === null}
-        disabled={disabled || categoryRefreshRequired || categories.isPending || categories.isError}
-        emptyMessage={emptyCategoryMessage}
+        disabled={disabled}
+        emptyMessage={
+          originalCategoryUuid === null
+            ? "No hay categorías activas; el producto seguirá sin categoría."
+            : "No hay categorías activas para reemplazar la categoría actual."
+        }
         error={error}
-        key={`${value ?? "empty"}:${categoryOptions.find((option) => option.value === value)?.label ?? ""}`}
         label="Categoría"
+        onActiveCategorySelected={onActiveCategorySelected}
         onBlur={onBlur}
-        onValueChange={handleCategoryChange}
-        options={categoryOptions}
-        placeholder={originalCategoryUuid === null ? "Sin categoría" : "Selecciona una categoría"}
+        onOptionsRefreshed={() => {
+          if (categoryRefreshRequired) {
+            onCategoryOptionsRefreshed();
+          }
+        }}
+        onValueChange={onValueChange}
+        originalCategoryUuid={originalCategoryUuid}
+        refreshRequired={categoryRefreshRequired}
         required={originalCategoryUuid !== null}
+        sessionId={sessionId}
         value={value}
       />
-
-      {categories.data && categories.data.pagination.total > categories.data.pagination.limit ? (
-        <div className="product-edit-category-field__pagination">
-          <Button
-            disabled={disabled || categoryRefreshRequired || categoryPage <= 1}
-            onClick={() => setCategoryPage((page) => Math.max(1, page - 1))}
-            type="button"
-            variant="secondary"
-          >
-            Página anterior de categorías
-          </Button>
-          <span aria-live="polite">
-            Página {categories.data.pagination.page} de {totalPages}
-          </span>
-          <Button
-            disabled={disabled || categoryRefreshRequired || categoryPage >= totalPages}
-            onClick={() => setCategoryPage((page) => Math.min(totalPages, page + 1))}
-            type="button"
-            variant="secondary"
-          >
-            Página siguiente de categorías
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 };
