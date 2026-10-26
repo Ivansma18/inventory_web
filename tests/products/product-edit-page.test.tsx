@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { appRoutes } from "@/app/router/router";
 import { UiProvider } from "@/app/providers/ui.provider";
-import { createQueryClient } from "@/shared/api/query-client";
+import { createQueryClient, QUERY_STALE_TIME_MS } from "@/shared/api/query-client";
 import { productDetailQueryKey } from "@/features/products/hooks/use-product";
 import { server } from "../mocks/server";
 import {
@@ -79,6 +79,44 @@ const categoryListResponse = (
   pagination: { total, page: 1, limit: 15 },
 });
 
+const activeCategoryQueryKey = [
+  "categories",
+  "active-list",
+  "product-edit-session",
+  { page: 1, limit: 15, isActive: "true", sort: "name", order: "asc" },
+] as const;
+
+const categoryOptionChanges = [
+  {
+    action: "crear",
+    initialOptions: [category("Oficina")],
+    updatedOptions: [category("Oficina"), category("Papelería", alternativeCategoryUuid)],
+    expectedSelection: "Papelería",
+    selectionKeys: "{ArrowDown}{ArrowDown}{ArrowDown}{Enter}",
+  },
+  {
+    action: "renombrar",
+    initialOptions: [category("Oficina")],
+    updatedOptions: [category("Suministros")],
+    expectedSelection: "Suministros",
+    selectionKeys: "{ArrowDown}{ArrowDown}{Enter}",
+  },
+  {
+    action: "activar",
+    initialOptions: [category("Oficina")],
+    updatedOptions: [category("Oficina"), category("Papelería", alternativeCategoryUuid)],
+    expectedSelection: "Papelería",
+    selectionKeys: "{ArrowDown}{ArrowDown}{ArrowDown}{Enter}",
+  },
+  {
+    action: "desactivar",
+    initialOptions: [category("Oficina"), category("Papelería", alternativeCategoryUuid)],
+    updatedOptions: [category("Papelería", alternativeCategoryUuid)],
+    expectedSelection: "Papelería",
+    selectionKeys: "{ArrowDown}{ArrowDown}{Enter}",
+  },
+];
+
 interface Deferred<T> {
   promise: Promise<T>;
   resolve: (value: T) => void;
@@ -138,6 +176,62 @@ afterEach(() => {
 });
 
 describe("product edit page", () => {
+  it.each(categoryOptionChanges)(
+    "rechecks active options on return after $action even while the cache is fresh",
+    async ({ initialOptions, updatedOptions, expectedSelection, selectionKeys }) => {
+      const user = userEvent.setup();
+      let categoryRequests = 0;
+      let currentOptions = initialOptions;
+
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(categoriesUrl, () => {
+          categoryRequests += 1;
+          return HttpResponse.json(
+            categoryListResponse(categoryRequests === 1 ? initialOptions : currentOptions),
+          );
+        }),
+        http.get(productUrl, () => HttpResponse.json({ data: product(true, null) })),
+      );
+
+      const { queryClient, router } = renderProductEditRoute();
+      await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+      const categorySelect = await screen.findByRole("textbox", { name: "Categoría" });
+      await waitFor(() => expect(categoryRequests).toBe(1));
+      await waitFor(() => expect(categorySelect).toBeEnabled());
+
+      const cachedOptions = queryClient.getQueryState(activeCategoryQueryKey);
+      expect(cachedOptions?.isInvalidated).toBe(false);
+      expect(Date.now() - (cachedOptions?.dataUpdatedAt ?? 0)).toBeLessThan(QUERY_STALE_TIME_MS);
+
+      await act(async () => {
+        await router.navigate("/");
+      });
+      expect(
+        await screen.findByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+      ).toBeVisible();
+      expect(categoryRequests).toBe(1);
+
+      currentOptions = updatedOptions;
+      await act(async () => {
+        await router.navigate(`/products/${productUuid}/edit`);
+      });
+
+      await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+      await waitFor(() => expect(categoryRequests).toBe(2));
+      await waitFor(() =>
+        expect(queryClient.getQueryData(activeCategoryQueryKey)).toMatchObject({
+          data: updatedOptions,
+        }),
+      );
+
+      const returnedCategorySelect = screen.getByRole("textbox", { name: "Categoría" });
+      returnedCategorySelect.focus();
+      await user.keyboard(selectionKeys);
+      expect(returnedCategorySelect).toHaveValue(expectedSelection);
+    },
+  );
+
   it("preserves local values and dirty state when the product detail is refetched", async () => {
     const user = userEvent.setup();
     let detailRequests = 0;
@@ -677,7 +771,7 @@ describe("product edit page", () => {
       http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
     );
 
-    renderProductEditRoute();
+    const { queryClient } = renderProductEditRoute();
 
     const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
     await screen.findByRole("textbox", { name: "Categoría" });
@@ -704,6 +798,10 @@ describe("product edit page", () => {
     expect(patchBodies).toEqual([
       { name: "Monitor actualizado", categoryUuid: alternativeCategoryUuid },
     ]);
+
+    const cachedOptions = queryClient.getQueryState(activeCategoryQueryKey);
+    expect(cachedOptions?.isInvalidated).toBe(false);
+    expect(Date.now() - (cachedOptions?.dataUpdatedAt ?? 0)).toBeLessThan(QUERY_STALE_TIME_MS);
 
     await user.click(screen.getByRole("button", { name: "Actualizar categorías activas" }));
     await waitFor(() => expect(categoryRequests).toBe(2));

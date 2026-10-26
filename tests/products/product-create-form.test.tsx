@@ -11,7 +11,7 @@ import { appRoutes } from "@/app/router/router";
 import { UiProvider } from "@/app/providers/ui.provider";
 import { useSession } from "@/features/auth";
 import type { UseSessionResult } from "@/features/auth";
-import { createQueryClient } from "@/shared/api/query-client";
+import { createQueryClient, QUERY_STALE_TIME_MS } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
 const categoriesUrl = "https://inventory.test/api/categories";
@@ -60,6 +60,50 @@ const activeCategoryResponse = () =>
     data: [category(1, "Oficina")],
     pagination: { total: 1, page: 1, limit: 15 },
   });
+
+const categoryOptionsResponse = (categories: ReturnType<typeof category>[]) =>
+  HttpResponse.json({
+    data: categories,
+    pagination: { total: categories.length, page: 1, limit: 15 },
+  });
+
+const activeCategoryQueryKey = [
+  "categories",
+  "active-list",
+  "product-create-session",
+  { page: 1, limit: 15, isActive: "true", sort: "name", order: "asc" },
+] as const;
+
+const categoryOptionChanges = [
+  {
+    action: "crear",
+    initialOptions: [category(1, "Oficina")],
+    updatedOptions: [category(1, "Oficina"), category(2, "Papelería")],
+    expectedSelection: "Papelería",
+    selectionKeys: "{ArrowDown}{ArrowDown}{ArrowDown}{Enter}",
+  },
+  {
+    action: "renombrar",
+    initialOptions: [category(1, "Oficina")],
+    updatedOptions: [category(1, "Suministros")],
+    expectedSelection: "Suministros",
+    selectionKeys: "{ArrowDown}{ArrowDown}{Enter}",
+  },
+  {
+    action: "activar",
+    initialOptions: [category(1, "Oficina")],
+    updatedOptions: [category(1, "Oficina"), category(2, "Papelería")],
+    expectedSelection: "Papelería",
+    selectionKeys: "{ArrowDown}{ArrowDown}{ArrowDown}{Enter}",
+  },
+  {
+    action: "desactivar",
+    initialOptions: [category(1, "Oficina"), category(2, "Papelería")],
+    updatedOptions: [category(2, "Papelería")],
+    expectedSelection: "Papelería",
+    selectionKeys: "{ArrowDown}{ArrowDown}{Enter}",
+  },
+];
 
 const fillValidProductForm = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.type(screen.getByRole("textbox", { name: "SKU (obligatorio)" }), "SKU-NEW");
@@ -112,6 +156,62 @@ afterEach(() => {
 });
 
 describe("product creation form", () => {
+  it.each(categoryOptionChanges)(
+    "rechecks active options on return after $action even while the cache is fresh",
+    async ({ initialOptions, updatedOptions, expectedSelection, selectionKeys }) => {
+      const user = userEvent.setup();
+      let categoryRequests = 0;
+      let currentOptions = initialOptions;
+
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(categoriesUrl, () => {
+          categoryRequests += 1;
+          return categoryOptionsResponse(categoryRequests === 1 ? initialOptions : currentOptions);
+        }),
+      );
+
+      const { queryClient, router } = renderProductCreateRoute();
+      const categorySelect = await screen.findByRole("textbox", {
+        name: "Categoría (obligatorio)",
+      });
+      await waitFor(() => expect(categoryRequests).toBe(1));
+      await waitFor(() => expect(categorySelect).toBeEnabled());
+
+      const cachedOptions = queryClient.getQueryState(activeCategoryQueryKey);
+      expect(cachedOptions?.isInvalidated).toBe(false);
+      expect(Date.now() - (cachedOptions?.dataUpdatedAt ?? 0)).toBeLessThan(QUERY_STALE_TIME_MS);
+
+      await act(async () => {
+        await router.navigate("/");
+      });
+      expect(
+        await screen.findByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+      ).toBeVisible();
+      expect(categoryRequests).toBe(1);
+
+      currentOptions = updatedOptions;
+      await act(async () => {
+        await router.navigate("/products/new");
+      });
+
+      await screen.findByRole("heading", { level: 1, name: "Crear producto" });
+      await waitFor(() => expect(categoryRequests).toBe(2));
+      await waitFor(() =>
+        expect(queryClient.getQueryData(activeCategoryQueryKey)).toMatchObject({
+          data: updatedOptions,
+        }),
+      );
+
+      const returnedCategorySelect = screen.getByRole("textbox", {
+        name: "Categoría (obligatorio)",
+      });
+      returnedCategorySelect.focus();
+      await user.keyboard(selectionKeys);
+      expect(returnedCategorySelect).toHaveValue(expectedSelection);
+    },
+  );
+
   it("locks every create control and cancels navigation attempts until the save resolves", async () => {
     const user = userEvent.setup();
     let resolveCreate!: (response: Response) => void;
@@ -974,7 +1074,7 @@ describe("product creation form", () => {
         ),
       );
 
-      renderProductCreateRoute();
+      const { queryClient } = renderProductCreateRoute();
       await fillValidProductForm(user);
       await user.type(
         screen.getByRole("textbox", { name: "Descripción (opcional)" }),
@@ -1007,6 +1107,10 @@ describe("product creation form", () => {
       const dirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
       fireEvent(window, dirtyUnloadEvent);
       expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
+
+      const cachedOptions = queryClient.getQueryState(activeCategoryQueryKey);
+      expect(cachedOptions?.isInvalidated).toBe(false);
+      expect(Date.now() - (cachedOptions?.dataUpdatedAt ?? 0)).toBeLessThan(QUERY_STALE_TIME_MS);
 
       await user.click(screen.getByRole("button", { name: "Actualizar categorías activas" }));
       await waitFor(() => expect(categoryRequests).toBe(2));
