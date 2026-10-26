@@ -16,6 +16,7 @@ export interface CategorySelectorProps {
   onValueChange: (value: string | null) => void;
   originalCategoryUuid?: string | null;
   disabled?: boolean;
+  refreshRequired?: boolean;
   error?: string;
   label?: string;
   required?: boolean;
@@ -36,6 +37,7 @@ export const CategorySelector = ({
   onValueChange,
   originalCategoryUuid = null,
   disabled = false,
+  refreshRequired = false,
   error,
   label = "Categoría",
   required = false,
@@ -109,17 +111,16 @@ export const CategorySelector = ({
         (categories.data?.pagination.limit ?? CATEGORY_LIST_PAGE_SIZE),
     ),
   );
-  const resolvedEmptyMessage =
-    emptyMessage ??
-    (categories.isPending
-      ? "Cargando categorías activas…"
-      : categories.isError
-        ? "No se pudieron cargar las categorías activas."
-        : search
-          ? "No se encontraron categorías activas."
-          : originalCategoryUuid === null
+  const resolvedEmptyMessage = categories.isPending
+    ? "Cargando categorías activas…"
+    : categories.isError
+      ? "No se pudieron cargar las categorías activas."
+      : search
+        ? "No se encontraron categorías activas."
+        : (emptyMessage ??
+          (originalCategoryUuid === null
             ? "No hay categorías activas."
-            : "No hay categorías activas para reemplazar la categoría actual.");
+            : "No hay categorías activas para reemplazar la categoría actual."));
 
   const applySearch = () => {
     setPage(1);
@@ -159,14 +160,19 @@ export const CategorySelector = ({
     <div className="category-selector">
       <div className="category-selector__search">
         <Input
-          disabled={disabled}
+          disabled={disabled || refreshRequired}
           helpText="Busca por nombre entre categorías activas."
           label="Buscar categorías activas"
           onValueChange={setSearchDraft}
           type="search"
           value={searchDraft}
         />
-        <Button disabled={disabled} onClick={applySearch} type="button" variant="secondary">
+        <Button
+          disabled={disabled || refreshRequired}
+          onClick={applySearch}
+          type="button"
+          variant="secondary"
+        >
           Buscar categorías
         </Button>
       </div>
@@ -187,7 +193,21 @@ export const CategorySelector = ({
             type="button"
             variant="secondary"
           >
-            Reintentar
+            {refreshRequired ? "Actualizar categorías activas" : "Reintentar"}
+          </Button>
+        </div>
+      ) : null}
+
+      {refreshRequired && !categories.isError ? (
+        <div className="category-selector__recovery">
+          <Button
+            disabled={disabled || categories.isFetching}
+            loading={categories.isFetching}
+            onClick={() => void refreshOptions()}
+            type="button"
+            variant="secondary"
+          >
+            Actualizar categorías activas
           </Button>
         </div>
       ) : null}
@@ -215,7 +235,7 @@ export const CategorySelector = ({
 
       <Select
         allowEmptySelection={allowEmptySelection}
-        disabled={disabled || categories.isPending || categories.isError}
+        disabled={disabled || refreshRequired || categories.isPending || categories.isError}
         emptyMessage={resolvedEmptyMessage}
         error={error}
         key={`${value ?? "empty"}:${
@@ -233,7 +253,7 @@ export const CategorySelector = ({
       {categories.data && categories.data.pagination.total > categories.data.pagination.limit ? (
         <div className="category-selector__pagination">
           <Button
-            disabled={disabled || page <= 1}
+            disabled={disabled || refreshRequired || page <= 1}
             onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
             type="button"
             variant="secondary"
@@ -244,7 +264,7 @@ export const CategorySelector = ({
             Página {categories.data.pagination.page} de {totalPages}
           </span>
           <Button
-            disabled={disabled || page >= totalPages}
+            disabled={disabled || refreshRequired || page >= totalPages}
             onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
             type="button"
             variant="secondary"

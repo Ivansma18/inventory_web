@@ -30,6 +30,11 @@
   color: var(--ui-color-on-error);
 }
 
+.category-selector__recovery {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .category-selector__pagination {
   display: flex;
   align-items: center;

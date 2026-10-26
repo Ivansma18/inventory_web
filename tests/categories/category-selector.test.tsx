@@ -234,4 +234,35 @@ describe("category selector", () => {
       "Oficina (categoría actual)",
     );
   });
+
+  it("requires refreshing options before choosing again after a rejected assignment", async () => {
+    const user = userEvent.setup();
+    let listRequests = 0;
+    const onOptionsRefreshed = vi.fn();
+
+    server.use(
+      http.get(categoriesUrl, () => {
+        listRequests += 1;
+
+        return HttpResponse.json({
+          data: [category(listRequests, listRequests === 1 ? "Oficina" : "Papelería")],
+          pagination: { total: 1, page: 1, limit: 15 },
+        });
+      }),
+    );
+
+    renderSelector({ refreshRequired: true, onOptionsRefreshed });
+
+    const select = await screen.findByRole("textbox", { name: "Categoría" });
+    await waitFor(() => expect(listRequests).toBe(1));
+    expect(select).toBeDisabled();
+    expect(screen.getByRole("searchbox", { name: "Buscar categorías activas" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Buscar categorías" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Actualizar categorías activas" }));
+
+    await waitFor(() => expect(listRequests).toBe(2));
+    expect(onOptionsRefreshed).toHaveBeenCalledTimes(1);
+    expect(select).toBeDisabled();
+  });
 });

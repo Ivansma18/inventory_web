@@ -433,6 +433,8 @@ describe("product creation form", () => {
     expect(screen.getAllByText("Usa coma o punto decimal; máximo dos decimales.")).toHaveLength(2);
     expect(categorySelect).toHaveAttribute("aria-required", "true");
     expect(screen.getByRole("searchbox", { name: "Buscar categorías activas" })).toBeVisible();
+    await user.type(sku, "SKU-DRAFT");
+    await user.type(description, "Producto para uso diario.");
 
     await waitFor(() => expect(categorySelect).toBeEnabled());
     expect(categoryRequests).toHaveLength(1);
@@ -453,6 +455,13 @@ describe("product creation form", () => {
     await waitFor(() => expect(categoryRequests).toHaveLength(3));
     expect(categoryRequests[2]!.searchParams.get("search")).toBe("oficina");
     expect(categoryRequests[2]!.searchParams.get("page")).toBe("1");
+    expect(categorySelect).toHaveValue("Categoría 1");
+    expect(sku).toHaveValue("SKU-DRAFT");
+    expect(description).toHaveValue("Producto para uso diario.");
+
+    const dirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, dirtyUnloadEvent);
+    expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
   });
 
   it("shows accessible errors when SKU and name contain only outer whitespace", async () => {
@@ -973,13 +982,14 @@ describe("product creation form", () => {
       );
       fireEvent.submit(screen.getByRole("form", { name: "Datos del producto" }));
 
-      const categorySelect = screen.getByRole("textbox", { name: "Categoría (obligatorio)" });
+      const getCategorySelect = () =>
+        screen.getByRole("textbox", { name: "Categoría (obligatorio)" });
       const categoryError = await screen.findByText(
         "No se pudo asignar esta categoría. Actualiza las opciones y selecciona una categoría activa.",
       );
-      expect(categorySelect).toHaveAttribute("aria-invalid", "true");
-      expect(categorySelect).toHaveAccessibleDescription(categoryError.textContent ?? "");
-      expect(categorySelect).toBeDisabled();
+      expect(getCategorySelect()).toHaveAttribute("aria-invalid", "true");
+      expect(getCategorySelect()).toHaveAccessibleDescription(categoryError.textContent ?? "");
+      expect(getCategorySelect()).toBeDisabled();
       expect(screen.getByRole("button", { name: "Actualizar categorías activas" })).toBeVisible();
       expect(screen.queryByText("private category detail")).not.toBeInTheDocument();
       expect(screen.queryByText("No se pudo crear el producto. Inténtalo de nuevo.")).toBeNull();
@@ -994,17 +1004,20 @@ describe("product creation form", () => {
       expect(screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" })).toHaveValue(
         "8.50",
       );
+      const dirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
+      fireEvent(window, dirtyUnloadEvent);
+      expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
 
       await user.click(screen.getByRole("button", { name: "Actualizar categorías activas" }));
       await waitFor(() => expect(categoryRequests).toBe(2));
       expect(await screen.findByText("Selecciona una categoría activa.")).toBeVisible();
-      expect(categorySelect).toBeEnabled();
+      expect(getCategorySelect()).toBeEnabled();
 
-      categorySelect.focus();
+      getCategorySelect().focus();
       await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
 
-      expect(categorySelect).toHaveValue("Papelería");
-      expect(categorySelect).not.toHaveAttribute("aria-invalid", "true");
+      expect(getCategorySelect()).toHaveValue("Papelería");
+      expect(getCategorySelect()).not.toHaveAttribute("aria-invalid", "true");
       expect(screen.queryByText(/No se pudo asignar esta categoría/)).not.toBeInTheDocument();
       expect(screen.getByRole("textbox", { name: "SKU (obligatorio)" })).toHaveValue("SKU-NEW");
       expect(screen.getByRole("textbox", { name: "Nombre (obligatorio)" })).toHaveValue("Monitor");
@@ -1017,6 +1030,9 @@ describe("product creation form", () => {
       expect(screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" })).toHaveValue(
         "8.50",
       );
+      const dirtyAfterRefreshUnloadEvent = new Event("beforeunload", { cancelable: true });
+      fireEvent(window, dirtyAfterRefreshUnloadEvent);
+      expect(dirtyAfterRefreshUnloadEvent.defaultPrevented).toBe(true);
     },
   );
 
