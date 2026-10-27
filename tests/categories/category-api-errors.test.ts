@@ -1,0 +1,115 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  isCategoryHasAssociatedProductsError,
+  isCategoryNotFoundError,
+  isCategoryRateLimitedError,
+  isDuplicateCategoryNameError,
+} from "@/features/categories/utils/category-api-errors";
+
+describe("category API error classification", () => {
+  it.each([
+    {
+      description: "the duplicate-name conflict code and status",
+      error: { kind: "http", status: 409, code: "CATEGORY_NAME_ALREADY_EXISTS" },
+      expected: true,
+    },
+    {
+      description: "a different conflict code with status 409",
+      error: { kind: "http", status: 409, code: "CATEGORY_HAS_ASSOCIATED_PRODUCTS" },
+      expected: false,
+    },
+    {
+      description: "the duplicate-name code with a different status",
+      error: { kind: "http", status: 400, code: "CATEGORY_NAME_ALREADY_EXISTS" },
+      expected: false,
+    },
+    {
+      description: "a network error",
+      error: { kind: "network", message: "Unable to reach the server." },
+      expected: false,
+    },
+  ])("recognizes only $description", ({ error, expected }) => {
+    expect(isDuplicateCategoryNameError(error)).toBe(expected);
+  });
+
+  it.each([
+    {
+      description: "the category-not-found code and status",
+      error: { kind: "http", status: 404, code: "CATEGORY_NOT_FOUND" },
+      expected: true,
+    },
+    {
+      description: "a 404 response without the category-specific code",
+      error: { kind: "http", status: 404, code: "RESOURCE_NOT_FOUND" },
+      expected: true,
+    },
+    {
+      description: "the category-not-found code with another status",
+      error: { kind: "http", status: 400, code: "CATEGORY_NOT_FOUND" },
+      expected: true,
+    },
+    {
+      description: "a different status and code",
+      error: { kind: "http", status: 400, code: "INVALID_CATEGORY_DATA" },
+      expected: false,
+    },
+    {
+      description: "a network failure",
+      error: { kind: "network", message: "Unable to reach the server." },
+      expected: false,
+    },
+  ])("recognizes only $description", ({ error, expected }) => {
+    expect(isCategoryNotFoundError(error)).toBe(expected);
+  });
+
+  it.each([
+    {
+      description: "the associated-products conflict code and status",
+      error: { kind: "http", status: 409, code: "CATEGORY_HAS_ASSOCIATED_PRODUCTS" },
+      expected: true,
+    },
+    {
+      description: "a different conflict code with status 409",
+      error: { kind: "http", status: 409, code: "CATEGORY_NAME_ALREADY_EXISTS" },
+      expected: false,
+    },
+    {
+      description: "the associated-products code with another status",
+      error: { kind: "http", status: 403, code: "CATEGORY_HAS_ASSOCIATED_PRODUCTS" },
+      expected: false,
+    },
+    {
+      description: "a network failure",
+      error: { kind: "network", message: "Unable to reach the server." },
+      expected: false,
+    },
+  ])("recognizes only $description", ({ error, expected }) => {
+    expect(isCategoryHasAssociatedProductsError(error)).toBe(expected);
+  });
+
+  it.each([
+    {
+      description: "HTTP 429 even when the server omits an error code",
+      error: { kind: "http", status: 429, message: "The request was rate limited." },
+      expected: true,
+    },
+    {
+      description: "HTTP 429 with a public error code",
+      error: { kind: "http", status: 429, code: "RATE_LIMITED" },
+      expected: true,
+    },
+    {
+      description: "an uncertain server failure",
+      error: { kind: "http", status: 503, code: "SERVICE_UNAVAILABLE" },
+      expected: false,
+    },
+    {
+      description: "a network failure",
+      error: { kind: "network", message: "Unable to reach the server." },
+      expected: false,
+    },
+  ])("recognizes only $description as manually retryable", ({ error, expected }) => {
+    expect(isCategoryRateLimitedError(error)).toBe(expected);
+  });
+});

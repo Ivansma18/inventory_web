@@ -32,6 +32,10 @@ const forbiddenBundleMarkers = [
   "/__products-msw",
   "Inventory Product MSW E2E Harness",
   "product-msw-api.ts",
+  "/__categories-msw",
+  "Inventory Category MSW E2E Harness",
+  "category-msw-api.ts",
+  "category-msw-app.tsx",
   "/mockServiceWorker.js",
   ...forbiddenDesignSystemMarkers,
   "INVENTORY_HEALTH_E2E_HARNESS",
@@ -134,6 +138,23 @@ test("serves the built app without development harnesses, demo, or backend acces
   expect(productMswHarnessFallback).not.toContain("Inventory Product MSW E2E Harness");
   expect(productMswHarnessFallback).not.toContain("product-msw-app.tsx");
   expect(productMswHarnessFallback).not.toContain("/mockServiceWorker.js");
+
+  const categoryMswHarnessResponse = await page.request.get("/__categories-msw");
+  expect(categoryMswHarnessResponse.status()).toBe(200);
+  expect(categoryMswHarnessResponse.headers()["content-type"]).toContain("text/html");
+  const categoryMswHarnessFallback = await categoryMswHarnessResponse.text();
+  expect(categoryMswHarnessFallback).not.toContain("Inventory Category MSW E2E Harness");
+  expect(categoryMswHarnessFallback).not.toContain("category-msw-app.tsx");
+  expect(categoryMswHarnessFallback).not.toContain("category-msw-api.ts");
+  expect(categoryMswHarnessFallback).not.toContain("/mockServiceWorker.js");
+
+  const workerResponse = await page.request.get("/mockServiceWorker.js");
+  expect(workerResponse.status()).toBe(200);
+  expect(workerResponse.headers()["content-type"]).toContain("text/html");
+  const workerFallback = await workerResponse.text();
+  expect(workerFallback).toContain('id="root"');
+  expect(workerFallback).not.toContain("mockServiceWorker");
+  expect(workerFallback).not.toContain("serviceWorker.register");
 
   const designSystemFallback = await page.request.get("/__design-system");
   expect([200, 404]).toContain(designSystemFallback.status());
@@ -243,4 +264,80 @@ test("serves the product list in preview with mocked Auth and Products APIs", as
   await expect(page.getByRole("cell", { name: product.sku })).toBeVisible();
   expect(apiRequests).toEqual(["/api/auth/get-session", "/api/backend/products"]);
   expect(businessRequests).toEqual(["GET"]);
+});
+
+test("serves the category list in preview with mocked Auth and Categories APIs", async ({
+  page,
+}) => {
+  const apiRequests: string[] = [];
+  const authMethods: string[] = [];
+  const businessRequests: Array<{ method: string; path: string; origin: string }> = [];
+  const category = {
+    uuid: "550e8400-e29b-41d4-a716-446655440061",
+    name: "Herramientas de preview",
+    description: "Categoría simulada en producción",
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+
+  page.on("request", (request) => {
+    const requestUrl = new URL(request.url());
+    if (requestUrl.pathname.startsWith("/api/")) {
+      apiRequests.push(requestUrl.pathname);
+    }
+  });
+
+  await page.route("**/api/auth/get-session", async (route) => {
+    authMethods.push(route.request().method());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          user: { id: "preview-categories-user", email: "operator@example.com", role: "OPERATOR" },
+          session: { id: "preview-categories-session", createdAt: "2026-01-01T00:00:00.000Z" },
+        },
+      }),
+    });
+  });
+  await page.route("**/api/backend/**", async (route) => {
+    const requestUrl = new URL(route.request().url());
+    const request = {
+      method: route.request().method(),
+      path: requestUrl.pathname,
+      origin: requestUrl.origin,
+    };
+    businessRequests.push(request);
+
+    if (request.method === "GET" && request.path === "/api/backend/categories") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: [category], pagination: { total: 1, page: 1, limit: 15 } }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "NOT_FOUND" } }),
+    });
+  });
+
+  const previewResponse = await page.goto("/categories");
+  expect(previewResponse?.status()).toBe(200);
+  await expect(page.getByRole("heading", { level: 1, name: "Categorías" })).toBeVisible();
+
+  const categoryRow = page.getByRole("row").filter({ hasText: category.name });
+  await expect(categoryRow).toBeVisible();
+  await expect(categoryRow).toContainText("Activa");
+
+  const previewOrigin = new URL(page.url()).origin;
+  expect(authMethods).toEqual(["GET"]);
+  expect(businessRequests).toEqual([
+    { method: "GET", path: "/api/backend/categories", origin: previewOrigin },
+  ]);
+  expect(apiRequests).toEqual(["/api/auth/get-session", "/api/backend/categories"]);
 });

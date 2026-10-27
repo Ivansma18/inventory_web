@@ -1,0 +1,68 @@
+import "./category-form-fields.css";
+
+import { Controller } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
+
+import { Input, Textarea } from "@/shared/ui";
+
+import type { CategoryFormInput, CategoryFormValues } from "../schemas/category-form.schema";
+
+export interface CategoryFormFieldsProps {
+  disabled?: boolean;
+  form: UseFormReturn<CategoryFormInput, unknown, CategoryFormValues>;
+  readOnly?: boolean;
+}
+
+export const CategoryFormFields = ({
+  form,
+  disabled = false,
+  readOnly = false,
+}: CategoryFormFieldsProps) => (
+  <section aria-labelledby="category-form-fields-heading" className="category-form-fields">
+    <h2 className="category-form-fields__heading" id="category-form-fields-heading">
+      Datos de la categoría
+    </h2>
+    <div className="category-form-fields__controls">
+      <Controller
+        control={form.control}
+        name="name"
+        render={({ field, fieldState }) => (
+          <Input
+            disabled={disabled}
+            error={fieldState.error?.message}
+            label="Nombre (obligatorio)"
+            onBlur={field.onBlur}
+            onValueChange={(value) => {
+              field.onChange(value);
+              if (fieldState.error?.type === "server") {
+                form.clearErrors("name");
+              }
+              form.clearErrors("root.server");
+            }}
+            readOnly={readOnly}
+            required
+            value={field.value}
+          />
+        )}
+      />
+      <Controller
+        control={form.control}
+        name="description"
+        render={({ field, fieldState }) => (
+          <Textarea
+            disabled={disabled}
+            error={fieldState.error?.message}
+            label="Descripción (opcional)"
+            onValueChange={(value) => {
+              field.onChange(value);
+              form.clearErrors("root.server");
+            }}
+            readOnly={readOnly}
+            rows={4}
+            value={field.value}
+          />
+        )}
+      />
+    </div>
+  </section>
+);

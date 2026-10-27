@@ -3,6 +3,7 @@ import "./app-layout.css";
 import { useCallback } from "react";
 import { Outlet } from "react-router";
 
+import { CategoryOperationsProvider } from "@/features/categories";
 import { CurrentUserAppHeader } from "@/app/components/app-header";
 import { CompactNavigation } from "@/app/components/compact-navigation";
 import { AppNavigation } from "@/app/components/app-navigation";
@@ -76,7 +77,9 @@ export const AppLayout = () => {
           />
         </div>
         <main className="app-layout__main" id="main-content" tabIndex={-1}>
-          <Outlet />
+          <CategoryOperationsProvider>
+            <Outlet />
+          </CategoryOperationsProvider>
         </main>
       </div>
     </div>

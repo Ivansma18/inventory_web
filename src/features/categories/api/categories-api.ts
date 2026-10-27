@@ -1,11 +1,15 @@
 import type { paths } from "@/shared/api/generated/category-contracts";
 import { httpClient } from "@/shared/api/http-client";
 
+import type { CategoryListCriteria } from "../utils/category-list-url-state";
 import {
   parseCategoryDataResponse,
   parseCategoryListResponse,
   type Category,
+  type CategoryCreatePayload,
+  type CategoryInformationUpdatePayload,
   type CategoryListResponse,
+  type CategoryUpdatePayload,
 } from "./category-contract";
 
 export type CategoryListQuery = NonNullable<paths["/categories"]["get"]["parameters"]["query"]>;
@@ -13,12 +17,39 @@ export type CategoryDetailPath = NonNullable<
   paths["/categories/{uuid}"]["get"]["parameters"]["path"]
 >;
 
+export interface CategoryUpdateVariables {
+  uuid: CategoryDetailPath["uuid"];
+  isActive: boolean;
+  payload: CategoryInformationUpdatePayload;
+}
+
+export interface CategoryStatusVariables {
+  uuid: CategoryDetailPath["uuid"];
+  isActive: NonNullable<CategoryUpdatePayload["isActive"]>;
+}
+
 export interface ActiveCategoryListCriteria {
   page: number;
   search: string;
 }
 
 export const CATEGORY_LIST_PAGE_SIZE = 15;
+
+export const buildCategoryListQuery = (
+  criteria: CategoryListCriteria,
+  page: number,
+): CategoryListQuery => {
+  const search = criteria.search.trim();
+
+  return {
+    page,
+    limit: CATEGORY_LIST_PAGE_SIZE,
+    ...(search ? { search } : {}),
+    isActive: criteria.status === "active" ? "true" : "false",
+    sort: criteria.sort,
+    order: criteria.order,
+  };
+};
 
 export const buildActiveCategoryListQuery = (
   criteria: ActiveCategoryListCriteria,
@@ -35,7 +66,7 @@ export const buildActiveCategoryListQuery = (
   };
 };
 
-export const listActiveCategories = async (
+export const listCategories = async (
   params: CategoryListQuery,
   signal?: AbortSignal,
 ): Promise<CategoryListResponse> => {
@@ -49,6 +80,8 @@ export const listActiveCategories = async (
   return parseCategoryListResponse(response);
 };
 
+export const listActiveCategories = listCategories;
+
 export const getCategory = async (
   { uuid }: CategoryDetailPath,
   signal?: AbortSignal,
@@ -59,5 +92,35 @@ export const getCategory = async (
     signal,
   });
 
+  return parseCategoryDataResponse(response, { uuid });
+};
+
+export const createCategory = async (payload: CategoryCreatePayload): Promise<Category> => {
+  const response = await httpClient.request<unknown, CategoryCreatePayload>({
+    path: "/categories",
+    method: "POST",
+    data: payload,
+  });
+
   return parseCategoryDataResponse(response);
+};
+
+export const updateCategory = async ({ uuid, isActive, payload }: CategoryUpdateVariables) => {
+  const response = await httpClient.request<unknown, CategoryInformationUpdatePayload>({
+    path: `/categories/${encodeURIComponent(uuid)}`,
+    method: "PATCH",
+    data: payload,
+  });
+
+  return parseCategoryDataResponse(response, { uuid, isActive });
+};
+
+export const changeCategoryStatus = async ({ uuid, isActive }: CategoryStatusVariables) => {
+  const response = await httpClient.request<unknown, Pick<CategoryUpdatePayload, "isActive">>({
+    path: `/categories/${encodeURIComponent(uuid)}`,
+    method: "PATCH",
+    data: { isActive },
+  });
+
+  return parseCategoryDataResponse(response, { uuid, isActive });
 };

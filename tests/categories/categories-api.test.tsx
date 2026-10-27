@@ -1,16 +1,32 @@
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { http, HttpResponse } from "msw";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useActiveCategories, useCategory } from "@/features/categories";
+import { CategoryResponseContractError } from "@/features/categories/api/category-contract";
+import { useCreateCategory } from "@/features/categories/hooks/use-create-category";
+import { useChangeCategoryStatus } from "@/features/categories/hooks/use-change-category-status";
+import { useUpdateCategory } from "@/features/categories/hooks/use-update-category";
+import { useCategoryList } from "@/features/categories/hooks/use-category-list";
 import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
+const authSession = vi.hoisted(() => ({ currentSessionId: null as string | null }));
+
+vi.mock("@/features/auth", () => ({
+  isCurrentSession: (currentSessionId: string) => authSession.currentSessionId === currentSessionId,
+}));
+
 const categoriesUrl = "https://inventory.test/api/categories";
 const categoryUuid = "550e8400-e29b-41d4-a716-446655440000";
+const otherCategoryUuid = "650e8400-e29b-41d4-a716-446655440000";
 const sessionId = "categories-test-session";
+const createdCategory = (name: string, description: string | null) => ({
+  ...category(name),
+  description,
+});
 
 const category = (name: string) => ({
   uuid: categoryUuid,
@@ -23,6 +39,49 @@ const category = (name: string) => ({
 
 const queryClients: Array<ReturnType<typeof createQueryClient>> = [];
 
+const categoryQueryEntries = (currentSessionId: string, detailUuid = categoryUuid) => ({
+  management: [
+    ["categories", "management-list", currentSessionId, { page: 1 }],
+    ["categories", "management-list", currentSessionId, { page: 2 }],
+  ],
+  options: [
+    ["categories", "active-list", currentSessionId, { page: 1 }],
+    ["categories", "active-list", currentSessionId, { page: 2, search: "taller" }],
+  ],
+  targetDetail: ["categories", "detail", currentSessionId, detailUuid],
+  otherDetail: ["categories", "detail", currentSessionId, otherCategoryUuid],
+});
+
+const seedCategoryQueryEntries = (
+  queryClient: ReturnType<typeof createQueryClient>,
+  currentSessionId: string,
+  detailUuid = categoryUuid,
+) => {
+  const entries = categoryQueryEntries(currentSessionId, detailUuid);
+
+  for (const queryKey of [
+    ...entries.management,
+    ...entries.options,
+    entries.targetDetail,
+    entries.otherDetail,
+  ]) {
+    queryClient.setQueryData(queryKey, { cached: true });
+  }
+
+  return entries;
+};
+
+const expectInvalidationState = (
+  queryClient: ReturnType<typeof createQueryClient>,
+  entries: ReturnType<typeof categoryQueryEntries>,
+  shouldBeInvalidated: boolean,
+) => {
+  for (const queryKey of [...entries.management, ...entries.options, entries.targetDetail]) {
+    expect(queryClient.getQueryState(queryKey)?.isInvalidated).toBe(shouldBeInvalidated);
+  }
+  expect(queryClient.getQueryState(entries.otherDetail)?.isInvalidated).toBe(false);
+};
+
 const createWrapper = (queryClient: ReturnType<typeof createQueryClient>) => {
   const Wrapper = ({ children }: PropsWithChildren) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -32,12 +91,65 @@ const createWrapper = (queryClient: ReturnType<typeof createQueryClient>) => {
 };
 
 afterEach(() => {
+  authSession.currentSessionId = null;
   for (const queryClient of queryClients.splice(0)) {
     queryClient.clear();
   }
 });
 
 describe("public active categories query", () => {
+  it("keeps management list results isolated from the active category selector query", async () => {
+    const requests: URL[] = [];
+    const queryClient = createQueryClient();
+    queryClients.push(queryClient);
+
+    server.use(
+      http.get(categoriesUrl, ({ request }) => {
+        const url = new URL(request.url);
+        requests.push(url);
+        const isActive = url.searchParams.get("isActive") === "true";
+
+        return HttpResponse.json({
+          data: [{ ...category(isActive ? "Selector activa" : "Gestión inactiva"), isActive }],
+          pagination: { total: 1, page: 1, limit: 15 },
+        });
+      }),
+    );
+
+    const activeQuery = renderHook(() => useActiveCategories(sessionId, { page: 1, search: "" }), {
+      wrapper: createWrapper(queryClient),
+    });
+    const managementQuery = renderHook(
+      () =>
+        useCategoryList(sessionId, 1, {
+          search: "",
+          status: "inactive",
+          sort: "name",
+          order: "asc",
+        }),
+      { wrapper: createWrapper(queryClient) },
+    );
+
+    await waitFor(() => {
+      expect(activeQuery.result.current.isSuccess).toBe(true);
+      expect(managementQuery.result.current.isSuccess).toBe(true);
+    });
+
+    expect(activeQuery.result.current.data?.data[0]).toMatchObject({
+      name: "Selector activa",
+      isActive: true,
+    });
+    expect(managementQuery.result.current.data?.data[0]).toMatchObject({
+      name: "Gestión inactiva",
+      isActive: false,
+    });
+    expect(requests).toHaveLength(2);
+    expect(requests.map((url) => url.searchParams.get("isActive")).sort()).toEqual([
+      "false",
+      "true",
+    ]);
+  });
+
   it("searches and requests active categories from pages beyond the first", async () => {
     const requests: URL[] = [];
     const queryClient = createQueryClient();
@@ -156,5 +268,336 @@ describe("public active categories query", () => {
     expect(result.current.data).toEqual({ ...category("Oficina"), isActive: false });
     expect(requestedUrls).toHaveLength(1);
     expect(requestedUrls[0]?.pathname).toBe(`/api/categories/${categoryUuid}`);
+  });
+
+  it("rejects a detail response whose UUID differs from the requested category", async () => {
+    const queryClient = createQueryClient();
+    queryClients.push(queryClient);
+
+    server.use(
+      http.get(`https://inventory.test/api/categories/${categoryUuid}`, () =>
+        HttpResponse.json({
+          data: {
+            ...category("Otra categoría"),
+            uuid: "550e8400-e29b-41d4-a716-446655440001",
+          },
+        }),
+      ),
+    );
+
+    const { result } = renderHook(() => useCategory(sessionId, categoryUuid), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error).toBeInstanceOf(CategoryResponseContractError);
+  });
+});
+
+describe("category creation mutation", () => {
+  it("invalidates management, option and created-detail queries only for the current session", async () => {
+    authSession.currentSessionId = sessionId;
+    const queryClient = createQueryClient();
+    queryClients.push(queryClient);
+    const currentSessionEntries = seedCategoryQueryEntries(queryClient, sessionId);
+    const otherSessionEntries = seedCategoryQueryEntries(queryClient, "another-session");
+
+    server.use(
+      http.post(categoriesUrl, () =>
+        HttpResponse.json({ data: createdCategory("Herramientas", null) }, { status: 201 }),
+      ),
+    );
+
+    const { result } = renderHook(() => useCreateCategory(sessionId), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ name: "Herramientas" });
+    });
+
+    expectInvalidationState(queryClient, currentSessionEntries, true);
+    expectInvalidationState(queryClient, otherSessionEntries, false);
+  });
+
+  it.each([
+    {
+      payload: { name: "Herramientas", description: "Para mantenimiento" },
+      responseDescription: "Para mantenimiento",
+    },
+    {
+      payload: { name: "Almacén" },
+      responseDescription: null,
+    },
+  ])(
+    "posts the typed payload and returns a validated category",
+    async ({ payload, responseDescription }) => {
+      let requestBody: unknown;
+      const queryClient = createQueryClient();
+      queryClients.push(queryClient);
+
+      server.use(
+        http.post(categoriesUrl, async ({ request }) => {
+          requestBody = await request.json();
+          return HttpResponse.json(
+            { data: createdCategory(payload.name, responseDescription) },
+            { status: 201 },
+          );
+        }),
+      );
+
+      const { result } = renderHook(() => useCreateCategory(sessionId), {
+        wrapper: createWrapper(queryClient),
+      });
+
+      await act(async () => {
+        await expect(result.current.mutateAsync(payload)).resolves.toEqual(
+          createdCategory(payload.name, responseDescription),
+        );
+      });
+
+      expect(requestBody).toEqual(payload);
+    },
+  );
+
+  it("does not resend a failed POST automatically", async () => {
+    let requestCount = 0;
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: 3, retryDelay: 0 } },
+    });
+    queryClients.push(queryClient);
+
+    server.use(
+      http.post(categoriesUrl, () => {
+        requestCount += 1;
+        return HttpResponse.json({ message: "Unavailable" }, { status: 503 });
+      }),
+    );
+
+    const { result } = renderHook(() => useCreateCategory(sessionId), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await expect(result.current.mutateAsync({ name: "Herramientas" })).rejects.toBeDefined();
+    });
+
+    expect(result.current.isError).toBe(true);
+    expect(requestCount).toBe(1);
+  });
+});
+
+describe("category update mutation", () => {
+  it("invalidates management, option and updated-detail queries only for the current session", async () => {
+    authSession.currentSessionId = sessionId;
+    const queryClient = createQueryClient();
+    queryClients.push(queryClient);
+    const currentSessionEntries = seedCategoryQueryEntries(queryClient, sessionId);
+    const otherSessionEntries = seedCategoryQueryEntries(queryClient, "another-session");
+
+    server.use(
+      http.patch(`https://inventory.test/api/categories/${categoryUuid}`, () =>
+        HttpResponse.json({ data: category("Herramientas actualizadas") }),
+      ),
+    );
+
+    const { result } = renderHook(() => useUpdateCategory(sessionId), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        uuid: categoryUuid,
+        isActive: true,
+        payload: { name: "Herramientas actualizadas" },
+      });
+    });
+
+    expectInvalidationState(queryClient, currentSessionEntries, true);
+    expectInvalidationState(queryClient, otherSessionEntries, false);
+  });
+
+  it("patches only information fields and validates the requested UUID and original state", async () => {
+    let requestBody: unknown;
+    let requestMethod: string | undefined;
+    const updatedCategory = { ...category("Herramientas actualizadas"), isActive: false };
+    const queryClient = createQueryClient();
+    queryClients.push(queryClient);
+
+    server.use(
+      http.patch(`https://inventory.test/api/categories/${categoryUuid}`, async ({ request }) => {
+        requestMethod = request.method;
+        requestBody = await request.json();
+        return HttpResponse.json({ data: updatedCategory });
+      }),
+    );
+
+    const { result } = renderHook(() => useUpdateCategory(sessionId), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({
+          uuid: categoryUuid,
+          isActive: false,
+          payload: { name: "Herramientas actualizadas" },
+        }),
+      ).resolves.toEqual(updatedCategory);
+    });
+
+    expect(requestMethod).toBe("PATCH");
+    expect(requestBody).toEqual({ name: "Herramientas actualizadas" });
+  });
+
+  it("rejects a successful response that changes the original active state", async () => {
+    const queryClient = createQueryClient();
+    queryClients.push(queryClient);
+
+    server.use(
+      http.patch(`https://inventory.test/api/categories/${categoryUuid}`, () =>
+        HttpResponse.json({ data: category("Herramientas actualizadas") }),
+      ),
+    );
+
+    const { result } = renderHook(() => useUpdateCategory(sessionId), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({
+          uuid: categoryUuid,
+          isActive: false,
+          payload: { name: "Herramientas actualizadas" },
+        }),
+      ).rejects.toBeInstanceOf(CategoryResponseContractError);
+    });
+
+    expect(result.current.isError).toBe(true);
+  });
+
+  it("does not resend a failed PATCH automatically", async () => {
+    let requestCount = 0;
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: 3, retryDelay: 0 } },
+    });
+    queryClients.push(queryClient);
+
+    server.use(
+      http.patch(`https://inventory.test/api/categories/${categoryUuid}`, () => {
+        requestCount += 1;
+        return HttpResponse.json({ message: "Unavailable" }, { status: 503 });
+      }),
+    );
+
+    const { result } = renderHook(() => useUpdateCategory(sessionId), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({
+          uuid: categoryUuid,
+          isActive: false,
+          payload: { description: "Nueva descripción" },
+        }),
+      ).rejects.toBeDefined();
+    });
+
+    expect(requestCount).toBe(1);
+  });
+});
+
+describe("category status mutation", () => {
+  it("invalidates management, option and status-detail queries only for the current session", async () => {
+    authSession.currentSessionId = sessionId;
+    const queryClient = createQueryClient();
+    queryClients.push(queryClient);
+    const currentSessionEntries = seedCategoryQueryEntries(queryClient, sessionId);
+    const otherSessionEntries = seedCategoryQueryEntries(queryClient, "another-session");
+
+    server.use(
+      http.patch(`https://inventory.test/api/categories/${categoryUuid}`, () =>
+        HttpResponse.json({ data: { ...category("Herramientas"), isActive: false } }),
+      ),
+    );
+
+    const { result } = renderHook(() => useChangeCategoryStatus(sessionId), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ uuid: categoryUuid, isActive: false, sessionId });
+    });
+
+    await waitFor(() => expectInvalidationState(queryClient, currentSessionEntries, true));
+    expectInvalidationState(queryClient, otherSessionEntries, false);
+  });
+
+  it.each([true, false])(
+    "patches only the requested isActive value and validates the resulting status (%s)",
+    async (isActive) => {
+      let requestMethod: string | undefined;
+      let requestBody: unknown;
+      let deleteRequestCount = 0;
+      const expectedCategory = { ...category("Herramientas"), isActive };
+      const queryClient = createQueryClient();
+      queryClients.push(queryClient);
+
+      server.use(
+        http.patch(`https://inventory.test/api/categories/${categoryUuid}`, async ({ request }) => {
+          requestMethod = request.method;
+          requestBody = await request.json();
+          return HttpResponse.json({ data: expectedCategory });
+        }),
+        http.delete(`https://inventory.test/api/categories/${categoryUuid}`, () => {
+          deleteRequestCount += 1;
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      const { result } = renderHook(() => useChangeCategoryStatus(sessionId), {
+        wrapper: createWrapper(queryClient),
+      });
+
+      await act(async () => {
+        await expect(
+          result.current.mutateAsync({ uuid: categoryUuid, isActive, sessionId }),
+        ).resolves.toEqual(expectedCategory);
+      });
+
+      expect(requestMethod).toBe("PATCH");
+      expect(requestBody).toEqual({ isActive });
+      expect(deleteRequestCount).toBe(0);
+    },
+  );
+
+  it("does not confirm an invalid response or resend a failed PATCH automatically", async () => {
+    let requestCount = 0;
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: 3, retryDelay: 0 } },
+    });
+    queryClients.push(queryClient);
+
+    server.use(
+      http.patch(`https://inventory.test/api/categories/${categoryUuid}`, () => {
+        requestCount += 1;
+        return HttpResponse.json({ data: category("Herramientas") });
+      }),
+    );
+
+    const { result } = renderHook(() => useChangeCategoryStatus(sessionId), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({ uuid: categoryUuid, isActive: false, sessionId }),
+      ).rejects.toBeInstanceOf(CategoryResponseContractError);
+    });
+
+    expect(result.current.isError).toBe(true);
+    expect(requestCount).toBe(1);
   });
 });

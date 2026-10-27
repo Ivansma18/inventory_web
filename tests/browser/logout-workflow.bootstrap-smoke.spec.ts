@@ -79,6 +79,9 @@ test("waits for logout, retries a failure, and keeps the session closed in brows
   ).toBeVisible();
   await expect(page.getByRole("banner")).toContainText("operator@example.com");
   await expect(page.getByRole("navigation")).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Navegación principal" }).getByRole("link"),
+  ).toHaveText(["Inicio", "Productos", "Categorías"]);
   await expect(page.getByRole("heading", { name: "Sesión no iniciada" })).toHaveCount(0);
   expect(signOutRequests).toBe(1);
 

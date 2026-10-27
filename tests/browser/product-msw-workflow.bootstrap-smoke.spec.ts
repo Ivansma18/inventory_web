@@ -136,5 +136,11 @@ test("covers listing, creation, edit return, and status change through browser M
   ).toBe(true);
   expect(requests.some((request) => request.path === "/api/auth/get-session")).toBe(true);
   expect(requests.some((request) => request.path === "/api/backend/categories")).toBe(true);
+  expect(
+    requests.some(
+      (request) =>
+        request.method === "GET" && request.path === `/api/backend/categories/${categoryUuid}`,
+    ),
+  ).toBe(true);
   expect(apiOrigins.every((origin) => origin === new URL(page.url()).origin)).toBe(true);
 });

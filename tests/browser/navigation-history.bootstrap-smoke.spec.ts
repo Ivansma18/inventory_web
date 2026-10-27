@@ -21,6 +21,9 @@ test("supports direct Not Found entry, reload, and browser history to Home", asy
   await page.goto("/not-registered?source=direct#result");
   await expect(page).toHaveURL(notFoundUrl);
   await expect(page.getByRole("heading", { level: 1, name: "Página no encontrada" })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Navegación principal" }).getByRole("link"),
+  ).toHaveText(["Inicio", "Productos", "Categorías"]);
 
   await page.reload();
   await expect(page).toHaveURL(notFoundUrl);
@@ -73,6 +76,9 @@ test("keeps the signed-out state through browser history after confirmed logout"
   await expect(
     page.getByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Navegación principal" }).getByRole("link"),
+  ).toHaveText(["Inicio", "Productos", "Categorías"]);
 
   await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Sesión no iniciada" })).toBeVisible();

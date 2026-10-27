@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { appRoutes } from "@/app/router/router";
 import { UiProvider } from "@/app/providers/ui.provider";
-import { createQueryClient } from "@/shared/api/query-client";
+import { createQueryClient, QUERY_STALE_TIME_MS } from "@/shared/api/query-client";
 import { productDetailQueryKey } from "@/features/products/hooks/use-product";
 import { server } from "../mocks/server";
 import {
@@ -79,6 +79,44 @@ const categoryListResponse = (
   pagination: { total, page: 1, limit: 15 },
 });
 
+const activeCategoryQueryKey = [
+  "categories",
+  "active-list",
+  "product-edit-session",
+  { page: 1, limit: 15, isActive: "true", sort: "name", order: "asc" },
+] as const;
+
+const categoryOptionChanges = [
+  {
+    action: "crear",
+    initialOptions: [category("Oficina")],
+    updatedOptions: [category("Oficina"), category("Papelería", alternativeCategoryUuid)],
+    expectedSelection: "Papelería",
+    selectionKeys: "{ArrowDown}{ArrowDown}{ArrowDown}{Enter}",
+  },
+  {
+    action: "renombrar",
+    initialOptions: [category("Oficina")],
+    updatedOptions: [category("Suministros")],
+    expectedSelection: "Suministros",
+    selectionKeys: "{ArrowDown}{ArrowDown}{Enter}",
+  },
+  {
+    action: "activar",
+    initialOptions: [category("Oficina")],
+    updatedOptions: [category("Oficina"), category("Papelería", alternativeCategoryUuid)],
+    expectedSelection: "Papelería",
+    selectionKeys: "{ArrowDown}{ArrowDown}{ArrowDown}{Enter}",
+  },
+  {
+    action: "desactivar",
+    initialOptions: [category("Oficina"), category("Papelería", alternativeCategoryUuid)],
+    updatedOptions: [category("Papelería", alternativeCategoryUuid)],
+    expectedSelection: "Papelería",
+    selectionKeys: "{ArrowDown}{ArrowDown}{Enter}",
+  },
+];
+
 interface Deferred<T> {
   promise: Promise<T>;
   resolve: (value: T) => void;
@@ -102,6 +140,9 @@ beforeEach(() => {
   server.use(
     http.get(categoriesUrl, () => HttpResponse.json(categoryListResponse())),
     http.get(categoryUrl, () => HttpResponse.json({ data: category("Oficina") })),
+    http.get(`${categoriesUrl}/:uuid`, ({ params }) =>
+      HttpResponse.json({ data: category("Categoría activa", String(params.uuid)) }),
+    ),
     http.get(productsUrl, () =>
       HttpResponse.json({ data: [product(true)], pagination: { total: 1, page: 1, limit: 15 } }),
     ),
@@ -138,6 +179,62 @@ afterEach(() => {
 });
 
 describe("product edit page", () => {
+  it.each(categoryOptionChanges)(
+    "rechecks active options on return after $action even while the cache is fresh",
+    async ({ initialOptions, updatedOptions, expectedSelection, selectionKeys }) => {
+      const user = userEvent.setup();
+      let categoryRequests = 0;
+      let currentOptions = initialOptions;
+
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(categoriesUrl, () => {
+          categoryRequests += 1;
+          return HttpResponse.json(
+            categoryListResponse(categoryRequests === 1 ? initialOptions : currentOptions),
+          );
+        }),
+        http.get(productUrl, () => HttpResponse.json({ data: product(true, null) })),
+      );
+
+      const { queryClient, router } = renderProductEditRoute();
+      await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+      const categorySelect = await screen.findByRole("textbox", { name: "Categoría" });
+      await waitFor(() => expect(categoryRequests).toBe(1));
+      await waitFor(() => expect(categorySelect).toBeEnabled());
+
+      const cachedOptions = queryClient.getQueryState(activeCategoryQueryKey);
+      expect(cachedOptions?.isInvalidated).toBe(false);
+      expect(Date.now() - (cachedOptions?.dataUpdatedAt ?? 0)).toBeLessThan(QUERY_STALE_TIME_MS);
+
+      await act(async () => {
+        await router.navigate("/");
+      });
+      expect(
+        await screen.findByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+      ).toBeVisible();
+      expect(categoryRequests).toBe(1);
+
+      currentOptions = updatedOptions;
+      await act(async () => {
+        await router.navigate(`/products/${productUuid}/edit`);
+      });
+
+      await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+      await waitFor(() => expect(categoryRequests).toBe(2));
+      await waitFor(() =>
+        expect(queryClient.getQueryData(activeCategoryQueryKey)).toMatchObject({
+          data: updatedOptions,
+        }),
+      );
+
+      const returnedCategorySelect = screen.getByRole("textbox", { name: "Categoría" });
+      returnedCategorySelect.focus();
+      await user.keyboard(selectionKeys);
+      expect(returnedCategorySelect).toHaveValue(expectedSelection);
+    },
+  );
+
   it("preserves local values and dirty state when the product detail is refetched", async () => {
     const user = userEvent.setup();
     let detailRequests = 0;
@@ -311,7 +408,7 @@ describe("product edit page", () => {
         listRequests.push(new URL(request.url));
         return HttpResponse.json({
           data: [product(false)],
-          pagination: { total: 1, page: 2, limit: 15 },
+          pagination: { total: 31, page: 2, limit: 15 },
         });
       }),
       http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
@@ -495,7 +592,7 @@ describe("product edit page", () => {
     },
   );
 
-  it("keeps the current category selected while searching and paging active options", async () => {
+  it("keeps the original category and dirty product values while searching and paging options", async () => {
     const user = userEvent.setup();
     const requests: URL[] = [];
 
@@ -531,21 +628,29 @@ describe("product edit page", () => {
     await waitFor(() => expect(getCategorySelect()).toHaveValue("Oficina"));
     expect(screen.getByRole("searchbox", { name: "Buscar categorías activas" })).toBeVisible();
 
-    getCategorySelect().focus();
-    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
-    expect(getCategorySelect()).toHaveValue("Repuestos");
+    const name = screen.getByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Monitor con categoría original");
+    const dirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, dirtyUnloadEvent);
+    expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
 
     await user.click(screen.getByRole("button", { name: "Página siguiente de categorías" }));
     await waitFor(() => expect(requests).toHaveLength(2));
     expect(requests[1]?.searchParams.get("page")).toBe("2");
-    expect(getCategorySelect()).toHaveValue("Repuestos");
+    expect(getCategorySelect()).toHaveValue("Oficina");
+    expect(name).toHaveValue("Monitor con categoría original");
 
     const categorySearch = screen.getByRole("searchbox", { name: "Buscar categorías activas" });
     await user.type(categorySearch, "repuesto");
     await user.click(screen.getByRole("button", { name: "Buscar categorías" }));
     await waitFor(() => expect(requests).toHaveLength(3));
     expect(requests[2]?.searchParams.get("search")).toBe("repuesto");
-    expect(getCategorySelect()).toHaveValue("Repuestos");
+    expect(getCategorySelect()).toHaveValue("Oficina");
+    expect(name).toHaveValue("Monitor con categoría original");
+    const dirtyAfterOptionsUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, dirtyAfterOptionsUnloadEvent);
+    expect(dirtyAfterOptionsUnloadEvent.defaultPrevented).toBe(true);
   });
 
   it("loads the original category detail when it is absent from active results", async () => {
@@ -573,6 +678,92 @@ describe("product edit page", () => {
     expect(detailRequests[0]?.pathname).toBe(`/api/categories/${categoryUuid}`);
     expect(screen.getByRole("searchbox", { name: "Buscar categorías activas" })).toBeVisible();
   });
+
+  it.each([
+    {
+      reason: "inactiva",
+      detailResponse: () =>
+        HttpResponse.json({ data: category("Repuestos", alternativeCategoryUuid, false) }),
+    },
+    {
+      reason: "inexistente",
+      detailResponse: () =>
+        HttpResponse.json(
+          { error: { code: "CATEGORY_NOT_FOUND", message: "private category detail" } },
+          { status: 404 },
+        ),
+    },
+  ])(
+    "invalidates a new selection confirmed $reason while preserving the original and other edits",
+    async ({ detailResponse }) => {
+      const user = userEvent.setup();
+      let categoryRequests = 0;
+      const originalDetailRequests: URL[] = [];
+      const selectedDetailRequests: URL[] = [];
+
+      server.use(
+        http.get(categoriesUrl, () => {
+          categoryRequests += 1;
+          return HttpResponse.json(
+            categoryListResponse(
+              categoryRequests === 1
+                ? [category("Repuestos", alternativeCategoryUuid)]
+                : [category("Papelería", refreshedCategoryUuid)],
+            ),
+          );
+        }),
+        http.get(categoryUrl, ({ request }) => {
+          originalDetailRequests.push(new URL(request.url));
+          return HttpResponse.json({ data: category("Oficina", categoryUuid, false) });
+        }),
+        http.get(`${categoriesUrl}/${alternativeCategoryUuid}`, ({ request }) => {
+          selectedDetailRequests.push(new URL(request.url));
+          return detailResponse();
+        }),
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+      );
+
+      const { router } = renderProductEditRoute();
+      const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+      const getCategorySelect = () => screen.getByRole("textbox", { name: "Categoría" });
+      await waitFor(() => expect(getCategorySelect()).toHaveValue("Oficina (categoría actual)"));
+      expect(originalDetailRequests).toHaveLength(1);
+
+      await user.clear(name);
+      await user.type(name, "Monitor con cambios conservados");
+      getCategorySelect().focus();
+      await user.keyboard("{ArrowDown}{Home}{Enter}");
+
+      expect(
+        await screen.findByText(
+          "La categoría seleccionada ya no está activa o no existe. Se conserva la categoría original.",
+        ),
+      ).toBeVisible();
+      expect(selectedDetailRequests).toHaveLength(1);
+      expect(selectedDetailRequests[0]?.pathname).toBe(
+        `/api/categories/${alternativeCategoryUuid}`,
+      );
+      expect(getCategorySelect()).toHaveValue("Oficina (categoría actual)");
+      expect(getCategorySelect()).toBeDisabled();
+      expect(name).toHaveValue("Monitor con cambios conservados");
+      expect(screen.getByRole("button", { name: "Actualizar categorías activas" })).toBeVisible();
+      const dirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
+      fireEvent(window, dirtyUnloadEvent);
+      expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
+      expect(router.state.location.pathname).toBe(`/products/${productUuid}/edit`);
+
+      await user.click(screen.getByRole("button", { name: "Actualizar categorías activas" }));
+      await waitFor(() => expect(categoryRequests).toBe(2));
+      expect(getCategorySelect()).toBeEnabled();
+      expect(getCategorySelect()).toHaveValue("Oficina (categoría actual)");
+      expect(name).toHaveValue("Monitor con cambios conservados");
+      const dirtyAfterRefreshUnloadEvent = new Event("beforeunload", { cancelable: true });
+      fireEvent(window, dirtyAfterRefreshUnloadEvent);
+      expect(dirtyAfterRefreshUnloadEvent.defaultPrevented).toBe(true);
+      expect(originalDetailRequests).toHaveLength(1);
+    },
+  );
 
   it("identifies a product without a category and leaves the selector optional", async () => {
     server.use(
@@ -669,7 +860,7 @@ describe("product edit page", () => {
       http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
     );
 
-    renderProductEditRoute();
+    const { queryClient } = renderProductEditRoute();
 
     const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
     await screen.findByRole("textbox", { name: "Categoría" });
@@ -686,17 +877,29 @@ describe("product edit page", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "El backend rechazó la categoría seleccionada.",
     );
+    expect(name).toHaveValue("Monitor actualizado");
     expect(getCategorySelect()).toHaveValue("Oficina");
     expect(getCategorySelect()).toBeDisabled();
     expect(screen.getByRole("button", { name: "Actualizar categorías activas" })).toBeVisible();
+    const rejectedAssignmentUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, rejectedAssignmentUnloadEvent);
+    expect(rejectedAssignmentUnloadEvent.defaultPrevented).toBe(true);
     expect(patchBodies).toEqual([
       { name: "Monitor actualizado", categoryUuid: alternativeCategoryUuid },
     ]);
+
+    const cachedOptions = queryClient.getQueryState(activeCategoryQueryKey);
+    expect(cachedOptions?.isInvalidated).toBe(false);
+    expect(Date.now() - (cachedOptions?.dataUpdatedAt ?? 0)).toBeLessThan(QUERY_STALE_TIME_MS);
 
     await user.click(screen.getByRole("button", { name: "Actualizar categorías activas" }));
     await waitFor(() => expect(categoryRequests).toBe(2));
     expect(getCategorySelect()).toBeEnabled();
     expect(getCategorySelect()).toHaveValue("Oficina");
+    expect(name).toHaveValue("Monitor actualizado");
+    const refreshedOptionsUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, refreshedOptionsUnloadEvent);
+    expect(refreshedOptionsUnloadEvent.defaultPrevented).toBe(true);
 
     await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
     expect(
@@ -721,11 +924,27 @@ describe("product edit page", () => {
   });
 
   it.each([
-    { description: "an original category", originalCategoryUuid: categoryUuid },
-    { description: "no original category", originalCategoryUuid: null },
+    {
+      description: "an active original category",
+      originalCategoryUuid: categoryUuid,
+      originalCategoryActive: true,
+      expectedCategoryLabel: "Oficina",
+    },
+    {
+      description: "an inactive original category",
+      originalCategoryUuid: categoryUuid,
+      originalCategoryActive: false,
+      expectedCategoryLabel: "Oficina (categoría actual)",
+    },
+    {
+      description: "no original category",
+      originalCategoryUuid: null,
+      originalCategoryActive: true,
+      expectedCategoryLabel: "",
+    },
   ])(
     "allows saving other fields while the category options query fails with $description",
-    async ({ originalCategoryUuid }) => {
+    async ({ originalCategoryUuid, originalCategoryActive, expectedCategoryLabel }) => {
       const user = userEvent.setup();
       const patchBodies: unknown[] = [];
 
@@ -746,7 +965,11 @@ describe("product edit page", () => {
         http.get(productUrl, () =>
           HttpResponse.json({ data: product(true, originalCategoryUuid) }),
         ),
-        http.get(categoryUrl, () => HttpResponse.json({ data: category("Oficina") })),
+        http.get(categoryUrl, () =>
+          HttpResponse.json({
+            data: category("Oficina", categoryUuid, originalCategoryActive),
+          }),
+        ),
       );
 
       renderProductEditRoute();
@@ -761,7 +984,7 @@ describe("product edit page", () => {
       if (originalCategoryUuid === null) {
         expect(screen.getByText("Sin categoría", { selector: "p" })).toBeVisible();
       } else {
-        await waitFor(() => expect(getCategorySelect()).toHaveValue("Oficina"));
+        await waitFor(() => expect(getCategorySelect()).toHaveValue(expectedCategoryLabel));
       }
 
       await user.clear(name);
@@ -798,6 +1021,9 @@ describe("product edit page", () => {
     renderProductEditRoute();
 
     const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await screen.findByRole("textbox", { name: "Categoría" });
+    const getCategorySelect = () => screen.getByRole("textbox", { name: "Categoría" });
+    await waitFor(() => expect(getCategorySelect()).toHaveValue("Oficina"));
     const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
     const purchasePrice = screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" });
     await user.clear(name);
@@ -805,6 +1031,7 @@ describe("product edit page", () => {
     await user.clear(description);
     await user.clear(purchasePrice);
     await user.type(purchasePrice, "130,75");
+    expect(getCategorySelect()).toHaveValue("Oficina");
 
     await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
 
@@ -1474,13 +1701,81 @@ describe("product edit page", () => {
 
     const sku = await screen.findByRole("textbox", { name: "SKU (obligatorio)" });
     await user.clear(sku);
+    const name = screen.getByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
     screen.getByRole("button", { name: "Guardar cambios" }).focus();
     await user.keyboard("{Enter}");
 
     const skuError = await screen.findByText("El SKU es obligatorio.");
+    const nameError = await screen.findByText("El nombre es obligatorio.");
     await waitFor(() => expect(sku).toHaveFocus());
     expect(sku).toHaveAttribute("aria-invalid", "true");
     expect(sku).toHaveAccessibleDescription(skuError.textContent ?? "");
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(name).toHaveAccessibleDescription(nameError.textContent ?? "");
+  });
+
+  it("reassigns a category and saves by tabbing through the edit form using the keyboard", async () => {
+    const user = userEvent.setup();
+    const patchBodies: unknown[] = [];
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(categoriesUrl, () =>
+        HttpResponse.json(
+          categoryListResponse([
+            category("Oficina"),
+            category("Papelería", alternativeCategoryUuid),
+          ]),
+        ),
+      ),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+      http.patch(productUrl, async ({ request }) => {
+        patchBodies.push(await request.json());
+        return HttpResponse.json({ data: product(true, alternativeCategoryUuid) });
+      }),
+    );
+
+    renderProductEditRoute();
+
+    const sku = await screen.findByRole("textbox", { name: "SKU (obligatorio)" });
+    const name = screen.getByRole("textbox", { name: "Nombre (obligatorio)" });
+    const purchasePrice = screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" });
+    const salePrice = screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" });
+    const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
+    const categorySearch = screen.getByRole("searchbox", { name: "Buscar categorías activas" });
+    const getCategorySelect = () => screen.getByRole("textbox", { name: "Categoría" });
+
+    await waitFor(() => expect(getCategorySelect()).toBeEnabled());
+    sku.focus();
+    await user.tab();
+    expect(name).toHaveFocus();
+    await user.tab();
+    expect(purchasePrice).toHaveFocus();
+    await user.tab();
+    expect(salePrice).toHaveFocus();
+    await user.tab();
+    expect(description).toHaveFocus();
+    await user.tab();
+    expect(categorySearch).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Buscar categorías" })).toHaveFocus();
+    await user.tab();
+    await waitFor(() => expect(getCategorySelect()).toBeEnabled());
+    expect(getCategorySelect()).toHaveFocus();
+    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+    expect(getCategorySelect()).toHaveValue("Papelería");
+    expect(getCategorySelect()).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Cancelar" })).toHaveFocus();
+    await user.tab();
+
+    const saveButton = screen.getByRole("button", { name: "Guardar cambios" });
+    expect(saveButton).toHaveFocus();
+    await user.keyboard("{Enter}");
+
+    expect(await screen.findByText("Producto actualizado correctamente.")).toBeVisible();
+    expect(patchBodies).toEqual([{ categoryUuid: alternativeCategoryUuid }]);
   });
 
   it.each([

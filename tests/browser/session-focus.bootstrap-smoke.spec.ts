@@ -92,6 +92,10 @@ test("closes and unlocks the panel while a session refresh is pending", async ({
   await expect(root).not.toHaveAttribute("inert");
   refreshResponse.resolve(jsonResponse(200, publicSession()));
   await expect(page.getByRole("heading", { level: 1, name: "Página no encontrada" })).toBeVisible();
+  await page.getByRole("button", { name: "Abrir navegación" }).click();
+  await expect(
+    page.getByRole("navigation", { name: "Navegación principal" }).getByRole("link"),
+  ).toHaveText(["Inicio", "Productos", "Categorías"]);
 });
 
 test("moves focus to the error heading when an open panel is replaced by an error", async ({

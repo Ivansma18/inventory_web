@@ -1,0 +1,80 @@
+.category-list-table__status {
+  display: inline-flex;
+  min-inline-size: max-content;
+  white-space: nowrap;
+}
+
+.category-list-table__row-actions,
+.category-list-table__status-confirmation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+
+.category-list-table__status-confirmation {
+  display: grid;
+  gap: var(--ui-space-3);
+  min-inline-size: 0;
+}
+
+.category-list-table__status-confirmation > p {
+  margin: 0;
+  color: var(--ui-color-text);
+  font-size: var(--ui-font-size-sm);
+  line-height: var(--ui-line-height-relaxed);
+}
+
+.category-list-table__status-confirmation > [role="status"] {
+  color: var(--ui-color-text-muted);
+  font-weight: var(--ui-font-weight-medium);
+}
+
+.category-list-table__status-confirmation > [role="alert"],
+.category-list-table__status-error,
+.category-list-table__row-status-error {
+  background-color: var(--ui-color-error-surface);
+  border: var(--ui-border-width) solid var(--ui-color-error);
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-color-on-error);
+  padding: var(--ui-space-3);
+}
+
+.category-list-table__status-confirmation-actions {
+  justify-content: flex-end;
+}
+
+.category-list-table__status-error {
+  margin-block: var(--ui-space-3) 0;
+}
+
+.category-list-table__not-found-return {
+  align-items: start;
+  background-color: var(--ui-color-error-surface);
+  border: var(--ui-border-width) solid var(--ui-color-error);
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-color-on-error);
+  display: grid;
+  gap: var(--ui-space-3);
+  justify-items: start;
+  margin-block-start: var(--ui-space-3);
+  padding: var(--ui-space-3);
+}
+
+.category-list-table__not-found-return > p {
+  font-size: var(--ui-font-size-sm);
+  line-height: var(--ui-line-height-relaxed);
+  margin: 0;
+}
+
+.category-list-table__row-status-error {
+  flex-basis: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.category-list-table__retry {
+  display: flex;
+  justify-content: center;
+  margin-block-start: var(--ui-space-3);
+}

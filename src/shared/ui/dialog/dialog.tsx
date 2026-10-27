@@ -1,7 +1,7 @@
 import "./dialog.css";
 
 import { Dialog as PrimeDialog } from "primereact/dialog";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { Icon } from "../icon/icon";
@@ -24,6 +24,11 @@ export interface DialogProps {
   closeOnEscape?: boolean;
   closeOnBackdrop?: boolean;
   closeBlocked?: boolean;
+}
+
+interface FocusReturnMonitor {
+  observer: MutationObserver;
+  handleFocusIn: (event: FocusEvent) => void;
 }
 
 const createPortalContainer = () => {
@@ -52,6 +57,50 @@ export const Dialog = ({
   const titleRef = useRef<HTMLHeadingElement>(null);
   const activatorRef = useRef<HTMLElement | null>(null);
   const wasOpenRef = useRef(false);
+  const focusReturnMonitorRef = useRef<FocusReturnMonitor | null>(null);
+
+  const stopMonitoringFocusReturn = useCallback(
+    (monitor: FocusReturnMonitor | null = focusReturnMonitorRef.current) => {
+      if (!monitor) {
+        return;
+      }
+
+      monitor.observer.disconnect();
+      document.removeEventListener("focusin", monitor.handleFocusIn);
+      if (focusReturnMonitorRef.current === monitor) {
+        focusReturnMonitorRef.current = null;
+      }
+    },
+    [],
+  );
+
+  const monitorActivatorRemoval = useCallback(
+    (activator: HTMLElement) => {
+      stopMonitoringFocusReturn();
+
+      const observer = new MutationObserver(() => {
+        if (activator.isConnected) {
+          return;
+        }
+
+        stopMonitoringFocusReturn(monitor);
+        if (document.activeElement === document.body) {
+          focusElement(fallbackFocusTarget(), true);
+        }
+      });
+      const handleFocusIn = (event: FocusEvent) => {
+        if (event.target !== activator && event.target !== document.body) {
+          stopMonitoringFocusReturn(monitor);
+        }
+      };
+
+      const monitor: FocusReturnMonitor = { observer, handleFocusIn };
+      focusReturnMonitorRef.current = monitor;
+      document.addEventListener("focusin", handleFocusIn);
+      observer.observe(document.body, { childList: true, subtree: true });
+    },
+    [fallbackFocusTarget, stopMonitoringFocusReturn],
+  );
 
   useLayoutEffect(() => {
     if (!portalContainer) {
@@ -63,6 +112,10 @@ export const Dialog = ({
   }, [portalContainer]);
 
   useLayoutEffect(() => {
+    if (open) {
+      stopMonitoringFocusReturn();
+    }
+
     if (open && !wasOpenRef.current) {
       const activeElement = document.activeElement;
       activatorRef.current =
@@ -74,7 +127,9 @@ export const Dialog = ({
     }
 
     wasOpenRef.current = open;
-  }, [open]);
+  }, [open, stopMonitoringFocusReturn]);
+
+  useLayoutEffect(() => () => stopMonitoringFocusReturn(), [stopMonitoringFocusReturn]);
 
   useLayoutEffect(() => {
     if (!open || !portalContainer) {
@@ -98,6 +153,7 @@ export const Dialog = ({
     activatorRef.current = null;
 
     if (activator && focusElement(activator)) {
+      monitorActivatorRemoval(activator);
       return;
     }
 

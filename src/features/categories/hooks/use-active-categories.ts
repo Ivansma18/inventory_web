@@ -21,5 +21,6 @@ export const useActiveCategories = (
     queryKey: activeCategoryListQueryKey(sessionId, params),
     queryFn: ({ signal }) => listActiveCategories(params, signal),
     enabled: sessionId !== null,
+    refetchOnMount: "always",
   });
 };

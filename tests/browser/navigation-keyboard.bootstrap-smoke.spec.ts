@@ -48,13 +48,12 @@ for (const width of [360, 768]) {
     const drawer = page.getByRole("dialog", { name: "Navegación principal" });
     const closeButton = page.getByRole("button", { name: "Cerrar panel" });
     const openerElement = page.locator('button[aria-label="Abrir navegación"]');
-    const homeLink = page
-      .getByRole("navigation", { name: "Navegación principal" })
-      .getByRole("link", { name: "Inicio", exact: true });
-    const productsLink = page
-      .getByRole("navigation", { name: "Navegación principal" })
-      .getByRole("link", { name: "Productos", exact: true });
+    const navigation = page.getByRole("navigation", { name: "Navegación principal" });
+    const homeLink = navigation.getByRole("link", { name: "Inicio", exact: true });
+    const productsLink = navigation.getByRole("link", { name: "Productos", exact: true });
+    const categoriesLink = navigation.getByRole("link", { name: "Categorías", exact: true });
     await expect(drawer).toBeVisible();
+    await expect(navigation.getByRole("link")).toHaveText(["Inicio", "Productos", "Categorías"]);
     await expect(drawer).toHaveAttribute("aria-modal", "true");
     await expect(openerElement).toHaveAttribute("aria-expanded", "true");
     await expect(homeLink).not.toHaveAttribute("aria-current");
@@ -62,13 +61,15 @@ for (const width of [360, 768]) {
     await expect(root).toHaveAttribute("inert", "");
 
     await page.keyboard.press("Shift+Tab");
-    await expect(productsLink).toBeFocused();
+    await expect(categoriesLink).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(closeButton).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(homeLink).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(productsLink).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(categoriesLink).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(closeButton).toBeFocused();
     await page.keyboard.press("Escape");
@@ -113,6 +114,12 @@ test("tabs through collapsed persistent navigation and exposes its tooltip", asy
   const homeLink = page
     .getByRole("navigation", { name: "Navegación principal" })
     .getByRole("link", { name: "Inicio", exact: true });
+  const productsLink = page
+    .getByRole("navigation", { name: "Navegación principal" })
+    .getByRole("link", { name: "Productos", exact: true });
+  const categoriesLink = page
+    .getByRole("navigation", { name: "Navegación principal" })
+    .getByRole("link", { name: "Categorías", exact: true });
 
   await skipLink.focus();
   await expect(skipLink).toBeFocused();
@@ -123,12 +130,34 @@ test("tabs through collapsed persistent navigation and exposes its tooltip", asy
   await expect(homeLink).toBeFocused();
   await expectVisibleFocusIndicator(homeLink);
   await expect(homeLink).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("tooltip")).toHaveText("Inicio");
+  await expect(page.getByRole("tooltip", { name: "Inicio" })).toHaveText("Inicio");
+  await page.keyboard.press("Tab");
+  await expect(productsLink).toBeFocused();
+  await expect(page.getByRole("tooltip", { name: "Productos" })).toHaveText("Productos");
+  await page.keyboard.press("Tab");
+  await expect(categoriesLink).toBeFocused();
+  await expect(page.getByRole("tooltip", { name: "Categorías" })).toHaveText("Categorías");
+  await page.keyboard.press("Shift+Tab");
+  await expect(productsLink).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(homeLink).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(expandButton).toBeFocused();
   await page.keyboard.press("Enter");
   const collapseButton = page.getByRole("button", { name: "Contraer navegación" });
   await expect(collapseButton).toHaveAttribute("aria-expanded", "true");
+  await expect(collapseButton).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(homeLink).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(productsLink).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(categoriesLink).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(productsLink).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(homeLink).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
   await expect(collapseButton).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("button", { name: "Expandir navegación" })).toHaveAttribute(
