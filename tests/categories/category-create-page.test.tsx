@@ -119,6 +119,7 @@ const renderCategoryCreateRoute = (
 };
 
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const { queryClient, router } of routeResources.splice(0)) {
     router.dispose();
     queryClient.clear();
@@ -126,6 +127,95 @@ afterEach(() => {
 });
 
 describe("category creation page", () => {
+  it("preserves long values and retries with the exact safe payload", async () => {
+    const user = userEvent.setup();
+    const rawName = `  ${"Categoría de almacenamiento extensa ".repeat(70)}  `;
+    const expectedName = rawName.trim();
+    const longDescription = "Descripción logística extendida. ".repeat(180);
+    const privateMessage = "backend-secret-create-message-7f2a";
+    const privateFieldDetail = "backend-secret-create-field-91bc";
+    const privateStack = "backend-secret-create-stack-c13d";
+    const expectedPayload = { name: expectedName, description: longDescription };
+    const requestBodies: unknown[] = [];
+    const consoleSpies = [
+      vi.spyOn(console, "debug").mockImplementation(() => {}),
+      vi.spyOn(console, "info").mockImplementation(() => {}),
+      vi.spyOn(console, "warn").mockImplementation(() => {}),
+      vi.spyOn(console, "error").mockImplementation(() => {}),
+      vi.spyOn(console, "log").mockImplementation(() => {}),
+    ];
+
+    server.use(
+      http.post(categoriesUrl, async ({ request }) => {
+        requestBodies.push(await request.json());
+
+        if (requestBodies.length === 1) {
+          return HttpResponse.json(
+            {
+              error: {
+                code: "VALIDATION_ERROR",
+                message: privateMessage,
+                fieldErrors: { description: [privateFieldDetail] },
+                stack: privateStack,
+              },
+            },
+            { status: 400 },
+          );
+        }
+
+        return HttpResponse.json(
+          { data: category(expectedName, longDescription) },
+          { status: 201 },
+        );
+      }),
+    );
+
+    renderCategoryCreateRoute();
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
+    fireEvent.change(name, { target: { value: rawName } });
+    fireEvent.change(description, { target: { value: longDescription } });
+
+    expect(name).toHaveValue(rawName);
+    expect(description).toHaveValue(longDescription);
+    expect(name).not.toHaveAttribute("maxLength");
+    expect(description).not.toHaveAttribute("maxLength");
+
+    await user.click(screen.getByRole("button", { name: "Crear categoría" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "El servidor rechazó los datos enviados. Revisa el formulario e inténtalo de nuevo.",
+    );
+    expect(name).toHaveValue(rawName);
+    expect(description).toHaveValue(longDescription);
+    expect(requestBodies).toEqual([expectedPayload]);
+    expect(screen.queryByText(privateMessage)).not.toBeInTheDocument();
+    expect(screen.queryByText(privateFieldDetail)).not.toBeInTheDocument();
+    expect(screen.queryByText(privateStack)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Crear categoría" }));
+
+    expect(await screen.findByText("Categoría creada correctamente.")).toBeVisible();
+    expect(requestBodies).toEqual([expectedPayload, expectedPayload]);
+    expect(screen.queryByText(privateMessage)).not.toBeInTheDocument();
+
+    const loggedOutput = consoleSpies
+      .flatMap((spy) => spy.mock.calls)
+      .map((call) =>
+        call
+          .map((value) =>
+            value instanceof Error
+              ? `${value.message} ${value.stack ?? ""}`
+              : (JSON.stringify(value) ?? String(value)),
+          )
+          .join(" "),
+      )
+      .join("\n");
+    for (const sentinel of [privateMessage, privateFieldDetail, privateStack]) {
+      expect(loggedOutput).not.toContain(sentinel);
+    }
+  });
+
   it.each(["ADMIN", "MANAGER", "OPERATOR", "VIEWER"] as const)(
     "keeps the create action visible for the %s role",
     async (role) => {

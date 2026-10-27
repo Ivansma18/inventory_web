@@ -1,11 +1,11 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import type { components } from "@/shared/api/generated/auth-contracts";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { UiProvider } from "@/app/providers/ui.provider";
 import { appRoutes } from "@/app/router/router";
@@ -80,6 +80,7 @@ const renderCategoryEditRoute = (initialEntry = `/categories/${categoryUuid}/edi
 };
 
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const { queryClient, router } of routeResources.splice(0)) {
     router.dispose();
     queryClient.clear();
@@ -87,6 +88,94 @@ afterEach(() => {
 });
 
 describe("category edit page", () => {
+  it("preserves long values and retries with the exact safe PATCH payload", async () => {
+    const user = userEvent.setup();
+    const rawName = `  ${"Categoría editada con nombre extenso ".repeat(65)}  `;
+    const expectedName = rawName.trim();
+    const longDescription = "Descripción detallada para almacenamiento y logística. ".repeat(150);
+    const privateMessage = "backend-secret-update-message-5d41";
+    const privateFieldDetail = "backend-secret-update-field-3e89";
+    const privateStack = "backend-secret-update-stack-a60f";
+    const expectedPayload = { name: expectedName, description: longDescription };
+    const requestBodies: unknown[] = [];
+    const consoleSpies = [
+      vi.spyOn(console, "debug").mockImplementation(() => {}),
+      vi.spyOn(console, "info").mockImplementation(() => {}),
+      vi.spyOn(console, "warn").mockImplementation(() => {}),
+      vi.spyOn(console, "error").mockImplementation(() => {}),
+      vi.spyOn(console, "log").mockImplementation(() => {}),
+    ];
+
+    server.use(
+      http.get(categoryUrl, () => HttpResponse.json({ data: category(false) })),
+      http.patch(categoryUrl, async ({ request }) => {
+        requestBodies.push(await request.json());
+
+        if (requestBodies.length === 1) {
+          return HttpResponse.json(
+            {
+              error: {
+                code: "VALIDATION_ERROR",
+                message: privateMessage,
+                fieldErrors: { description: [privateFieldDetail] },
+                stack: privateStack,
+              },
+            },
+            { status: 400 },
+          );
+        }
+
+        return HttpResponse.json({ data: category(false, expectedName, longDescription) });
+      }),
+    );
+
+    const { router } = renderCategoryEditRoute();
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
+    fireEvent.change(name, { target: { value: rawName } });
+    fireEvent.change(description, { target: { value: longDescription } });
+
+    expect(name).toHaveValue(rawName);
+    expect(description).toHaveValue(longDescription);
+    expect(name).not.toHaveAttribute("maxLength");
+    expect(description).not.toHaveAttribute("maxLength");
+
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "El servidor rechazó los datos enviados. Revisa el formulario e inténtalo de nuevo.",
+    );
+    expect(name).toHaveValue(rawName);
+    expect(description).toHaveValue(longDescription);
+    expect(requestBodies).toEqual([expectedPayload]);
+    expect(screen.queryByText(privateMessage)).not.toBeInTheDocument();
+    expect(screen.queryByText(privateFieldDetail)).not.toBeInTheDocument();
+    expect(screen.queryByText(privateStack)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    expect(await screen.findByText("Categoría actualizada correctamente.")).toBeVisible();
+    expect(router.state.location.pathname).toBe("/categories");
+    expect(requestBodies).toEqual([expectedPayload, expectedPayload]);
+    expect(screen.queryByText(privateMessage)).not.toBeInTheDocument();
+
+    const loggedOutput = consoleSpies
+      .flatMap((spy) => spy.mock.calls)
+      .map((call) =>
+        call
+          .map((value) =>
+            value instanceof Error
+              ? `${value.message} ${value.stack ?? ""}`
+              : (JSON.stringify(value) ?? String(value)),
+          )
+          .join(" "),
+      )
+      .join("\n");
+    for (const sentinel of [privateMessage, privateFieldDetail, privateStack]) {
+      expect(loggedOutput).not.toContain(sentinel);
+    }
+  });
+
   it("keeps fields unavailable during the initial request and fills them when it resolves", async () => {
     const detail = deferred<Response>();
     const requestStarted = deferred<void>();
