@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { UiProvider } from "@/app/providers/ui.provider";
 import { CategorySelector, type CategorySelectorProps } from "@/features/categories";
+import { categoryDetailQueryKey } from "@/features/categories/hooks/use-category";
 import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
@@ -143,6 +144,69 @@ describe("category selector", () => {
     expect(requests[2]?.searchParams.get("page")).toBe("1");
     expect(screen.getByRole("textbox", { name: "Categoría" })).toHaveValue("Oficina");
     expect(onValueChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains a selected category across pages and searches when its detail check fails", async () => {
+    const user = userEvent.setup();
+    const listRequests: URL[] = [];
+    const detailRequests: URL[] = [];
+    const onCategorySelectionInvalidated = vi.fn();
+    const onValueChange = vi.fn();
+
+    server.use(
+      http.get(categoriesUrl, ({ request }) => {
+        const url = new URL(request.url);
+        listRequests.push(url);
+        const page = Number(url.searchParams.get("page") ?? 1);
+        const search = url.searchParams.get("search") ?? "";
+
+        return HttpResponse.json({
+          data: search
+            ? [category(3, `Resultado ${search}`)]
+            : page === 1
+              ? [category(1, "Oficina"), category(2, "Repuestos")]
+              : [category(4, "Limpieza")],
+          pagination: { total: search ? 1 : 31, page, limit: 15 },
+        });
+      }),
+      http.get(`${categoriesUrl}/${categoryUuid(1)}`, ({ request }) => {
+        detailRequests.push(new URL(request.url));
+        return HttpResponse.json(
+          { error: { code: "CATEGORY_SERVICE_UNAVAILABLE", message: "private detail" } },
+          { status: 503 },
+        );
+      }),
+    );
+
+    const { queryClient } = renderSelector({ onCategorySelectionInvalidated, onValueChange });
+    const select = await screen.findByRole("textbox", { name: "Categoría" });
+    await waitFor(() => expect(select).toBeEnabled());
+
+    select.focus();
+    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+    expect(select).toHaveValue("Oficina");
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryState(categoryDetailQueryKey(sessionId, categoryUuid(1)))?.status,
+      ).toBe("error"),
+    );
+    expect(onCategorySelectionInvalidated).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Página siguiente de categorías" }));
+    await waitFor(() => expect(listRequests).toHaveLength(2));
+    expect(select).toHaveValue("Oficina");
+
+    const search = screen.getByRole("searchbox", { name: "Buscar categorías activas" });
+    await user.type(search, "repuesto");
+    await user.click(screen.getByRole("button", { name: "Buscar categorías" }));
+    await waitFor(() => expect(listRequests).toHaveLength(3));
+
+    expect(listRequests[1]?.searchParams.get("page")).toBe("2");
+    expect(listRequests[2]?.searchParams.get("search")).toBe("repuesto");
+    expect(select).toHaveValue("Oficina");
+    expect(detailRequests).toHaveLength(1);
+    expect(onValueChange).toHaveBeenCalledExactlyOnceWith(categoryUuid(1));
+    expect(onCategorySelectionInvalidated).not.toHaveBeenCalled();
   });
 
   it("keeps an original category outside the active results without clearing it", async () => {

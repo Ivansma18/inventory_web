@@ -11,6 +11,7 @@ import { appRoutes } from "@/app/router/router";
 import { UiProvider } from "@/app/providers/ui.provider";
 import { useSession } from "@/features/auth";
 import type { UseSessionResult } from "@/features/auth";
+import { categoryDetailQueryKey } from "@/features/categories/hooks/use-category";
 import { createQueryClient, QUERY_STALE_TIME_MS } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
 
@@ -1137,6 +1138,71 @@ describe("product creation form", () => {
   );
 
   it.each([
+    {
+      failure: "server",
+      detailResponse: () =>
+        HttpResponse.json(
+          { error: { code: "CATEGORY_SERVICE_UNAVAILABLE", message: "private detail" } },
+          { status: 503 },
+        ),
+    },
+    { failure: "network", detailResponse: () => HttpResponse.error() },
+  ])(
+    "keeps a selection available to the backend after a $failure availability-check failure",
+    async ({ detailResponse }) => {
+      const user = userEvent.setup();
+      const submittedBodies: unknown[] = [];
+      const uuid = category(1, "Oficina").uuid;
+
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(categoriesUrl, () => activeCategoryResponse()),
+        http.get(`${categoriesUrl}/${uuid}`, () => detailResponse()),
+        http.post(productsUrl, async ({ request }) => {
+          submittedBodies.push(await request.json());
+          return HttpResponse.json({ data: createdProduct }, { status: 201 });
+        }),
+        http.get(productsUrl, () =>
+          HttpResponse.json({
+            data: [createdProduct],
+            pagination: { total: 1, page: 1, limit: 15 },
+          }),
+        ),
+      );
+
+      const { queryClient } = renderProductCreateRoute();
+      await screen.findByRole("heading", { level: 1, name: "Crear producto" });
+      await fillValidProductForm(user);
+      const categorySelect = screen.getByRole("textbox", { name: "Categoría (obligatorio)" });
+      await waitFor(() =>
+        expect(
+          queryClient.getQueryState(categoryDetailQueryKey("product-create-session", uuid))?.status,
+        ).toBe("error"),
+      );
+
+      expect(categorySelect).toHaveValue("Oficina");
+      expect(categorySelect).not.toHaveAttribute("aria-invalid", "true");
+      expect(screen.queryByRole("button", { name: "Actualizar categorías activas" })).toBeNull();
+      expect(
+        screen.queryByText(/La categoría seleccionada ya no está activa/),
+      ).not.toBeInTheDocument();
+
+      fireEvent.submit(screen.getByRole("form", { name: "Datos del producto" }));
+
+      expect(await screen.findByText("Producto creado correctamente.")).toBeVisible();
+      expect(submittedBodies).toEqual([
+        {
+          sku: "SKU-NEW",
+          name: "Monitor",
+          purchasePrice: 10.25,
+          salePrice: 8.5,
+          categoryUuid: uuid,
+        },
+      ]);
+    },
+  );
+
+  it.each([
     { status: 404, code: "PRODUCT_CATEGORY_NOT_FOUND" },
     { status: 409, code: "PRODUCT_CATEGORY_INACTIVE" },
     { status: 409, code: "PRODUCT_CATEGORY_ASSIGNMENT_CONFLICT" },
@@ -1145,6 +1211,8 @@ describe("product creation form", () => {
     async ({ status, code }) => {
       const user = userEvent.setup();
       let categoryRequests = 0;
+      const submittedBodies: unknown[] = [];
+      const uuid = category(1, "Oficina").uuid;
 
       server.use(
         http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
@@ -1157,13 +1225,28 @@ describe("product creation form", () => {
                 pagination: { total: 1, page: 1, limit: 15 },
               });
         }),
-        http.post(productsUrl, () =>
-          HttpResponse.json({ error: { code, message: "private category detail" } }, { status }),
+        http.get(`${categoriesUrl}/${uuid}`, () =>
+          HttpResponse.json(
+            { error: { code: "CATEGORY_SERVICE_UNAVAILABLE", message: "private detail" } },
+            { status: 503 },
+          ),
         ),
+        http.post(productsUrl, async ({ request }) => {
+          submittedBodies.push(await request.json());
+          return HttpResponse.json(
+            { error: { code, message: "private category detail" } },
+            { status },
+          );
+        }),
       );
 
       const { queryClient } = renderProductCreateRoute();
       await fillValidProductForm(user);
+      await waitFor(() =>
+        expect(
+          queryClient.getQueryState(categoryDetailQueryKey("product-create-session", uuid))?.status,
+        ).toBe("error"),
+      );
       await user.type(
         screen.getByRole("textbox", { name: "Descripción (opcional)" }),
         "Pantalla profesional para oficina.",
@@ -1192,6 +1275,16 @@ describe("product creation form", () => {
       expect(screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" })).toHaveValue(
         "8.50",
       );
+      expect(submittedBodies).toEqual([
+        {
+          sku: "SKU-NEW",
+          name: "Monitor",
+          description: "Pantalla profesional para oficina.",
+          purchasePrice: 10.25,
+          salePrice: 8.5,
+          categoryUuid: uuid,
+        },
+      ]);
       const dirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
       fireEvent(window, dirtyUnloadEvent);
       expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
@@ -1204,6 +1297,7 @@ describe("product creation form", () => {
       await waitFor(() => expect(categoryRequests).toBe(2));
       expect(await screen.findByText("Selecciona una categoría activa.")).toBeVisible();
       expect(getCategorySelect()).toBeEnabled();
+      expect(getCategorySelect()).not.toHaveValue("Oficina");
 
       getCategorySelect().focus();
       await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
