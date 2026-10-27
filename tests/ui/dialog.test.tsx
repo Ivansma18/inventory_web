@@ -1,5 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -246,6 +247,94 @@ describe("Dialog", () => {
     expect(first).toHaveFocus();
     await user.tab({ shift: true });
     expect(last).toHaveFocus();
+  });
+
+  it("restores focus to the page fallback if the returned-to activator is later removed", async () => {
+    const user = userEvent.setup();
+    let removeActivator: () => void = () => {};
+
+    const Harness = () => {
+      const [open, setOpen] = useState(false);
+      const [activatorAvailable, setActivatorAvailable] = useState(true);
+      removeActivator = () => setActivatorAvailable(false);
+
+      return (
+        <>
+          {activatorAvailable ? (
+            <button onClick={() => setOpen(true)}>Open confirmation</button>
+          ) : null}
+          <button data-dialog-focus-fallback tabIndex={-1}>
+            Page focus fallback
+          </button>
+          <Dialog
+            fallbackFocusTarget={getFocusFallbackTarget}
+            onCloseRequest={() => setOpen(false)}
+            open={open}
+            title="Focus return after removal"
+          >
+            <button>Continue</button>
+          </Dialog>
+        </>
+      );
+    };
+
+    render(<Harness />);
+    const activator = screen.getByRole("button", { name: "Open confirmation" });
+    await user.click(activator);
+    await screen.findByRole("dialog", { name: "Focus return after removal" });
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(activator).toHaveFocus());
+
+    await act(async () => removeActivator());
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Page focus fallback" })).toHaveFocus(),
+    );
+  });
+
+  it("does not redirect focus if the user moved away before the activator was removed", async () => {
+    const user = userEvent.setup();
+    let removeActivator: () => void = () => {};
+
+    const Harness = () => {
+      const [open, setOpen] = useState(false);
+      const [activatorAvailable, setActivatorAvailable] = useState(true);
+      removeActivator = () => setActivatorAvailable(false);
+
+      return (
+        <>
+          {activatorAvailable ? (
+            <button onClick={() => setOpen(true)}>Open confirmation</button>
+          ) : null}
+          <button>Other page control</button>
+          <button data-dialog-focus-fallback tabIndex={-1}>
+            Page focus fallback
+          </button>
+          <Dialog
+            fallbackFocusTarget={getFocusFallbackTarget}
+            onCloseRequest={() => setOpen(false)}
+            open={open}
+            title="Focus return after user movement"
+          >
+            <button>Continue</button>
+          </Dialog>
+        </>
+      );
+    };
+
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Open confirmation" }));
+    await screen.findByRole("dialog", { name: "Focus return after user movement" });
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    const otherControl = screen.getByRole("button", { name: "Other page control" });
+    await user.click(otherControl);
+    await act(async () => removeActivator());
+
+    expect(otherControl).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Page focus fallback" })).not.toHaveFocus();
   });
 
   it("ignores close requests while blocked without disabling dialog content", async () => {
