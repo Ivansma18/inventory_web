@@ -1701,13 +1701,81 @@ describe("product edit page", () => {
 
     const sku = await screen.findByRole("textbox", { name: "SKU (obligatorio)" });
     await user.clear(sku);
+    const name = screen.getByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
     screen.getByRole("button", { name: "Guardar cambios" }).focus();
     await user.keyboard("{Enter}");
 
     const skuError = await screen.findByText("El SKU es obligatorio.");
+    const nameError = await screen.findByText("El nombre es obligatorio.");
     await waitFor(() => expect(sku).toHaveFocus());
     expect(sku).toHaveAttribute("aria-invalid", "true");
     expect(sku).toHaveAccessibleDescription(skuError.textContent ?? "");
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(name).toHaveAccessibleDescription(nameError.textContent ?? "");
+  });
+
+  it("reassigns a category and saves by tabbing through the edit form using the keyboard", async () => {
+    const user = userEvent.setup();
+    const patchBodies: unknown[] = [];
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(categoriesUrl, () =>
+        HttpResponse.json(
+          categoryListResponse([
+            category("Oficina"),
+            category("Papelería", alternativeCategoryUuid),
+          ]),
+        ),
+      ),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+      http.patch(productUrl, async ({ request }) => {
+        patchBodies.push(await request.json());
+        return HttpResponse.json({ data: product(true, alternativeCategoryUuid) });
+      }),
+    );
+
+    renderProductEditRoute();
+
+    const sku = await screen.findByRole("textbox", { name: "SKU (obligatorio)" });
+    const name = screen.getByRole("textbox", { name: "Nombre (obligatorio)" });
+    const purchasePrice = screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" });
+    const salePrice = screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" });
+    const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
+    const categorySearch = screen.getByRole("searchbox", { name: "Buscar categorías activas" });
+    const getCategorySelect = () => screen.getByRole("textbox", { name: "Categoría" });
+
+    await waitFor(() => expect(getCategorySelect()).toBeEnabled());
+    sku.focus();
+    await user.tab();
+    expect(name).toHaveFocus();
+    await user.tab();
+    expect(purchasePrice).toHaveFocus();
+    await user.tab();
+    expect(salePrice).toHaveFocus();
+    await user.tab();
+    expect(description).toHaveFocus();
+    await user.tab();
+    expect(categorySearch).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Buscar categorías" })).toHaveFocus();
+    await user.tab();
+    await waitFor(() => expect(getCategorySelect()).toBeEnabled());
+    expect(getCategorySelect()).toHaveFocus();
+    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+    expect(getCategorySelect()).toHaveValue("Papelería");
+    expect(getCategorySelect()).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Cancelar" })).toHaveFocus();
+    await user.tab();
+
+    const saveButton = screen.getByRole("button", { name: "Guardar cambios" });
+    expect(saveButton).toHaveFocus();
+    await user.keyboard("{Enter}");
+
+    expect(await screen.findByText("Producto actualizado correctamente.")).toBeVisible();
+    expect(patchBodies).toEqual([{ categoryUuid: alternativeCategoryUuid }]);
   });
 
   it.each([

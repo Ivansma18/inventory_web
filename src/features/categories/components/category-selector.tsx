@@ -1,6 +1,6 @@
 import "./category-selector.css";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { Button, Input, Select } from "@/shared/ui";
 import type { SelectOption } from "@/shared/ui";
@@ -50,11 +50,13 @@ export const CategorySelector = ({
   onOptionsRefreshed,
   onCategorySelectionInvalidated,
 }: CategorySelectorProps) => {
+  const categorySelectId = useId();
   const [searchDraft, setSearchDraft] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [retainedCategory, setRetainedCategory] = useState<Category | null>(null);
   const handledInvalidSelection = useRef<string | null>(null);
+  const restoreSelectFocus = useRef(false);
   const categories = useActiveCategories(sessionId, { page, search });
   const visibleCategories = categories.data?.data ?? [];
   const originalCategoryIsVisible = visibleCategories.some(
@@ -101,6 +103,15 @@ export const CategorySelector = ({
     selectedCategoryIsUnavailable,
     selectedCategoryUuid,
   ]);
+
+  useLayoutEffect(() => {
+    if (!restoreSelectFocus.current) {
+      return;
+    }
+
+    restoreSelectFocus.current = false;
+    document.getElementById(categorySelectId)?.focus();
+  }, [categorySelectId, value]);
 
   const categoryOptions: CategoryOption[] = visibleCategories.map((category) => ({
     label: category.name,
@@ -163,6 +174,7 @@ export const CategorySelector = ({
   };
 
   const handleValueChange = (nextValue: string | null) => {
+    restoreSelectFocus.current = nextValue !== value;
     onValueChange(nextValue);
 
     if (nextValue === null) {
@@ -276,6 +288,7 @@ export const CategorySelector = ({
         disabled={disabled || refreshRequired || categories.isPending || categories.isError}
         emptyMessage={resolvedEmptyMessage}
         error={error}
+        id={categorySelectId}
         key={`${value ?? "empty"}:${
           categoryOptions.find((option) => option.value === value)?.label ?? ""
         }`}

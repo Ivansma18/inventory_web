@@ -364,9 +364,83 @@ describe("product creation form", () => {
     await user.keyboard("{Enter}");
 
     expect(await screen.findByText("El SKU es obligatorio.")).toBeVisible();
+    const name = screen.getByRole("textbox", { name: "Nombre (obligatorio)" });
+    expect(await screen.findByText("El nombre es obligatorio.")).toBeVisible();
     await waitFor(() => expect(sku).toHaveFocus());
     expect(sku).toHaveAttribute("aria-invalid", "true");
     expect(sku).toHaveAccessibleDescription("El SKU es obligatorio.");
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(name).toHaveAccessibleDescription("El nombre es obligatorio.");
+  });
+
+  it("creates a product by tabbing through the form and submitting with the keyboard", async () => {
+    const user = userEvent.setup();
+    const submittedBodies: unknown[] = [];
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(categoriesUrl, () => activeCategoryResponse()),
+      http.post(productsUrl, async ({ request }) => {
+        submittedBodies.push(await request.json());
+        return HttpResponse.json({ data: createdProduct }, { status: 201 });
+      }),
+      http.get(productsUrl, () =>
+        HttpResponse.json({ data: [createdProduct], pagination: { total: 1, page: 1, limit: 15 } }),
+      ),
+    );
+
+    renderProductCreateRoute();
+
+    const sku = await screen.findByRole("textbox", { name: "SKU (obligatorio)" });
+    const name = screen.getByRole("textbox", { name: "Nombre (obligatorio)" });
+    const purchasePrice = screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" });
+    const salePrice = screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" });
+    const description = screen.getByRole("textbox", { name: "Descripción (opcional)" });
+    const categorySearch = screen.getByRole("searchbox", { name: "Buscar categorías activas" });
+    const getCategorySelect = () =>
+      screen.getByRole("textbox", { name: "Categoría (obligatorio)" });
+
+    sku.focus();
+    await user.keyboard("SKU-KEYBOARD");
+    await user.tab();
+    expect(name).toHaveFocus();
+    await user.keyboard("Monitor por teclado");
+    await user.tab();
+    expect(purchasePrice).toHaveFocus();
+    await user.keyboard("10,25");
+    await user.tab();
+    expect(salePrice).toHaveFocus();
+    await user.keyboard("12.50");
+    await user.tab();
+    expect(description).toHaveFocus();
+    await user.keyboard("Creado sin usar el puntero.");
+    await user.tab();
+    expect(categorySearch).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Buscar categorías" })).toHaveFocus();
+    await user.tab();
+    await waitFor(() => expect(getCategorySelect()).toBeEnabled());
+    expect(getCategorySelect()).toHaveFocus();
+    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+    expect(getCategorySelect()).toHaveValue("Oficina");
+    expect(getCategorySelect()).toHaveFocus();
+    await user.tab();
+
+    const createButton = screen.getByRole("button", { name: "Crear producto" });
+    expect(createButton).toHaveFocus();
+    await user.keyboard("{Enter}");
+
+    expect(await screen.findByText("Producto creado correctamente.")).toBeVisible();
+    expect(submittedBodies).toEqual([
+      {
+        sku: "SKU-KEYBOARD",
+        name: "Monitor por teclado",
+        description: "Creado sin usar el puntero.",
+        purchasePrice: 10.25,
+        salePrice: 12.5,
+        categoryUuid: category(1, "Oficina").uuid,
+      },
+    ]);
   });
 
   it("focuses the product page heading after navigating to a different product page", async () => {
