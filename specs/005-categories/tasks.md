@@ -222,7 +222,7 @@ Cada tarea funcional incluye escribir o actualizar primero la prueba que demuest
   Hecho cuando: pruebas compactas/persistentes reflejan Inicio/Productos/Categorías sin orden de foco obsoleto, y pasan los flujos afectados de navegación, historial, logout y sustitución de sesión sin añadir permisos por rol.
 - Evidencia: `tests/browser/app-layout.bootstrap-smoke.spec.ts` verifica los tres destinos y el orden en los modos compacto y persistente; `tests/browser/navigation-keyboard.bootstrap-smoke.spec.ts` recorre por teclado Inicio, Productos y Categorías en el Drawer y en la navegación persistente colapsada/expandida. `tests/browser/category-navigation-auth.bootstrap-smoke.spec.ts` confirma que un usuario autenticado con rol contractual `VIEWER` ve Categorías y las acciones de fila, sin autorización deducida del rol; el foco pasa al encabezado al navegar. `tests/browser/navigation-history.bootstrap-smoke.spec.ts`, `tests/browser/logout-workflow.bootstrap-smoke.spec.ts`, `tests/browser/session-recovery.bootstrap-smoke.spec.ts` y `tests/browser/session-focus.bootstrap-smoke.spec.ts` comprueban que el destino aparece con sesión vigente y desaparece o se restablece correctamente tras logout/revalidación.
 - Validación: pruebas E2E focalizadas de App Shell/navegación/Auth (7 archivos, 27 pruebas) y `pnpm test:e2e --workers=1 --reporter=dot` (suite predeterminada, 87 pruebas), `pnpm lint`, `pnpm typecheck`, `pnpm format:check`, `pnpm build`, `pnpm exec prettier --check specs/005-categories/tasks.md` y `git diff --check` pasaron. El build conserva el aviso no bloqueante del chunk JS de 1,141.44 kB.
-- [ ] T58. Ejecutar verificación global y consolidar evidencia de cierre. (RF-1–RF-140; NFR-1–NFR-11)
+- [x] T58. Ejecutar verificación global y consolidar evidencia de cierre. (RF-1–RF-140; NFR-1–NFR-11)
   Hecho cuando: se registran resultados reales de lint, formato, typecheck, Vitest, build y E2E del plan, ejecutando proyectos de navegador secuencialmente; una matriz final enlaza evidencia RF/NFR, revisiones manuales y bloqueos. No se declara cumplida la spec con pruebas fallidas o evidencia pendiente.
 
 ## Orden y dependencias
@@ -373,4 +373,20 @@ La tabla vincula implementación y evidencia principal. T58 consolida resultados
 - Si no hay escritorio gráfico, lector de pantalla u otra condición necesaria, registrar bloqueo; no sustituir zoom nativo por viewport equivalente ni revisión humana por pruebas automáticas.
 - No modificar reglas del backend, scope aprobado ni contratos de Productos por inferencia. Toda discrepancia vuelve a `change-manager`.
 
-T1–T12 están completadas; T13 está implementada, pero pendiente de cerrar por el error MSW global descrito arriba. T14 no se ha iniciado.
+### Registro global de T58 — 2026-10-27
+
+| Verificación | Comando / evidencia | Resultado |
+| --- | --- | --- |
+| Lint | `pnpm lint` | Pasó; contratos ESLint y fronteras arquitectónicas verificados. |
+| Formato | `pnpm format:check` | Pasó. |
+| Typecheck | `pnpm typecheck` | Pasó; modo strict y aliases verificados. |
+| Vitest | `pnpm test:run` | Pasó: 69 archivos, 686 pruebas. |
+| Build | `pnpm build` | Pasó; permanece el aviso no bloqueante del chunk JS de 1,141.44 kB. |
+| E2E predeterminado | `pnpm test:e2e --workers=1 --reporter=dot` | Pasó: 87 pruebas, incluidos `bootstrap-smoke` y `proxy-contract`. |
+| Design System | `pnpm test:e2e --project=design-system --workers=1 --reporter=dot` | Pasó: 7 pruebas. |
+| Preview de producción | `pnpm test:e2e --project=preview-smoke --workers=1 --reporter=dot` | Pasó: 4 pruebas; reconstruyó y sirvió el bundle. |
+| Auth simulado | `pnpm test:e2e --project=auth-harness --workers=1 --reporter=dot` | Pasó: 1 prueba. |
+| Zoom nativo | `pnpm test:e2e --project=native-zoom --workers=1 --reporter=dot` | Pasó: 2 pruebas en Chromium visible al 200 % nativo. |
+| Markdown y diff | `pnpm exec prettier --check specs/005-categories/spec.md specs/005-categories/plan.md specs/005-categories/tasks.md`; `git diff --check` | Pasaron. |
+
+La matriz RF/NFR anterior enlaza cada rango con tareas y evidencia específica. Las revisiones manuales permanecen documentadas en T51 (Chromium 153.0.8010.12, Windows gráfico, 1280×900; acciones revisadas al zoom nativo), T52 (auditoría Impeccable manual, 17/20, Good) y T53 (Narrator/teclado/contraste/foco; usuario no encontró barreras; versión no registrada). No quedaron pruebas fallidas ni bloqueos de ejecución. El E2E predeterminado imprimió el rechazo de conexión al destino de proxy aislado y un aviso React de doble `createRoot` del harness; no afectaron el resultado de las 87 pruebas.
