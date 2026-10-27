@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+const expectedNavigationLabels = ["Inicio", "Productos", "Categorías"];
+
 for (const width of [360, 768, 1280]) {
   test(`composes App Shell regions and skip navigation at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
@@ -40,6 +42,7 @@ for (const width of [360, 768, 1280]) {
       await expect(sidebar).toBeVisible();
       await expect(sidebar).toContainText("Inventory");
       await expect(navigation.getByRole("link")).toHaveCount(3);
+      await expect(navigation.getByRole("link")).toHaveText(expectedNavigationLabels);
       await expect(homeLink).toHaveAttribute("aria-current", "page");
       const expandButton = page.getByRole("button", { name: "Expandir navegación" });
       await expect(expandButton).toHaveAttribute("aria-expanded", "false");
@@ -154,6 +157,7 @@ for (const width of [360, 768, 1023, 1024, 1280]) {
       await expect(drawer).toBeVisible();
       await expect(opener).toHaveAttribute("aria-expanded", "true");
       await expect(navigation).toBeVisible();
+      await expect(navigation.getByRole("link")).toHaveText(expectedNavigationLabels);
       await expect(navigation.getByRole("link", { name: "Inicio" })).toHaveAttribute(
         "aria-current",
         "page",
@@ -171,6 +175,7 @@ for (const width of [360, 768, 1023, 1024, 1280]) {
       ).toBeVisible();
       await expect(navigationNodes).toHaveCount(1);
       await expect(navigation).toBeVisible();
+      await expect(navigation.getByRole("link")).toHaveText(expectedNavigationLabels);
       await expect(navigation.getByRole("link", { name: "Inicio" })).toHaveAttribute(
         "aria-current",
         "page",
