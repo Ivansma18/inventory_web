@@ -1,11 +1,12 @@
 .inventory-page {
   box-sizing: border-box;
-  inline-size: min(100%, 64rem);
+  inline-size: min(100%, 84rem);
   padding-block: clamp(var(--ui-space-6), 6vh, var(--ui-space-8));
 }
 
 .inventory-page__content {
-  max-inline-size: 42rem;
+  margin-block-end: var(--ui-space-6);
+  max-inline-size: none;
 }
 
 .inventory-page__content::before {
@@ -39,4 +40,17 @@
   color: var(--ui-color-text-muted);
   font-size: var(--ui-font-size-lg);
   line-height: var(--ui-line-height-relaxed);
+}
+
+.inventory-page__summary {
+  margin: 0 0 var(--ui-space-3);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-font-size-sm);
+  font-weight: var(--ui-font-weight-medium);
+}
+
+.inventory-page__activity {
+  display: inline-flex;
+  min-inline-size: max-content;
+  white-space: nowrap;
 }

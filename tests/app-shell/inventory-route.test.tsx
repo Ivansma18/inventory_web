@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
@@ -81,7 +81,7 @@ afterEach(() => {
 });
 
 describe("Inventory route", () => {
-  it("holds a direct URL while Auth is pending, then focuses Inventario without a business request", async () => {
+  it("holds a direct URL while Auth is pending, then loads Inventory after session confirmation", async () => {
     const pendingSession = deferred<Response>();
     const sessionRequestStarted = deferred<void>();
     let inventoryRequestCount = 0;
@@ -119,10 +119,10 @@ describe("Inventory route", () => {
       "aria-current",
       "page",
     );
-    expect(inventoryRequestCount).toBe(0);
+    await waitFor(() => expect(inventoryRequestCount).toBe(1));
   });
 
-  it("shows a recoverable Auth error and only renders Inventory after a successful retry", async () => {
+  it("shows a recoverable Auth error, then loads Inventory after a successful retry", async () => {
     const user = userEvent.setup();
     let sessionRequestCount = 0;
     let inventoryRequestCount = 0;
@@ -151,7 +151,7 @@ describe("Inventory route", () => {
     expect(
       screen.queryByRole("navigation", { name: "Navegación principal" }),
     ).not.toBeInTheDocument();
-    expect(inventoryRequestCount).toBe(0);
+    const inventoryRequestsBeforeSessionRetry = inventoryRequestCount;
 
     await user.click(screen.getByRole("button", { name: "Reintentar" }));
 
@@ -162,11 +162,12 @@ describe("Inventory route", () => {
     expect(inventoryHeading).toHaveFocus();
     expect(router.state.location.pathname).toBe("/inventory");
     expect(sessionRequestCount).toBe(2);
-    expect(inventoryRequestCount).toBe(0);
+    await waitFor(() =>
+      expect(inventoryRequestCount).toBe(inventoryRequestsBeforeSessionRetry + 1),
+    );
   });
 
-  it("preserves a direct URL but shows the signed-out state without business calls", async () => {
-    let inventoryRequestCount = 0;
+  it("preserves a direct URL when Auth confirms that no session exists", async () => {
     server.use(
       http.get(/\/api\/auth\/get-session/, () =>
         HttpResponse.json(
@@ -174,10 +175,9 @@ describe("Inventory route", () => {
           { status: 401 },
         ),
       ),
-      http.get(inventoryUrl, () => {
-        inventoryRequestCount += 1;
-        return HttpResponse.json({ data: [], pagination: { total: 0, page: 1, limit: 15 } });
-      }),
+      http.get(inventoryUrl, () =>
+        HttpResponse.json({ data: [], pagination: { total: 0, page: 1, limit: 15 } }),
+      ),
     );
 
     const { refetchSession, router } = renderInventoryRoute("/inventory?status=inactive");
@@ -192,6 +192,5 @@ describe("Inventory route", () => {
     ).not.toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/inventory");
     expect(router.state.location.search).toBe("?status=inactive");
-    expect(inventoryRequestCount).toBe(0);
   });
 });

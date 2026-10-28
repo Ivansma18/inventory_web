@@ -80,6 +80,9 @@ describe("App Shell routes and navigation catalog", () => {
       http.get("https://inventory.test/api/categories", () =>
         HttpResponse.json({ data: [], pagination: { total: 0, page: 1, limit: 15 } }),
       ),
+      http.get("https://inventory.test/api/inventory", () =>
+        HttpResponse.json({ data: [], pagination: { total: 0, page: 1, limit: 15 } }),
+      ),
     );
 
     const router = createMemoryRouter(appRoutes, { initialEntries: ["/"] });
