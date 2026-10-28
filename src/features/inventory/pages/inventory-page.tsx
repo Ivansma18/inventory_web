@@ -1,6 +1,6 @@
 import "./inventory-page.css";
 
-import { useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useLocation, useSearchParams } from "react-router";
 
 import { useSession } from "@/features/auth";
@@ -58,10 +58,11 @@ export const InventoryPage = () => {
   const pendingPageCorrection = useRef<number | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const serializedSearchParams = searchParams.toString();
-  const { page, criteria } = useMemo(
+  const urlState = useMemo(
     () => parseInventoryListUrlState(new URLSearchParams(serializedSearchParams)),
     [serializedSearchParams],
   );
+  const { page, criteria, needsNormalization } = urlState;
   const [searchDraftState, setSearchDraftState] = useState<InventorySearchDraftState>(() => ({
     serializedSearchParams,
     value: criteria.search,
@@ -136,6 +137,11 @@ export const InventoryPage = () => {
   useLayoutEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
   }, [pathname]);
+  useEffect(() => {
+    if (needsNormalization) {
+      setSearchParams(serializeInventoryListUrlState(urlState), { replace: true });
+    }
+  }, [needsNormalization, setSearchParams, urlState]);
 
   const navigateToListState = (nextState: InventoryListUrlState, replace = false) => {
     const nextSearchParams = serializeInventoryListUrlState(nextState);

@@ -114,7 +114,9 @@ describe("Inventory route", () => {
     });
     expect(inventoryHeading).toHaveFocus();
     expect(router.state.location.pathname).toBe("/inventory");
-    expect(router.state.location.search).toBe("?search=desk");
+    expect(router.state.location.search).toBe(
+      "?page=1&search=desk&status=active&stockStatus=all&sort=name&order=asc",
+    );
     expect(screen.getByRole("link", { name: "Inventario" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -191,6 +193,8 @@ describe("Inventory route", () => {
       screen.queryByRole("navigation", { name: "Navegación principal" }),
     ).not.toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/inventory");
-    expect(router.state.location.search).toBe("?status=inactive");
+    expect(router.state.location.search).toBe(
+      "?page=1&status=inactive&stockStatus=all&sort=name&order=asc",
+    );
   });
 });
