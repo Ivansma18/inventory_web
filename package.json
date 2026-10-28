@@ -26,7 +26,9 @@
     "snapshot:products-openapi": "node scripts/snapshot-products-openapi.mjs",
     "generate:product-contracts": "openapi-typescript tests/contracts/products.openapi.json -o src/shared/api/generated/product-contracts.ts",
     "snapshot:categories-openapi": "node scripts/snapshot-categories-openapi.mjs",
-    "generate:category-contracts": "openapi-typescript tests/contracts/categories.openapi.json -o src/shared/api/generated/category-contracts.ts"
+    "generate:category-contracts": "openapi-typescript tests/contracts/categories.openapi.json -o src/shared/api/generated/category-contracts.ts",
+    "snapshot:inventory-openapi": "node scripts/snapshot-inventory-openapi.mjs",
+    "generate:inventory-contracts": "openapi-typescript tests/contracts/inventory.openapi.json -o src/shared/api/generated/inventory-contracts.ts"
   },
   "lint-staged": {
     "{src,tests,scripts}/**/*.{js,jsx,mjs,cjs,ts,tsx}": [
