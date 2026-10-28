@@ -39,8 +39,9 @@ Cada comportamiento incluye escribir o actualizar primero su prueba. Los archivo
 - [x] T16. Aislar respuestas de consultas de listado reemplazadas. (RF-44)
   Hecho cuando: dos respuestas MSW diferidas terminan en orden inverso y solo permanecen filas de los criterios vigentes; la prueba comprueba claves distintas y ausencia de filas previas presentadas como resultado actual. Cancelar no produce alerta espuria de red.
   Evidencia: `tests/inventory/inventory-list-page.test.tsx` libera primero la respuesta vigente y después la anterior; verifica dos claves/consultas distintas, ausencia de filas obsoletas y de alerta tras cancelar. Pasan las 833 pruebas unitarias, lint, formato, typecheck, build y `git diff --check`.
-- [ ] T17. Formatear el último movimiento con semántica de cantidad y UTC explícito. (RF-14–RF-18; NFR-5)
+- [x] T17. Formatear el último movimiento con semántica de cantidad y UTC explícito. (RF-14–RF-18; NFR-5)
   Hecho cuando: `tests/inventory/format-stock-movement.test.ts` verifica Entrada/Salida/Ajuste, cantidad transaccionada frente a existencia resultante, fecha/hora UTC en español y cruce de día bajo una zona local distinta. No calcula stock a partir del movimiento ni usa updatedAt como sustituto.
+  Evidencia: `format-stock-movement.ts` conserva `createdAt` para `<time>`, etiqueta y formatea fecha/hora con zona UTC, y usa `quantity` para entradas/salidas y `newStock` para ajustes. Las 837 pruebas unitarias, lint, formato, typecheck, build y `git diff --check` pasan.
 - [ ] T18. Conectar celdas autónomas del último movimiento y sus estados pendientes/vacíos. (RF-14–RF-18, RF-78–RF-80)
   Hecho cuando: `tests/inventory/latest-stock-movement.test.tsx` difiere las lecturas, mantiene existencias visibles con carga por celda y solo muestra «Sin movimientos» tras respuesta válida vacía. La query key incluye sesión/producto, usa signal y `retry: false`; las consultas nacen solo de filas validadas, con un máximo inicial de quince GET de movimiento para una página completa y deduplicación de observadores.
 - [ ] T19. Recuperar fallos de movimientos sin bloquear Inventario ni repetir otras consultas. (RF-68–RF-70, RF-78–RF-80)
