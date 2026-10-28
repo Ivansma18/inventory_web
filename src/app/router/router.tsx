@@ -6,6 +6,7 @@ import { SessionBoundary } from "@/app/layouts/session-boundary";
 import { HomePage } from "@/app/pages/home-page";
 import { NotFoundPage } from "@/app/pages/not-found-page";
 import { CategoryCreatePage, CategoryEditPage, CategoryListPage } from "@/features/categories";
+import { InventoryPage } from "@/features/inventory";
 import { ProductCreatePage, ProductEditPage, ProductListPage } from "@/features/products";
 
 export const appRoutes = [
@@ -22,6 +23,7 @@ export const appRoutes = [
       { path: "categories", Component: CategoryListPage },
       { path: "categories/new", Component: CategoryCreatePage },
       { path: "categories/:uuid/edit", Component: CategoryEditPage },
+      { path: "inventory", Component: InventoryPage },
       { path: "products/new", Component: ProductCreatePage },
       { path: "products/:uuid/edit", Component: ProductEditPage },
       { path: "*", Component: NotFoundPage },

@@ -95,7 +95,7 @@ test("closes and unlocks the panel while a session refresh is pending", async ({
   await page.getByRole("button", { name: "Abrir navegación" }).click();
   await expect(
     page.getByRole("navigation", { name: "Navegación principal" }).getByRole("link"),
-  ).toHaveText(["Inicio", "Productos", "Categorías"]);
+  ).toHaveText(["Inicio", "Productos", "Categorías", "Inventario"]);
 });
 
 test("moves focus to the error heading when an open panel is replaced by an error", async ({

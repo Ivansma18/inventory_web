@@ -149,7 +149,7 @@ test("recovers from network, HTTP, and contract failures through the public retr
   await expect(page.getByRole("navigation")).toBeVisible();
   await expect(
     page.getByRole("navigation", { name: "Navegación principal" }).getByRole("link"),
-  ).toHaveText(["Inicio", "Productos", "Categorías"]);
+  ).toHaveText(["Inicio", "Productos", "Categorías", "Inventario"]);
   await expect(page.getByRole("link", { name: "Volver a Inicio" })).toBeVisible();
   expect(sessionRequests).toBe(4);
 });

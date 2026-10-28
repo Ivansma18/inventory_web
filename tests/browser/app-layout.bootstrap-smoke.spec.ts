@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const expectedNavigationLabels = ["Inicio", "Productos", "Categorías"];
+const expectedNavigationLabels = ["Inicio", "Productos", "Categorías", "Inventario"];
 
 for (const width of [360, 768, 1280]) {
   test(`composes App Shell regions and skip navigation at ${width}px`, async ({ page }) => {
@@ -41,7 +41,7 @@ for (const width of [360, 768, 1280]) {
     if (width >= 1024) {
       await expect(sidebar).toBeVisible();
       await expect(sidebar).toContainText("Inventory");
-      await expect(navigation.getByRole("link")).toHaveCount(3);
+      await expect(navigation.getByRole("link")).toHaveCount(4);
       await expect(navigation.getByRole("link")).toHaveText(expectedNavigationLabels);
       await expect(homeLink).toHaveAttribute("aria-current", "page");
       const expandButton = page.getByRole("button", { name: "Expandir navegación" });

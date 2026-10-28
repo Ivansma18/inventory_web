@@ -48,7 +48,12 @@ test("keeps category navigation and actions visible for an authenticated VIEWER"
   await page.getByRole("button", { name: "Abrir navegación" }).click();
   const drawer = page.getByRole("dialog", { name: "Navegación principal" });
   const navigation = page.getByRole("navigation", { name: "Navegación principal" });
-  await expect(navigation.getByRole("link")).toHaveText(["Inicio", "Productos", "Categorías"]);
+  await expect(navigation.getByRole("link")).toHaveText([
+    "Inicio",
+    "Productos",
+    "Categorías",
+    "Inventario",
+  ]);
   await navigation.getByRole("link", { name: "Categorías", exact: true }).click();
 
   const categoryHeading = page.getByRole("heading", { level: 1, name: "Categorías" });

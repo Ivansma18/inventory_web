@@ -11,4 +11,5 @@ export const appNavigationItems = [
   { id: "home", label: "Inicio", to: "/", icon: "home" },
   { id: "products", label: "Productos", to: "/products", icon: "box" },
   { id: "categories", label: "Categorías", to: "/categories", icon: "sort" },
+  { id: "inventory", label: "Inventario", to: "/inventory", icon: "box" },
 ] as const satisfies readonly AppNavigationItem[];

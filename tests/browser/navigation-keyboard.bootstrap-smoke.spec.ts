@@ -52,8 +52,14 @@ for (const width of [360, 768]) {
     const homeLink = navigation.getByRole("link", { name: "Inicio", exact: true });
     const productsLink = navigation.getByRole("link", { name: "Productos", exact: true });
     const categoriesLink = navigation.getByRole("link", { name: "Categorías", exact: true });
+    const inventoryLink = navigation.getByRole("link", { name: "Inventario", exact: true });
     await expect(drawer).toBeVisible();
-    await expect(navigation.getByRole("link")).toHaveText(["Inicio", "Productos", "Categorías"]);
+    await expect(navigation.getByRole("link")).toHaveText([
+      "Inicio",
+      "Productos",
+      "Categorías",
+      "Inventario",
+    ]);
     await expect(drawer).toHaveAttribute("aria-modal", "true");
     await expect(openerElement).toHaveAttribute("aria-expanded", "true");
     await expect(homeLink).not.toHaveAttribute("aria-current");
@@ -61,7 +67,7 @@ for (const width of [360, 768]) {
     await expect(root).toHaveAttribute("inert", "");
 
     await page.keyboard.press("Shift+Tab");
-    await expect(categoriesLink).toBeFocused();
+    await expect(inventoryLink).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(closeButton).toBeFocused();
     await page.keyboard.press("Tab");
@@ -70,6 +76,8 @@ for (const width of [360, 768]) {
     await expect(productsLink).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(categoriesLink).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(inventoryLink).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(closeButton).toBeFocused();
     await page.keyboard.press("Escape");
@@ -120,6 +128,9 @@ test("tabs through collapsed persistent navigation and exposes its tooltip", asy
   const categoriesLink = page
     .getByRole("navigation", { name: "Navegación principal" })
     .getByRole("link", { name: "Categorías", exact: true });
+  const inventoryLink = page
+    .getByRole("navigation", { name: "Navegación principal" })
+    .getByRole("link", { name: "Inventario", exact: true });
 
   await skipLink.focus();
   await expect(skipLink).toBeFocused();
@@ -137,6 +148,11 @@ test("tabs through collapsed persistent navigation and exposes its tooltip", asy
   await page.keyboard.press("Tab");
   await expect(categoriesLink).toBeFocused();
   await expect(page.getByRole("tooltip", { name: "Categorías" })).toHaveText("Categorías");
+  await page.keyboard.press("Tab");
+  await expect(inventoryLink).toBeFocused();
+  await expect(page.getByRole("tooltip", { name: "Inventario" })).toHaveText("Inventario");
+  await page.keyboard.press("Shift+Tab");
+  await expect(categoriesLink).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(productsLink).toBeFocused();
   await page.keyboard.press("Shift+Tab");
@@ -152,6 +168,10 @@ test("tabs through collapsed persistent navigation and exposes its tooltip", asy
   await page.keyboard.press("Tab");
   await expect(productsLink).toBeFocused();
   await page.keyboard.press("Tab");
+  await expect(categoriesLink).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(inventoryLink).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
   await expect(categoriesLink).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(productsLink).toBeFocused();
