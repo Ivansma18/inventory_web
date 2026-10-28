@@ -407,6 +407,273 @@ describe("Inventory list page", () => {
     expect(screen.queryByRole("row", { name: /SKU-001/ })).not.toBeInTheDocument();
   });
 
+  it("trims a case-insensitive partial name/SKU search, resets to page one, and treats blanks as absent", async () => {
+    const user = userEvent.setup();
+    const requests: URL[] = [];
+    const initialEntry =
+      "/inventory?page=3&status=inactive&stockStatus=LOW_STOCK&sort=name&order=asc";
+    const searchResults = [
+      inventoryRecord(11, {
+        name: "Office Desk Lamp",
+        sku: "LAMP-011",
+        isActive: false,
+        quantity: 2,
+        minimumStock: 2,
+        status: "LOW_STOCK",
+      }),
+      inventoryRecord(12, {
+        name: "Chair",
+        sku: "Desk-012",
+        isActive: false,
+        quantity: 2,
+        minimumStock: 2,
+        status: "LOW_STOCK",
+      }),
+      inventoryRecord(13, {
+        name: "Keyboard",
+        sku: "KB-013",
+        isActive: false,
+        quantity: 2,
+        minimumStock: 2,
+        status: "LOW_STOCK",
+      }),
+      inventoryRecord(14, {
+        name: "Monitor",
+        sku: "MON-014",
+        isActive: false,
+        quantity: 10,
+        minimumStock: 3,
+        status: "IN_STOCK",
+      }),
+      inventoryRecord(15, {
+        name: "Active Desk",
+        sku: "ACTIVE-015",
+        isActive: true,
+        quantity: 2,
+        minimumStock: 2,
+        status: "LOW_STOCK",
+      }),
+    ];
+    setSession("inventory-list-session", authenticatedSessionState);
+    server.use(
+      http.get(inventoryUrl, ({ request }) => {
+        const url = new URL(request.url);
+        requests.push(url);
+        const page = Number(url.searchParams.get("page"));
+        const search = url.searchParams.get("search")?.toLocaleLowerCase() ?? "";
+        const active = url.searchParams.get("isActive") === "true";
+        const stockStatus = url.searchParams.get("status");
+
+        if (page === 3 && !url.searchParams.has("search")) {
+          return HttpResponse.json(
+            inventoryResponse(
+              [
+                inventoryRecord(31, {
+                  isActive: false,
+                  quantity: 2,
+                  minimumStock: 2,
+                  status: "LOW_STOCK",
+                }),
+              ],
+              3,
+              31,
+            ),
+          );
+        }
+
+        const matchingRows = searchResults.filter((item) => {
+          const matchesSearch =
+            search.length === 0 ||
+            item.name.toLocaleLowerCase().includes(search) ||
+            item.sku.toLocaleLowerCase().includes(search);
+          const matchesActivity = item.isActive === active;
+          const matchesStockStatus = stockStatus === null || item.status === stockStatus;
+
+          return matchesSearch && matchesActivity && matchesStockStatus;
+        });
+
+        return HttpResponse.json(inventoryResponse(matchingRows, page, matchingRows.length));
+      }),
+    );
+
+    const { router } = renderInventoryRoute(initialEntry);
+
+    expect(await screen.findByRole("row", { name: /SKU-031/ })).toBeVisible();
+    expect(screen.getByRole("searchbox", { name: "Buscar productos" })).toBeVisible();
+    expect(screen.getByLabelText("Actividad del producto")).toHaveAccessibleName(
+      "Actividad del producto",
+    );
+    expect(screen.getByLabelText("Estado de existencias")).toHaveAccessibleName(
+      "Estado de existencias",
+    );
+
+    const searchInput = screen.getByRole("searchbox", { name: "Buscar productos" });
+    await user.type(searchInput, "  dEsK  ");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+
+    expect(await screen.findByRole("row", { name: /LAMP-011/ })).toBeVisible();
+    expect(screen.getByRole("row", { name: /Desk-012/ })).toBeVisible();
+    expect(screen.queryByRole("row", { name: /SKU-031/ })).not.toBeInTheDocument();
+    expect(searchInput).toHaveValue("dEsK");
+    await waitFor(() => expect(requests).toHaveLength(2));
+    expect(Object.fromEntries(requests[1]!.searchParams)).toEqual({
+      page: "1",
+      limit: "15",
+      search: "dEsK",
+      isActive: "false",
+      status: "LOW_STOCK",
+      sort: "name",
+      order: "asc",
+    });
+    expect(router.state.location.search).toBe(
+      "?page=1&search=dEsK&status=inactive&stockStatus=LOW_STOCK&sort=name&order=asc",
+    );
+
+    await user.clear(searchInput);
+    await user.type(searchInput, "   ");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+
+    expect(await screen.findByRole("row", { name: /KB-013/ })).toBeVisible();
+    expect(screen.queryByRole("row", { name: /MON-014/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("row", { name: /ACTIVE-015/ })).not.toBeInTheDocument();
+    expect(searchInput).toHaveValue("");
+    await waitFor(() => expect(requests).toHaveLength(3));
+    expect(requests[2]!.searchParams.has("search")).toBe(false);
+    expect(Object.fromEntries(requests[2]!.searchParams)).toEqual({
+      page: "1",
+      limit: "15",
+      isActive: "false",
+      status: "LOW_STOCK",
+      sort: "name",
+      order: "asc",
+    });
+    expect(router.state.location.search).toBe(
+      "?page=1&status=inactive&stockStatus=LOW_STOCK&sort=name&order=asc",
+    );
+
+    await user.type(searchInput, "missing");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+    expect(await screen.findByText("No se encontraron productos con esta búsqueda.")).toBeVisible();
+    await waitFor(() => expect(requests).toHaveLength(4));
+    expect(Object.fromEntries(requests[3]!.searchParams)).toEqual({
+      page: "1",
+      limit: "15",
+      search: "missing",
+      isActive: "false",
+      status: "LOW_STOCK",
+      sort: "name",
+      order: "asc",
+    });
+
+    await user.click(screen.getByRole("button", { name: "Limpiar búsqueda" }));
+    expect(await screen.findByRole("row", { name: /KB-013/ })).toBeVisible();
+    expect(searchInput).toHaveValue("");
+    expect(router.state.location.search).toBe(
+      "?page=1&status=inactive&stockStatus=LOW_STOCK&sort=name&order=asc",
+    );
+    expect(requests).toHaveLength(4);
+  });
+
+  it("applies activity and every stock-status option together through labeled controls", async () => {
+    const user = userEvent.setup();
+    const requests: URL[] = [];
+    setSession("inventory-list-session", authenticatedSessionState);
+    server.use(
+      http.get(inventoryUrl, ({ request }) => {
+        const url = new URL(request.url);
+        requests.push(url);
+        const page = Number(url.searchParams.get("page"));
+        return HttpResponse.json(
+          page === 2
+            ? inventoryResponse([inventoryRecord(16)], 2, 31)
+            : inventoryResponse([], 1, 0),
+        );
+      }),
+    );
+
+    const { router } = renderInventoryRoute(
+      "/inventory?page=2&status=active&stockStatus=all&sort=name&order=asc",
+    );
+    await screen.findByRole("row", { name: /SKU-016/ });
+
+    const selectOption = async (label: string, optionLabel: string) => {
+      const select = screen.getByLabelText(label);
+      select.focus();
+      await user.keyboard("{ArrowDown}");
+      const listbox = await screen.findByRole("listbox", { hidden: true });
+      await user.click(within(listbox).getByRole("option", { name: optionLabel, hidden: true }));
+    };
+    const expectRequest = async (
+      requestCount: number,
+      urlSearch: string,
+      expectedParams: Record<string, string>,
+    ) => {
+      await waitFor(() => expect(router.state.location.search).toBe(urlSearch));
+      await waitFor(() => expect(requests).toHaveLength(requestCount));
+      expect(Object.fromEntries(requests[requestCount - 1]!.searchParams)).toEqual(expectedParams);
+    };
+
+    await selectOption("Actividad del producto", "Inactivos");
+    await expectRequest(2, "?page=1&status=inactive&stockStatus=all&sort=name&order=asc", {
+      page: "1",
+      limit: "15",
+      isActive: "false",
+      sort: "name",
+      order: "asc",
+    });
+
+    await selectOption("Estado de existencias", "Sin existencias");
+    await expectRequest(3, "?page=1&status=inactive&stockStatus=OUT_OF_STOCK&sort=name&order=asc", {
+      page: "1",
+      limit: "15",
+      isActive: "false",
+      status: "OUT_OF_STOCK",
+      sort: "name",
+      order: "asc",
+    });
+
+    await selectOption("Estado de existencias", "Con existencias");
+    await expectRequest(4, "?page=1&status=inactive&stockStatus=IN_STOCK&sort=name&order=asc", {
+      page: "1",
+      limit: "15",
+      isActive: "false",
+      status: "IN_STOCK",
+      sort: "name",
+      order: "asc",
+    });
+
+    await selectOption("Estado de existencias", "Stock bajo");
+    await expectRequest(5, "?page=1&status=inactive&stockStatus=LOW_STOCK&sort=name&order=asc", {
+      page: "1",
+      limit: "15",
+      isActive: "false",
+      status: "LOW_STOCK",
+      sort: "name",
+      order: "asc",
+    });
+
+    await selectOption("Estado de existencias", "Todos los estados");
+    const allStatusesUrl = "?page=1&status=inactive&stockStatus=all&sort=name&order=asc";
+    await waitFor(() => expect(router.state.location.search).toBe(allStatusesUrl));
+    expect(requests).toHaveLength(5);
+    expect(Object.fromEntries(requests[1]!.searchParams)).toEqual({
+      page: "1",
+      limit: "15",
+      isActive: "false",
+      sort: "name",
+      order: "asc",
+    });
+
+    await selectOption("Actividad del producto", "Activos");
+    await expectRequest(6, "?page=1&status=active&stockStatus=all&sort=name&order=asc", {
+      page: "1",
+      limit: "15",
+      isActive: "true",
+      sort: "name",
+      order: "asc",
+    });
+  });
+
   it("does not query inventory while Auth is pending", async () => {
     let inventoryRequestCount = 0;
     setSession(null, pendingSessionState);

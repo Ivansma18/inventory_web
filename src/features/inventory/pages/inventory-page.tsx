@@ -1,11 +1,11 @@
 import "./inventory-page.css";
 
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useLocation, useSearchParams } from "react-router";
 
 import { useSession } from "@/features/auth";
-import { Button, DataTable, Badge } from "@/shared/ui";
-import type { DataTableColumn, DataTableResult } from "@/shared/ui";
+import { Button, DataTable, Badge, Input, Select } from "@/shared/ui";
+import type { DataTableColumn, DataTableResult, SelectOption } from "@/shared/ui";
 
 import type { Inventory } from "../api/inventory-contract";
 import { StockStatusBadge } from "../components/stock-status-badge";
@@ -16,6 +16,27 @@ import {
   parseInventoryListUrlState,
   serializeInventoryListUrlState,
 } from "../utils/inventory-list-url-state";
+import type {
+  InventoryListCriteria,
+  InventoryListUrlState,
+} from "../utils/inventory-list-url-state";
+
+const inventoryActivityOptions: SelectOption[] = [
+  { label: "Activos", value: "active" },
+  { label: "Inactivos", value: "inactive" },
+];
+
+const inventoryStockStatusOptions: SelectOption[] = [
+  { label: "Todos los estados", value: "all" },
+  { label: "Con existencias", value: "IN_STOCK" },
+  { label: "Stock bajo", value: "LOW_STOCK" },
+  { label: "Sin existencias", value: "OUT_OF_STOCK" },
+];
+
+interface InventorySearchDraftState {
+  serializedSearchParams: string;
+  value: string;
+}
 
 export const InventoryPage = () => {
   const { pathname } = useLocation();
@@ -27,6 +48,15 @@ export const InventoryPage = () => {
     () => parseInventoryListUrlState(new URLSearchParams(serializedSearchParams)),
     [serializedSearchParams],
   );
+  const [searchDraftState, setSearchDraftState] = useState<InventorySearchDraftState>(() => ({
+    serializedSearchParams,
+    value: criteria.search,
+  }));
+  let searchDraft = searchDraftState.value;
+  if (searchDraftState.serializedSearchParams !== serializedSearchParams) {
+    searchDraft = criteria.search;
+    setSearchDraftState({ serializedSearchParams, value: criteria.search });
+  }
   const session = useSession();
   const sessionId = session.status === "authenticated" ? session.session.id : null;
   const inventoryList = useInventoryList(sessionId, page, criteria);
@@ -89,24 +119,19 @@ export const InventoryPage = () => {
         ? { status: "ready", ...snapshot }
         : { status: "loading" };
   const hasAppliedSearch = criteria.search.trim().length > 0;
-  const clearSearch = () => {
-    setSearchParams(
-      serializeInventoryListUrlState({
-        page: 1,
-        criteria: { ...criteria, search: "" },
-      }),
-    );
-  };
-
   useLayoutEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
   }, [pathname]);
 
-  const navigateToPage = (nextPage: number, replace = false) => {
-    const nextSearchParams = serializeInventoryListUrlState({ page: nextPage, criteria });
+  const navigateToListState = (nextState: InventoryListUrlState, replace = false) => {
+    const nextSearchParams = serializeInventoryListUrlState(nextState);
     if (nextSearchParams.toString() !== serializedSearchParams) {
       setSearchParams(nextSearchParams, { replace });
     }
+  };
+
+  const navigateToPage = (nextPage: number, replace = false) => {
+    navigateToListState({ page: nextPage, criteria }, replace);
   };
 
   const changePage = (nextPage: number) => {
@@ -127,6 +152,38 @@ export const InventoryPage = () => {
     navigateToPage(correctedPage, true);
   };
 
+  const updateCriteria = (updates: Partial<InventoryListCriteria>, forcePageReset = false) => {
+    const nextCriteria = { ...criteria, ...updates };
+    const hasChanged =
+      nextCriteria.search !== criteria.search ||
+      nextCriteria.status !== criteria.status ||
+      nextCriteria.stockStatus !== criteria.stockStatus ||
+      nextCriteria.sort !== criteria.sort ||
+      nextCriteria.order !== criteria.order;
+
+    if (!hasChanged && (!forcePageReset || page === 1)) {
+      return;
+    }
+
+    navigateToListState({ page: 1, criteria: nextCriteria });
+  };
+
+  const applySearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const search = searchDraft.trim();
+    setSearchDraftState({ serializedSearchParams, value: search });
+    updateCriteria({ search }, true);
+  };
+
+  const updateSearchDraft = (value: string) => {
+    setSearchDraftState({ serializedSearchParams, value });
+  };
+
+  const clearSearch = () => {
+    setSearchDraftState({ serializedSearchParams, value: "" });
+    updateCriteria({ search: "" }, true);
+  };
+
   return (
     <section aria-labelledby="inventory-page-heading" className="inventory-page">
       <div className="inventory-page__content">
@@ -142,6 +199,50 @@ export const InventoryPage = () => {
           Consulta las existencias registradas de tus productos.
         </p>
       </div>
+      <form
+        aria-label="Buscar y filtrar inventario"
+        className="inventory-page__filters"
+        onSubmit={applySearch}
+        role="search"
+      >
+        <div className="inventory-page__search">
+          <Input
+            helpText="Busca por parte del nombre o SKU; no distingue mayúsculas."
+            label="Buscar productos"
+            onValueChange={updateSearchDraft}
+            type="search"
+            value={searchDraft}
+          />
+          <Button type="submit" variant="secondary">
+            Buscar
+          </Button>
+        </div>
+        <Select
+          label="Actividad del producto"
+          onValueChange={(value) => {
+            if (value === "active" || value === "inactive") {
+              updateCriteria({ status: value });
+            }
+          }}
+          options={inventoryActivityOptions}
+          value={criteria.status}
+        />
+        <Select
+          label="Estado de existencias"
+          onValueChange={(value) => {
+            if (
+              value === "all" ||
+              value === "IN_STOCK" ||
+              value === "LOW_STOCK" ||
+              value === "OUT_OF_STOCK"
+            ) {
+              updateCriteria({ stockStatus: value });
+            }
+          }}
+          options={inventoryStockStatusOptions}
+          value={criteria.stockStatus}
+        />
+      </form>
       {inventoryList.data ? (
         <p className="inventory-page__summary" role="status">
           {inventoryList.data.pagination.total} producto
