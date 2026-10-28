@@ -1,0 +1,29 @@
+@layer components {
+  .stock-status-badge {
+    align-items: center;
+    display: inline-flex;
+    gap: var(--ui-space-2);
+    max-inline-size: 100%;
+    vertical-align: middle;
+  }
+
+  .stock-status-badge__marker {
+    background-color: var(--stock-status-marker-color, var(--ui-color-border));
+    border-radius: var(--ui-radius-pill);
+    block-size: var(--ui-space-4);
+    flex: 0 0 auto;
+    inline-size: var(--ui-space-1);
+  }
+
+  .stock-status-badge--in-stock {
+    --stock-status-marker-color: var(--ui-color-success);
+  }
+
+  .stock-status-badge--low-stock {
+    --stock-status-marker-color: var(--ui-color-warning);
+  }
+
+  .stock-status-badge--out-of-stock {
+    --stock-status-marker-color: var(--ui-color-error);
+  }
+}
