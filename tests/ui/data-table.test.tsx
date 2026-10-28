@@ -249,6 +249,33 @@ describe("DataTable", () => {
     expect(screen.queryByText("No hay datos para mostrar.")).not.toBeInTheDocument();
   });
 
+  it("supports a consumer-provided recovery action alongside an error and valid snapshot", async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn();
+
+    render(
+      <DataTable
+        columns={inventoryColumns}
+        errorAction={<button onClick={onRetry}>Reintentar consulta</button>}
+        onPageChange={() => undefined}
+        onSortChange={() => undefined}
+        pageSize={2}
+        result={{
+          status: "error",
+          message: "No se pudo actualizar el inventario.",
+          snapshot: inventorySnapshot,
+        }}
+        rowKey="id"
+        sort={null}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent("No se pudo actualizar el inventario.");
+    expect(screen.getByRole("cell", { name: "SKU-01" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Reintentar consulta" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
   it("uses a safe fallback when an error message is blank", () => {
     renderInventoryTable({ status: "error", message: "   " });
 

@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { components } from "@/shared/api/generated/inventory-contracts";
 import { http, HttpResponse } from "msw";
@@ -107,6 +107,20 @@ const inventoryResponse = (
   data,
   pagination: { total, page, limit: 15 },
 });
+
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+}
+
+const deferred = <T,>(): Deferred<T> => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+
+  return { promise, resolve };
+};
 
 const routers: Array<ReturnType<typeof createMemoryRouter>> = [];
 const queryClients: Array<ReturnType<typeof createQueryClient>> = [];
@@ -293,5 +307,242 @@ describe("Inventory list page", () => {
       await screen.findByRole("heading", { level: 1, name: "Sesión no iniciada" }),
     ).toBeVisible();
     expect(inventoryRequestCount).toBe(0);
+  });
+
+  it("announces a pending list request and withholds rows until the response arrives", async () => {
+    const pendingResponse = deferred<Response>();
+    let requestCount = 0;
+    setSession("inventory-list-session", authenticatedSessionState);
+    server.use(
+      http.get(inventoryUrl, () => {
+        requestCount += 1;
+        return pendingResponse.promise;
+      }),
+    );
+
+    renderInventoryRoute();
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Cargando datos...");
+    expect(requestCount).toBe(1);
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+
+    await act(async () => {
+      pendingResponse.resolve(HttpResponse.json(inventoryResponse([inventoryRecord(1)], 1, 1)));
+    });
+
+    expect(await screen.findByRole("cell", { name: "SKU-001" })).toBeVisible();
+    expect(screen.queryByRole("status")).not.toHaveTextContent("Cargando datos...");
+  });
+
+  it.each(["network", "server"] as const)(
+    "offers a manual GET retry after a %s failure and preserves every criterion",
+    async (failureKind) => {
+      const user = userEvent.setup();
+      const requests: URL[] = [];
+      const initialEntry =
+        "/inventory?page=2&search=desk&status=inactive&stockStatus=LOW_STOCK&sort=sku&order=desc";
+      setSession("inventory-list-session", authenticatedSessionState);
+      server.use(
+        http.get(inventoryUrl, ({ request }) => {
+          requests.push(new URL(request.url));
+          if (requests.length === 1) {
+            return failureKind === "network"
+              ? HttpResponse.error()
+              : HttpResponse.json(
+                  { error: { code: "INTERNAL_ERROR", message: "private database details" } },
+                  { status: 503 },
+                );
+          }
+
+          return HttpResponse.json(
+            inventoryResponse(
+              [
+                inventoryRecord(16, {
+                  isActive: false,
+                  quantity: 2,
+                  minimumStock: 2,
+                  status: "LOW_STOCK",
+                }),
+              ],
+              2,
+              16,
+            ),
+          );
+        }),
+      );
+
+      const { router } = renderInventoryRoute(initialEntry);
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "No se pudo cargar el inventario.",
+      );
+      expect(screen.getByRole("button", { name: "Reintentar consulta" })).toBeVisible();
+      expect(screen.queryByText("private database details")).not.toBeInTheDocument();
+      expect(requests).toHaveLength(1);
+      expect(Object.fromEntries(requests[0]!.searchParams)).toEqual({
+        page: "2",
+        limit: "15",
+        search: "desk",
+        isActive: "false",
+        status: "LOW_STOCK",
+        sort: "sku",
+        order: "desc",
+      });
+
+      await user.click(screen.getByRole("button", { name: "Reintentar consulta" }));
+
+      const retriedRow = await screen.findByRole("row", { name: /SKU-016/ });
+      expect(within(retriedRow).getByText("Inactivo")).toBeVisible();
+      expect(within(retriedRow).getByText("Stock bajo")).toBeVisible();
+      expect(requests).toHaveLength(2);
+      expect(Object.fromEntries(requests[1]!.searchParams)).toEqual(
+        Object.fromEntries(requests[0]!.searchParams),
+      );
+      expect(router.state.location.pathname + router.state.location.search).toBe(initialEntry);
+    },
+  );
+
+  it("shows an empty-search action that clears only search and requests the remaining criteria", async () => {
+    const user = userEvent.setup();
+    const requests: URL[] = [];
+    const initialEntry =
+      "/inventory?page=1&search=missing&status=inactive&stockStatus=LOW_STOCK&sort=sku&order=desc";
+    setSession("inventory-list-session", authenticatedSessionState);
+    server.use(
+      http.get(inventoryUrl, ({ request }) => {
+        const url = new URL(request.url);
+        requests.push(url);
+        return url.searchParams.has("search")
+          ? HttpResponse.json(inventoryResponse([], 1, 0))
+          : HttpResponse.json(
+              inventoryResponse(
+                [
+                  inventoryRecord(1, {
+                    isActive: false,
+                    quantity: 2,
+                    minimumStock: 2,
+                    status: "LOW_STOCK",
+                  }),
+                ],
+                1,
+                1,
+              ),
+            );
+      }),
+    );
+
+    const { router } = renderInventoryRoute(initialEntry);
+
+    expect(await screen.findByText("No se encontraron productos con esta búsqueda.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Limpiar búsqueda" })).toBeVisible();
+    expect(requests).toHaveLength(1);
+    expect(Object.fromEntries(requests[0]!.searchParams)).toEqual({
+      page: "1",
+      limit: "15",
+      search: "missing",
+      isActive: "false",
+      status: "LOW_STOCK",
+      sort: "sku",
+      order: "desc",
+    });
+
+    await user.click(screen.getByRole("button", { name: "Limpiar búsqueda" }));
+
+    expect(await screen.findByRole("cell", { name: "SKU-001" })).toBeVisible();
+    expect(requests).toHaveLength(2);
+    expect(Object.fromEntries(requests[1]!.searchParams)).toEqual({
+      page: "1",
+      limit: "15",
+      isActive: "false",
+      status: "LOW_STOCK",
+      sort: "sku",
+      order: "desc",
+    });
+    expect(router.state.location.search).toBe(
+      "?page=1&status=inactive&stockStatus=LOW_STOCK&sort=sku&order=desc",
+    );
+  });
+
+  it("shows a confirmed empty state without offering to clear an unapplied search", async () => {
+    setSession("inventory-list-session", authenticatedSessionState);
+    server.use(http.get(inventoryUrl, () => HttpResponse.json(inventoryResponse([], 1, 0))));
+
+    renderInventoryRoute();
+
+    expect(await screen.findByText("No hay productos de inventario para mostrar.")).toBeVisible();
+    expect(screen.getByText("0 productos")).toBeVisible();
+    expect(screen.getByText("Página 1 de 1")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Limpiar búsqueda" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("rejects a malformed list response globally without showing valid-looking partial rows", async () => {
+    let requestCount = 0;
+    setSession("inventory-list-session", authenticatedSessionState);
+    server.use(
+      http.get(inventoryUrl, () => {
+        requestCount += 1;
+        return HttpResponse.json(
+          inventoryResponse([inventoryRecord(1), { ...inventoryRecord(2), quantity: -1 }], 1, 2),
+        );
+      }),
+    );
+
+    renderInventoryRoute();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo cargar el inventario.");
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByText("Producto 001")).not.toBeInTheDocument();
+    expect(screen.queryByText("2 productos")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reintentar consulta" })).not.toBeInTheDocument();
+    expect(requestCount).toBe(1);
+  });
+
+  it("does not present a previous query snapshot as the current criteria", async () => {
+    const currentCriteriaResponse = deferred<Response>();
+    const requests: URL[] = [];
+    setSession("inventory-list-session", authenticatedSessionState);
+    server.use(
+      http.get(inventoryUrl, ({ request }) => {
+        const url = new URL(request.url);
+        requests.push(url);
+        return url.searchParams.get("search") === "current"
+          ? currentCriteriaResponse.promise
+          : HttpResponse.json(
+              inventoryResponse(
+                [inventoryRecord(1, { name: "Producto del criterio anterior" })],
+                1,
+                1,
+              ),
+            );
+      }),
+    );
+
+    const { router } = renderInventoryRoute(
+      "/inventory?page=1&search=previous&status=active&stockStatus=all&sort=name&order=asc",
+    );
+    expect(await screen.findByText("Producto del criterio anterior")).toBeVisible();
+
+    await act(async () => {
+      await router.navigate(
+        "/inventory?page=1&search=current&status=active&stockStatus=all&sort=name&order=asc",
+      );
+    });
+
+    await waitFor(() => expect(requests).toHaveLength(2));
+    expect(await screen.findByRole("status")).toHaveTextContent("Cargando datos...");
+    expect(screen.queryByText("Producto del criterio anterior")).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+
+    await act(async () => {
+      currentCriteriaResponse.resolve(
+        HttpResponse.json(
+          inventoryResponse([inventoryRecord(2, { name: "Producto del criterio vigente" })], 1, 1),
+        ),
+      );
+    });
+
+    expect(await screen.findByText("Producto del criterio vigente")).toBeVisible();
+    expect(screen.queryByText("Producto del criterio anterior")).not.toBeInTheDocument();
   });
 });

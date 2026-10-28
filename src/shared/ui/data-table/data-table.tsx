@@ -39,6 +39,7 @@ export interface DataTableProps<Row extends object> {
   emptyAction?: ReactNode;
   emptyMessage?: string;
   allowHorizontalScroll?: boolean;
+  errorAction?: ReactNode;
   onPageChange: (page: number) => void;
   onPageCorrection?: (page: number) => void;
   onSortChange: (sort: DataTableSort<Row> | null) => void;
@@ -53,6 +54,7 @@ export const DataTable = <Row extends object>({
   allowHorizontalScroll = false,
   emptyAction,
   emptyMessage = "No hay datos para mostrar.",
+  errorAction,
   onPageChange,
   onPageCorrection,
   onSortChange,
@@ -158,9 +160,12 @@ export const DataTable = <Row extends object>({
         </p>
       ) : null}
       {errorMessage ? (
-        <p className="ui-data-table__feedback ui-data-table__feedback--error" role="alert">
-          {errorMessage}
-        </p>
+        <>
+          <p className="ui-data-table__feedback ui-data-table__feedback--error" role="alert">
+            {errorMessage}
+          </p>
+          {errorAction ? <div className="ui-data-table__error-action">{errorAction}</div> : null}
+        </>
       ) : null}
       {isEmpty ? (
         <div className="ui-data-table__empty">

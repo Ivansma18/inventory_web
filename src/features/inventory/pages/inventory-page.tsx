@@ -4,12 +4,13 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import { useLocation, useSearchParams } from "react-router";
 
 import { useSession } from "@/features/auth";
-import { DataTable, Badge } from "@/shared/ui";
+import { Button, DataTable, Badge } from "@/shared/ui";
 import type { DataTableColumn, DataTableResult } from "@/shared/ui";
 
 import type { Inventory } from "../api/inventory-contract";
 import { StockStatusBadge } from "../components/stock-status-badge";
 import { useInventoryList } from "../hooks/use-inventory-list";
+import { isRetryableInventoryListError } from "../utils/inventory-list-errors";
 import {
   INVENTORY_LIST_PAGE_SIZE,
   parseInventoryListUrlState,
@@ -86,6 +87,15 @@ export const InventoryPage = () => {
       : snapshot
         ? { status: "ready", ...snapshot }
         : { status: "loading" };
+  const hasAppliedSearch = criteria.search.trim().length > 0;
+  const clearSearch = () => {
+    setSearchParams(
+      serializeInventoryListUrlState({
+        page: 1,
+        criteria: { ...criteria, search: "" },
+      }),
+    );
+  };
 
   useLayoutEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
@@ -126,6 +136,25 @@ export const InventoryPage = () => {
       <DataTable
         allowHorizontalScroll
         columns={columns}
+        emptyAction={
+          hasAppliedSearch ? (
+            <Button onClick={clearSearch} variant="secondary">
+              Limpiar búsqueda
+            </Button>
+          ) : undefined
+        }
+        emptyMessage={
+          hasAppliedSearch
+            ? "No se encontraron productos con esta búsqueda."
+            : "No hay productos de inventario para mostrar."
+        }
+        errorAction={
+          inventoryList.isError && isRetryableInventoryListError(inventoryList.error) ? (
+            <Button onClick={() => void inventoryList.refetch()} variant="secondary">
+              Reintentar consulta
+            </Button>
+          ) : undefined
+        }
         onPageChange={changePage}
         onSortChange={() => undefined}
         pageSize={INVENTORY_LIST_PAGE_SIZE}

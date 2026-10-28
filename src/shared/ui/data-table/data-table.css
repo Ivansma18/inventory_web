@@ -36,6 +36,12 @@
     margin-block-start: var(--ui-space-3);
   }
 
+  .ui-data-table__error-action {
+    display: flex;
+    justify-content: flex-start;
+    margin-block-start: var(--ui-space-2);
+  }
+
   .ui-data-table__feedback--error {
     background-color: var(--ui-color-error-surface);
     color: var(--ui-color-on-error);
