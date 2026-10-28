@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { Outlet } from "react-router";
 
 import { CategoryOperationsProvider } from "@/features/categories";
+import { InventorySessionScope } from "@/features/inventory";
 import { CurrentUserAppHeader } from "@/app/components/app-header";
 import { CompactNavigation } from "@/app/components/compact-navigation";
 import { AppNavigation } from "@/app/components/app-navigation";
@@ -78,7 +79,9 @@ export const AppLayout = () => {
         </div>
         <main className="app-layout__main" id="main-content" tabIndex={-1}>
           <CategoryOperationsProvider>
-            <Outlet />
+            <InventorySessionScope>
+              <Outlet />
+            </InventorySessionScope>
           </CategoryOperationsProvider>
         </main>
       </div>
