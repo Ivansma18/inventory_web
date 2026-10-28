@@ -125,8 +125,10 @@ const deferred = <T,>(): Deferred<T> => {
 const routers: Array<ReturnType<typeof createMemoryRouter>> = [];
 const queryClients: Array<ReturnType<typeof createQueryClient>> = [];
 
-const renderInventoryRoute = (initialEntry: string | string[] = "/inventory") => {
-  const queryClient = createQueryClient();
+const renderInventoryRoute = (
+  initialEntry: string | string[] = "/inventory",
+  queryClient = createQueryClient(),
+) => {
   const initialEntries = typeof initialEntry === "string" ? [initialEntry] : initialEntry;
   const router = createMemoryRouter(appRoutes, { initialEntries });
   queryClients.push(queryClient);
@@ -673,6 +675,166 @@ describe("Inventory list page", () => {
       order: "asc",
     });
   });
+
+  it("sorts every field and direction remotely, resets to page one, and preserves criteria while paging", async () => {
+    const user = userEvent.setup();
+    const requests: URL[] = [];
+    const queryClient = createQueryClient();
+    queryClient.setDefaultOptions({
+      ...queryClient.getDefaultOptions(),
+      queries: { ...queryClient.getDefaultOptions().queries, staleTime: 0 },
+    });
+    const sortLabels = {
+      name: "Nombre",
+      sku: "SKU",
+      quantity: "Existencias actuales",
+      minimumStock: "Existencias mínimas",
+      updatedAt: "Fecha de actualización",
+    } as const;
+    const initialEntry =
+      "/inventory?page=2&search=desk&status=inactive&stockStatus=LOW_STOCK&sort=name&order=asc";
+    setSession("inventory-list-session", authenticatedSessionState);
+    server.use(
+      http.get(inventoryUrl, ({ request }) => {
+        const url = new URL(request.url);
+        requests.push(url);
+        const page = Number(url.searchParams.get("page"));
+
+        return HttpResponse.json(
+          inventoryResponse(
+            [
+              inventoryRecord(page === 1 ? 1 : 2, {
+                name: `Desk product ${page}`,
+                sku: `DESK-${String(page).padStart(3, "0")}`,
+                isActive: false,
+                quantity: 2,
+                minimumStock: 2,
+                status: "LOW_STOCK",
+              }),
+            ],
+            page,
+            31,
+          ),
+        );
+      }),
+    );
+
+    const { router } = renderInventoryRoute(initialEntry, queryClient);
+    expect(await screen.findByRole("row", { name: /DESK-002/ })).toBeVisible();
+    expect(requests).toHaveLength(1);
+    expect(Object.fromEntries(requests[0]!.searchParams)).toEqual({
+      page: "2",
+      limit: "15",
+      search: "desk",
+      isActive: "false",
+      status: "LOW_STOCK",
+      sort: "name",
+      order: "asc",
+    });
+
+    const selectOption = async (label: string, optionLabel: string) => {
+      const select = screen.getByLabelText(label);
+      select.focus();
+      await user.keyboard("{ArrowDown}");
+      const listbox = await screen.findByRole("listbox", { hidden: true });
+      await user.click(within(listbox).getByRole("option", { name: optionLabel, hidden: true }));
+    };
+    let requestCount = 1;
+    let currentPage = 2;
+    let currentSort: keyof typeof sortLabels = "name";
+    let currentOrder: "asc" | "desc" = "asc";
+    const expectStateRequest = async (
+      page: number,
+      sort: keyof typeof sortLabels,
+      order: "asc" | "desc",
+    ) => {
+      requestCount += 1;
+      const expectedUrl =
+        `?page=${page}&search=desk&status=inactive&stockStatus=LOW_STOCK` +
+        `&sort=${sort}&order=${order}`;
+      const expectedParams = {
+        page: String(page),
+        limit: "15",
+        search: "desk",
+        isActive: "false",
+        status: "LOW_STOCK",
+        sort,
+        order,
+      };
+
+      await waitFor(() => expect(router.state.location.search).toBe(expectedUrl));
+      await waitFor(() => expect(requests).toHaveLength(requestCount));
+      expect(Object.fromEntries(requests.at(-1)!.searchParams)).toEqual(expectedParams);
+      const filterForm = screen.getByRole("search", { name: "Buscar y filtrar inventario" });
+      await waitFor(() =>
+        expect(
+          within(filterForm).getByText(sortLabels[sort], { exact: true, selector: "span" }),
+        ).toBeVisible(),
+      );
+      await waitFor(() =>
+        expect(
+          within(filterForm).getByText(order === "asc" ? "Ascendente" : "Descendente", {
+            exact: true,
+            selector: "span",
+          }),
+        ).toBeVisible(),
+      );
+      expect(
+        await screen.findByRole("cell", { name: `DESK-${String(page).padStart(3, "0")}` }),
+      ).toBeVisible();
+    };
+    const goToPageTwo = async () => {
+      await user.click(screen.getByRole("button", { name: "Página siguiente" }));
+      currentPage = 2;
+      await expectStateRequest(2, currentSort, currentOrder);
+    };
+    const changeFromPageTwo = async (
+      controlLabel: "Ordenar por" | "Dirección del orden",
+      optionLabel: string,
+      sort: keyof typeof sortLabels,
+      order: "asc" | "desc",
+    ) => {
+      if (currentPage === 1) {
+        await goToPageTwo();
+      }
+
+      await selectOption(controlLabel, optionLabel);
+      currentPage = 1;
+      currentSort = sort;
+      currentOrder = order;
+      await expectStateRequest(1, sort, order);
+    };
+
+    const transitions = [
+      ["Ordenar por", "SKU", "sku", "asc"],
+      ["Dirección del orden", "Descendente", "sku", "desc"],
+      ["Ordenar por", "Existencias actuales", "quantity", "desc"],
+      ["Dirección del orden", "Ascendente", "quantity", "asc"],
+      ["Ordenar por", "Existencias mínimas", "minimumStock", "asc"],
+      ["Dirección del orden", "Descendente", "minimumStock", "desc"],
+      ["Ordenar por", "Fecha de actualización", "updatedAt", "desc"],
+      ["Dirección del orden", "Ascendente", "updatedAt", "asc"],
+      ["Ordenar por", "Nombre", "name", "asc"],
+      ["Dirección del orden", "Descendente", "name", "desc"],
+    ] as const;
+
+    for (const [controlLabel, optionLabel, sort, order] of transitions) {
+      await changeFromPageTwo(controlLabel, optionLabel, sort, order);
+    }
+
+    const skuHeader = screen.getByRole("columnheader", { name: "SKU" });
+    skuHeader.focus();
+    await user.keyboard("{Enter}");
+    currentPage = 1;
+    currentSort = "sku";
+    currentOrder = "asc";
+    await expectStateRequest(1, currentSort, currentOrder);
+
+    await goToPageTwo();
+    expect(router.state.location.search).toBe(
+      "?page=2&search=desk&status=inactive&stockStatus=LOW_STOCK&sort=sku&order=asc",
+    );
+  }, 30_000);
 
   it("does not query inventory while Auth is pending", async () => {
     let inventoryRequestCount = 0;

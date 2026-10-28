@@ -4,14 +4,15 @@ import { useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "reac
 import { useLocation, useSearchParams } from "react-router";
 
 import { useSession } from "@/features/auth";
-import { Button, DataTable, Badge, Input, Select } from "@/shared/ui";
-import type { DataTableColumn, DataTableResult, SelectOption } from "@/shared/ui";
+import { Badge, Button, DataTable, Input, Select } from "@/shared/ui";
+import type { DataTableColumn, DataTableResult, DataTableSort, SelectOption } from "@/shared/ui";
 
 import type { Inventory } from "../api/inventory-contract";
 import { StockStatusBadge } from "../components/stock-status-badge";
 import { useInventoryList } from "../hooks/use-inventory-list";
 import { isRetryableInventoryListError } from "../utils/inventory-list-errors";
 import {
+  isInventoryListSortField,
   INVENTORY_LIST_PAGE_SIZE,
   parseInventoryListUrlState,
   serializeInventoryListUrlState,
@@ -31,6 +32,19 @@ const inventoryStockStatusOptions: SelectOption[] = [
   { label: "Con existencias", value: "IN_STOCK" },
   { label: "Stock bajo", value: "LOW_STOCK" },
   { label: "Sin existencias", value: "OUT_OF_STOCK" },
+];
+
+const inventorySortOptions: SelectOption[] = [
+  { label: "Nombre", value: "name" },
+  { label: "SKU", value: "sku" },
+  { label: "Existencias actuales", value: "quantity" },
+  { label: "Existencias mínimas", value: "minimumStock" },
+  { label: "Fecha de actualización", value: "updatedAt" },
+];
+
+const inventoryOrderOptions: SelectOption[] = [
+  { label: "Ascendente", value: "asc" },
+  { label: "Descendente", value: "desc" },
 ];
 
 interface InventorySearchDraftState {
@@ -63,19 +77,19 @@ export const InventoryPage = () => {
 
   const columns = useMemo<DataTableColumn<Inventory>[]>(
     () => [
-      { key: "name", header: "Producto", sortable: false },
-      { key: "sku", header: "SKU", sortable: false },
+      { key: "name", header: "Producto", sortable: true },
+      { key: "sku", header: "SKU", sortable: true },
       {
         key: "quantity",
         header: "Existencias actuales",
         render: (item) => String(item.quantity),
-        sortable: false,
+        sortable: true,
       },
       {
         key: "minimumStock",
         header: "Mínimo de existencias",
         render: (item) => String(item.minimumStock),
-        sortable: false,
+        sortable: true,
       },
       {
         key: "isActive",
@@ -183,6 +197,17 @@ export const InventoryPage = () => {
     setSearchDraftState({ serializedSearchParams, value: "" });
     updateCriteria({ search: "" }, true);
   };
+  const updateTableSort = (nextSort: DataTableSort<Inventory> | null) => {
+    if (nextSort === null) {
+      updateCriteria({ sort: "name", order: "asc" });
+    } else if (isInventoryListSortField(nextSort.columnId)) {
+      updateCriteria({ sort: nextSort.columnId, order: nextSort.direction });
+    }
+  };
+  const tableSort: DataTableSort<Inventory> = {
+    columnId: criteria.sort,
+    direction: criteria.order,
+  };
 
   return (
     <section aria-labelledby="inventory-page-heading" className="inventory-page">
@@ -242,6 +267,26 @@ export const InventoryPage = () => {
           options={inventoryStockStatusOptions}
           value={criteria.stockStatus}
         />
+        <Select
+          label="Ordenar por"
+          onValueChange={(value) => {
+            if (value !== null && isInventoryListSortField(value)) {
+              updateCriteria({ sort: value });
+            }
+          }}
+          options={inventorySortOptions}
+          value={criteria.sort}
+        />
+        <Select
+          label="Dirección del orden"
+          onValueChange={(value) => {
+            if (value === "asc" || value === "desc") {
+              updateCriteria({ order: value });
+            }
+          }}
+          options={inventoryOrderOptions}
+          value={criteria.order}
+        />
       </form>
       {inventoryList.data ? (
         <p className="inventory-page__summary" role="status">
@@ -273,11 +318,11 @@ export const InventoryPage = () => {
         }
         onPageChange={changePage}
         onPageCorrection={correctPage}
-        onSortChange={() => undefined}
+        onSortChange={updateTableSort}
         pageSize={INVENTORY_LIST_PAGE_SIZE}
         result={result}
         rowKey="productUuid"
-        sort={null}
+        sort={tableSort}
       />
     </section>
   );
