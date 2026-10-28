@@ -1107,4 +1107,100 @@ describe("Inventory list page", () => {
     expect(await screen.findByText("Producto del criterio vigente")).toBeVisible();
     expect(screen.queryByText("Producto del criterio anterior")).not.toBeInTheDocument();
   });
+
+  it("isolates out-of-order list responses and ignores cancellation as a network error", async () => {
+    const previousResponse = deferred<Response>();
+    const currentResponse = deferred<Response>();
+    const requests: URL[] = [];
+    const releasedResponses: string[] = [];
+    const previousEntry =
+      "/inventory?page=1&search=previous&status=active&stockStatus=all&sort=name&order=asc";
+    const currentEntry =
+      "/inventory?page=1&search=current&status=active&stockStatus=all&sort=name&order=asc";
+    setSession("inventory-list-session", authenticatedSessionState);
+    server.use(
+      http.get(inventoryUrl, ({ request }) => {
+        const url = new URL(request.url);
+        requests.push(url);
+        const search = url.searchParams.get("search");
+        const pendingResponse = search === "previous" ? previousResponse : currentResponse;
+
+        return pendingResponse.promise.then((response) => {
+          releasedResponses.push(search ?? "");
+          return response;
+        });
+      }),
+    );
+
+    const { queryClient, router } = renderInventoryRoute(previousEntry);
+    expect(await screen.findByRole("status")).toHaveTextContent("Cargando datos...");
+    await waitFor(() => expect(requests).toHaveLength(1));
+
+    await act(async () => {
+      await router.navigate(currentEntry);
+    });
+
+    await waitFor(() => expect(requests).toHaveLength(2));
+    expect(requests.map((url) => url.searchParams.get("search"))).toEqual(["previous", "current"]);
+    for (const request of requests) {
+      expect(Object.fromEntries(request.searchParams)).toMatchObject({
+        page: "1",
+        limit: "15",
+        isActive: "true",
+        sort: "name",
+        order: "asc",
+      });
+    }
+    const listQueries = queryClient
+      .getQueryCache()
+      .findAll({ queryKey: ["inventory", "list", "inventory-list-session"] });
+    expect(listQueries).toHaveLength(2);
+    expect(listQueries[0]!.queryKey).not.toEqual(listQueries[1]!.queryKey);
+    const searchesInQueryKeys = listQueries.map((query) => {
+      const params = query.queryKey[3];
+      return typeof params === "object" && params !== null && "search" in params
+        ? params.search
+        : undefined;
+    });
+    expect(searchesInQueryKeys).toEqual(["previous", "current"]);
+    expect(await screen.findByRole("status")).toHaveTextContent("Cargando datos...");
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    await act(async () => {
+      currentResponse.resolve(
+        HttpResponse.json(
+          inventoryResponse([inventoryRecord(2, { name: "Resultado del criterio vigente" })], 1, 1),
+        ),
+      );
+    });
+
+    expect(await screen.findByText("Resultado del criterio vigente")).toBeVisible();
+    expect(screen.queryByText("Resultado del criterio anterior")).not.toBeInTheDocument();
+
+    await act(async () => {
+      previousResponse.resolve(
+        HttpResponse.json(
+          inventoryResponse(
+            [inventoryRecord(1, { name: "Resultado del criterio anterior" })],
+            1,
+            1,
+          ),
+        ),
+      );
+      await previousResponse.promise;
+    });
+
+    await waitFor(() => expect(releasedResponses).toEqual(["current", "previous"]));
+    expect(screen.getByText("Resultado del criterio vigente")).toBeVisible();
+    expect(screen.queryByText("Resultado del criterio anterior")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const previousQuery = listQueries.find((query) => {
+      const params = query.queryKey[3];
+      return typeof params === "object" && params !== null && "search" in params
+        ? params.search === "previous"
+        : false;
+    });
+    expect(previousQuery?.state.status).not.toBe("error");
+  });
 });

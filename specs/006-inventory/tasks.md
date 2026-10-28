@@ -36,8 +36,9 @@ Cada comportamiento incluye escribir o actualizar primero su prueba. Los archivo
 - [x] T15. Verificar URL compartible, recarga e historial en navegador. (RF-40–RF-43, RF-74)
   Hecho cuando: `tests/browser/inventory-list-url.bootstrap-smoke.spec.ts` restaura controles y resultados al entrar/recargar una URL completa, recorre Atrás/Adelante y verifica normalización replace de criterios inválidos/duplicados sin reinicio deliberado ni historial adicional.
   Evidencia: los 2 escenarios de URL de Inventario verifican entrada directa, recarga, Atrás/Adelante, parámetros restaurados y normalización `replace` que conserva página válida. Se aplicó esa normalización en `InventoryPage`; 89 pruebas E2E, 832 pruebas unitarias, lint, formato, typecheck, build, detector Impeccable, formato Markdown y `git diff --check` pasan.
-- [ ] T16. Aislar respuestas de consultas de listado reemplazadas. (RF-44)
+- [x] T16. Aislar respuestas de consultas de listado reemplazadas. (RF-44)
   Hecho cuando: dos respuestas MSW diferidas terminan en orden inverso y solo permanecen filas de los criterios vigentes; la prueba comprueba claves distintas y ausencia de filas previas presentadas como resultado actual. Cancelar no produce alerta espuria de red.
+  Evidencia: `tests/inventory/inventory-list-page.test.tsx` libera primero la respuesta vigente y después la anterior; verifica dos claves/consultas distintas, ausencia de filas obsoletas y de alerta tras cancelar. Pasan las 833 pruebas unitarias, lint, formato, typecheck, build y `git diff --check`.
 - [ ] T17. Formatear el último movimiento con semántica de cantidad y UTC explícito. (RF-14–RF-18; NFR-5)
   Hecho cuando: `tests/inventory/format-stock-movement.test.ts` verifica Entrada/Salida/Ajuste, cantidad transaccionada frente a existencia resultante, fecha/hora UTC en español y cruce de día bajo una zona local distinta. No calcula stock a partir del movimiento ni usa updatedAt como sustituto.
 - [ ] T18. Conectar celdas autónomas del último movimiento y sus estados pendientes/vacíos. (RF-14–RF-18, RF-78–RF-80)
