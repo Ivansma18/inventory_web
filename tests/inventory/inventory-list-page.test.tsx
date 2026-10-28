@@ -125,9 +125,10 @@ const deferred = <T,>(): Deferred<T> => {
 const routers: Array<ReturnType<typeof createMemoryRouter>> = [];
 const queryClients: Array<ReturnType<typeof createQueryClient>> = [];
 
-const renderInventoryRoute = (initialEntry = "/inventory") => {
+const renderInventoryRoute = (initialEntry: string | string[] = "/inventory") => {
   const queryClient = createQueryClient();
-  const router = createMemoryRouter(appRoutes, { initialEntries: [initialEntry] });
+  const initialEntries = typeof initialEntry === "string" ? [initialEntry] : initialEntry;
+  const router = createMemoryRouter(appRoutes, { initialEntries });
   queryClients.push(queryClient);
   routers.push(router);
 
@@ -272,6 +273,138 @@ describe("Inventory list page", () => {
     expect(screen.getByText("Página 2 de 2")).toBeVisible();
     expect(screen.getAllByRole("row")).toHaveLength(2);
     expect(router.state.location.search).toContain("page=2");
+  });
+
+  it.each([
+    { requestedPage: 9, total: 16, correctedPage: 2 },
+    { requestedPage: 8, total: 0, correctedPage: 1 },
+  ])(
+    "replaces out-of-range page $requestedPage with $correctedPage for total $total",
+    async ({ requestedPage, total, correctedPage }) => {
+      const requests: URL[] = [];
+      const criteria = "search=desk&status=inactive&stockStatus=LOW_STOCK&sort=sku&order=desc";
+      const initialEntry = `/inventory?page=${requestedPage}&${criteria}`;
+      const correctedEntry = `/inventory?page=${correctedPage}&${criteria}`;
+      setSession("inventory-list-session", authenticatedSessionState);
+      server.use(
+        http.get(inventoryUrl, ({ request }) => {
+          const url = new URL(request.url);
+          requests.push(url);
+          const page = Number(url.searchParams.get("page"));
+
+          if (page === requestedPage) {
+            return HttpResponse.json(inventoryResponse([], requestedPage, total));
+          }
+
+          return HttpResponse.json(
+            inventoryResponse(
+              total > 0
+                ? [
+                    inventoryRecord(16, {
+                      isActive: false,
+                      quantity: 2,
+                      minimumStock: 2,
+                      status: "LOW_STOCK",
+                    }),
+                  ]
+                : [],
+              correctedPage,
+              total,
+            ),
+          );
+        }),
+      );
+
+      const { router } = renderInventoryRoute(initialEntry);
+
+      if (total > 0) {
+        expect(await screen.findByRole("row", { name: /SKU-016/ })).toBeVisible();
+      } else {
+        expect(
+          await screen.findByText("No se encontraron productos con esta búsqueda."),
+        ).toBeVisible();
+      }
+
+      await waitFor(() =>
+        expect(router.state.location.pathname + router.state.location.search).toBe(correctedEntry),
+      );
+      await waitFor(() =>
+        expect(requests.map((url) => url.searchParams.get("page"))).toEqual([
+          String(requestedPage),
+          String(correctedPage),
+        ]),
+      );
+      expect(Object.fromEntries(requests[1]!.searchParams)).toEqual({
+        page: String(correctedPage),
+        limit: "15",
+        search: "desk",
+        isActive: "false",
+        status: "LOW_STOCK",
+        sort: "sku",
+        order: "desc",
+      });
+      expect(screen.getByText(total > 0 ? "16 productos" : "0 productos")).toBeVisible();
+      expect(screen.getByText(total > 0 ? "Página 2 de 2" : "Página 1 de 1")).toBeVisible();
+    },
+  );
+
+  it("replaces an invalid history entry so Back and Forward retain criteria without restoring it", async () => {
+    const requests: URL[] = [];
+    const criteria = "search=desk&status=inactive&stockStatus=LOW_STOCK&sort=sku&order=desc";
+    const previousEntry = `/inventory?page=1&${criteria}`;
+    const invalidEntry = `/inventory?page=9&${criteria}`;
+    const correctedEntry = `/inventory?page=2&${criteria}`;
+    setSession("inventory-list-session", authenticatedSessionState);
+    server.use(
+      http.get(inventoryUrl, ({ request }) => {
+        const url = new URL(request.url);
+        requests.push(url);
+        const page = Number(url.searchParams.get("page"));
+
+        if (page === 9) {
+          return HttpResponse.json(inventoryResponse([], 9, 16));
+        }
+
+        return HttpResponse.json(
+          inventoryResponse(
+            [
+              inventoryRecord(page === 1 ? 1 : 16, {
+                isActive: false,
+                quantity: 2,
+                minimumStock: 2,
+                status: "LOW_STOCK",
+              }),
+            ],
+            page,
+            16,
+          ),
+        );
+      }),
+    );
+
+    const { router } = renderInventoryRoute([previousEntry, invalidEntry]);
+
+    expect(await screen.findByRole("row", { name: /SKU-016/ })).toBeVisible();
+    await waitFor(() =>
+      expect(router.state.location.pathname + router.state.location.search).toBe(correctedEntry),
+    );
+    expect(requests.map((url) => url.searchParams.get("page"))).toEqual(["9", "2"]);
+
+    await act(async () => {
+      await router.navigate(-1);
+    });
+
+    expect(await screen.findByRole("row", { name: /SKU-001/ })).toBeVisible();
+    expect(router.state.location.pathname + router.state.location.search).toBe(previousEntry);
+
+    await act(async () => {
+      await router.navigate(1);
+    });
+
+    expect(await screen.findByRole("row", { name: /SKU-016/ })).toBeVisible();
+    expect(router.state.location.pathname + router.state.location.search).toBe(correctedEntry);
+    expect(requests.map((url) => url.searchParams.get("page"))).toEqual(["9", "2", "1"]);
+    expect(screen.queryByRole("row", { name: /SKU-001/ })).not.toBeInTheDocument();
   });
 
   it("does not query inventory while Auth is pending", async () => {

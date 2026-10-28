@@ -20,6 +20,7 @@ import {
 export const InventoryPage = () => {
   const { pathname } = useLocation();
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const pendingPageCorrection = useRef<number | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const serializedSearchParams = searchParams.toString();
   const { page, criteria } = useMemo(
@@ -101,15 +102,29 @@ export const InventoryPage = () => {
     headingRef.current?.focus({ preventScroll: true });
   }, [pathname]);
 
+  const navigateToPage = (nextPage: number, replace = false) => {
+    const nextSearchParams = serializeInventoryListUrlState({ page: nextPage, criteria });
+    if (nextSearchParams.toString() !== serializedSearchParams) {
+      setSearchParams(nextSearchParams, { replace });
+    }
+  };
+
   const changePage = (nextPage: number) => {
+    if (pendingPageCorrection.current === nextPage) {
+      pendingPageCorrection.current = null;
+      return;
+    }
+
     if (nextPage === page) {
       return;
     }
 
-    const nextSearchParams = serializeInventoryListUrlState({ page: nextPage, criteria });
-    if (nextSearchParams.toString() !== serializedSearchParams) {
-      setSearchParams(nextSearchParams);
-    }
+    navigateToPage(nextPage);
+  };
+
+  const correctPage = (correctedPage: number) => {
+    pendingPageCorrection.current = correctedPage;
+    navigateToPage(correctedPage, true);
   };
 
   return (
@@ -156,6 +171,7 @@ export const InventoryPage = () => {
           ) : undefined
         }
         onPageChange={changePage}
+        onPageCorrection={correctPage}
         onSortChange={() => undefined}
         pageSize={INVENTORY_LIST_PAGE_SIZE}
         result={result}
