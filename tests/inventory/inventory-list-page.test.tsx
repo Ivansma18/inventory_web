@@ -964,6 +964,29 @@ describe("Inventory list page", () => {
     },
   );
 
+  it("shows a permission error for a forbidden inventory list without offering retry", async () => {
+    setSession("inventory-list-session", authenticatedSessionState);
+    let requestCount = 0;
+    server.use(
+      http.get(inventoryUrl, () => {
+        requestCount += 1;
+        return HttpResponse.json(
+          { error: { code: "FORBIDDEN", message: "private permission detail" } },
+          { status: 403 },
+        );
+      }),
+    );
+
+    renderInventoryRoute();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Acceso no permitido");
+    expect(screen.queryByText("No se pudo cargar el inventario.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reintentar consulta" })).not.toBeInTheDocument();
+    expect(screen.queryByText("private permission detail")).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(requestCount).toBe(1);
+  });
+
   it("shows an empty-search action that clears only search and requests the remaining criteria", async () => {
     const user = userEvent.setup();
     const requests: URL[] = [];

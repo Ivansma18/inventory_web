@@ -11,7 +11,10 @@ import type { Inventory } from "../api/inventory-contract";
 import { LatestStockMovementCell } from "../components/latest-stock-movement-cell";
 import { StockStatusBadge } from "../components/stock-status-badge";
 import { useInventoryList } from "../hooks/use-inventory-list";
-import { isRetryableInventoryListError } from "../utils/inventory-list-errors";
+import {
+  isForbiddenInventoryListError,
+  isRetryableInventoryListError,
+} from "../utils/inventory-list-errors";
 import {
   isInventoryListSortField,
   INVENTORY_LIST_PAGE_SIZE,
@@ -145,7 +148,9 @@ export const InventoryPage = () => {
     : inventoryList.isError
       ? {
           status: "error",
-          message: "No se pudo cargar el inventario.",
+          message: isForbiddenInventoryListError(inventoryList.error)
+            ? "Acceso no permitido"
+            : "No se pudo cargar el inventario.",
           ...(snapshot ? { snapshot } : {}),
         }
       : snapshot

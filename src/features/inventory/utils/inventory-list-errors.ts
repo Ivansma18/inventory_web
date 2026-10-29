@@ -15,3 +15,11 @@ export const isRetryableInventoryListError = (error: unknown): boolean => {
     error.status < 600
   );
 };
+
+export const isForbiddenInventoryListError = (error: unknown): boolean =>
+  typeof error === "object" &&
+  error !== null &&
+  "kind" in error &&
+  error.kind === "http" &&
+  "status" in error &&
+  error.status === 403;

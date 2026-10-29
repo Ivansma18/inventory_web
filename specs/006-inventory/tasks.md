@@ -51,8 +51,9 @@ Cada comportamiento incluye escribir o actualizar primero su prueba. Los archivo
 - [x] T20. Descartar movimientos tardíos de filas retiradas o páginas anteriores. (RF-44, RF-69)
   Hecho cuando: pruebas cambian página o criterios con movimientos pendientes y resuelven luego los anteriores; no aparece fecha/tipo/cantidad de otro producto ni se mueve el foco o se anuncia un fallo por una cancelación. No se precargan otras páginas ni el historial de movimientos.
   Evidencia: `tests/inventory/latest-stock-movement.test.tsx` cambia página y criterios con consultas diferidas; confirma los `AbortSignal` cancelados, libera respuestas antiguas después del resultado actual y verifica que no contaminan datos, alteran el foco ni generan alertas. Los contadores confirman que solo se consultan filas visibles. Pasan las 847 pruebas unitarias, lint, formato, typecheck, build y `git diff --check`.
-- [ ] T21. Tratar rechazos 403 de listado y movimientos sin retry directo. (RF-59, RF-69, RF-76; NFR-7)
+- [x] T21. Tratar rechazos 403 de listado y movimientos sin retry directo. (RF-59, RF-69, RF-76; NFR-7)
   Hecho cuando: las pruebas simulan ambas lecturas denegadas, muestran acceso no permitido y excluyen retry directo; un 403 de celda no oculta las existencias válidas disponibles ni utiliza «Sin movimientos» o mensajes privados del servidor.
+  Evidencia: las pruebas de `inventory-list-page.test.tsx` y `latest-stock-movement.test.tsx` verifican 403 en ambas lecturas, sin reintento ni detalle privado; el 403 de movimiento mantiene visibles las existencias. Pasan las 849 pruebas unitarias, lint, formato, typecheck, build y `git diff --check`.
 - [ ] T22. Revalidar Auth ante 401 de lectura sin bucles ni tormentas. (RF-4, RF-58, RF-75)
   Hecho cuando: pruebas de listado/celdas simulan 401 simultáneos, comparten una comprobación pendiente por sesión y bloquean el retry directo de las consultas rechazadas; Auth determina el estado mostrado, no se reenvían GET en bucle y una respuesta de sesión antigua no solicita revalidar la nueva.
 - [ ] T23. Probar aislamiento de sesión durante lecturas diferidas de Inventario. (RF-4, RF-60, RF-69; NFR-7)

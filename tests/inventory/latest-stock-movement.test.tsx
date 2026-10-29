@@ -422,6 +422,38 @@ describe("latest stock movement cells", () => {
     expect(movementRequestCount).toBe(1);
   });
 
+  it("shows access denied for a forbidden movement without hiding stock or offering retry", async () => {
+    setAuthenticatedSession();
+    let inventoryRequestCount = 0;
+    let movementRequestCount = 0;
+    server.use(
+      http.get(inventoryUrl, () => {
+        inventoryRequestCount += 1;
+        return HttpResponse.json(inventoryResponse([inventoryRecord(1)]));
+      }),
+      http.get(movementUrl, () => {
+        movementRequestCount += 1;
+        return HttpResponse.json(
+          { error: { code: "FORBIDDEN", message: "private permission detail" } },
+          { status: 403 },
+        );
+      }),
+    );
+
+    renderInventoryRoute();
+
+    await screen.findByRole("cell", { name: "SKU-001" });
+    const row = screen.getByRole("row", { name: /SKU-001/ });
+    expect(await within(row).findByText("Acceso no permitido")).toBeVisible();
+    expect(within(row).getByRole("cell", { name: "10" })).toBeVisible();
+    expect(within(row).getByText("Con existencias")).toBeVisible();
+    expect(within(row).queryByText("Sin movimientos")).not.toBeInTheDocument();
+    expect(within(row).queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText("private permission detail")).not.toBeInTheDocument();
+    expect(inventoryRequestCount).toBe(1);
+    expect(movementRequestCount).toBe(1);
+  });
+
   it("discards pending movement responses when changing page", async () => {
     setAuthenticatedSession();
     const user = userEvent.setup();

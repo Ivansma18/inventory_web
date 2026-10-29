@@ -5,6 +5,7 @@ import { Button } from "@/shared/ui";
 import { useLatestStockMovement } from "../hooks/use-latest-stock-movement";
 import { formatStockMovement } from "../utils/format-stock-movement";
 import {
+  isForbiddenLatestStockMovementError,
   isLatestStockMovementAuthenticationError,
   isRetryableLatestStockMovementError,
 } from "../utils/latest-stock-movement-errors";
@@ -24,9 +25,11 @@ export const LatestStockMovementCell = ({
 
   if (movementQuery.error !== null || movementQuery.isError) {
     const canRetry = isRetryableLatestStockMovementError(movementQuery.error);
-    const message = isLatestStockMovementAuthenticationError(movementQuery.error)
-      ? "No disponible"
-      : "No se pudo consultar";
+    const message = isForbiddenLatestStockMovementError(movementQuery.error)
+      ? "Acceso no permitido"
+      : isLatestStockMovementAuthenticationError(movementQuery.error)
+        ? "No disponible"
+        : "No se pudo consultar";
 
     return (
       <div
