@@ -1,0 +1,26 @@
+@layer components {
+  .latest-stock-movement-cell {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--ui-space-1);
+    min-inline-size: 10rem;
+    line-height: var(--ui-line-height-normal);
+  }
+
+  .latest-stock-movement-cell__type {
+    color: var(--ui-color-text);
+    font-weight: var(--ui-font-weight-medium);
+  }
+
+  .latest-stock-movement-cell__time {
+    color: var(--ui-color-text-muted);
+    font-size: var(--ui-font-size-xs);
+    white-space: nowrap;
+  }
+
+  .latest-stock-movement-cell__pending {
+    color: var(--ui-color-text-muted);
+    white-space: nowrap;
+  }
+}

@@ -8,6 +8,7 @@ import { Badge, Button, DataTable, Input, Select } from "@/shared/ui";
 import type { DataTableColumn, DataTableResult, DataTableSort, SelectOption } from "@/shared/ui";
 
 import type { Inventory } from "../api/inventory-contract";
+import { LatestStockMovementCell } from "../components/latest-stock-movement-cell";
 import { StockStatusBadge } from "../components/stock-status-badge";
 import { useInventoryList } from "../hooks/use-inventory-list";
 import { isRetryableInventoryListError } from "../utils/inventory-list-errors";
@@ -21,6 +22,8 @@ import type {
   InventoryListCriteria,
   InventoryListUrlState,
 } from "../utils/inventory-list-url-state";
+
+type InventoryTableRow = Inventory & { latestMovement: null };
 
 const inventoryActivityOptions: SelectOption[] = [
   { label: "Activos", value: "active" },
@@ -76,7 +79,7 @@ export const InventoryPage = () => {
   const sessionId = session.status === "authenticated" ? session.session.id : null;
   const inventoryList = useInventoryList(sessionId, page, criteria);
 
-  const columns = useMemo<DataTableColumn<Inventory>[]>(
+  const columns = useMemo<DataTableColumn<InventoryTableRow>[]>(
     () => [
       { key: "name", header: "Producto", sortable: true },
       { key: "sku", header: "SKU", sortable: true },
@@ -111,18 +114,29 @@ export const InventoryPage = () => {
         render: (item) => <StockStatusBadge status={item.status} />,
         sortable: false,
       },
+      {
+        key: "latestMovement",
+        header: "Último movimiento",
+        render: (item) => (
+          <LatestStockMovementCell productUuid={item.productUuid} sessionId={sessionId} />
+        ),
+        sortable: false,
+      },
     ],
-    [],
+    [sessionId],
   );
 
   const snapshot = inventoryList.data
     ? {
-        rows: inventoryList.data.data,
+        rows: inventoryList.data.data.map((item): InventoryTableRow => ({
+          ...item,
+          latestMovement: null,
+        })),
         total: inventoryList.data.pagination.total,
         page,
       }
     : undefined;
-  const result: DataTableResult<Inventory> = inventoryList.isFetching
+  const result: DataTableResult<InventoryTableRow> = inventoryList.isFetching
     ? { status: "loading", ...(snapshot ? { snapshot } : {}) }
     : inventoryList.isError
       ? {
@@ -203,14 +217,14 @@ export const InventoryPage = () => {
     setSearchDraftState({ serializedSearchParams, value: "" });
     updateCriteria({ search: "" }, true);
   };
-  const updateTableSort = (nextSort: DataTableSort<Inventory> | null) => {
+  const updateTableSort = (nextSort: DataTableSort<InventoryTableRow> | null) => {
     if (nextSort === null) {
       updateCriteria({ sort: "name", order: "asc" });
     } else if (isInventoryListSortField(nextSort.columnId)) {
       updateCriteria({ sort: nextSort.columnId, order: nextSort.direction });
     }
   };
-  const tableSort: DataTableSort<Inventory> = {
+  const tableSort: DataTableSort<InventoryTableRow> = {
     columnId: criteria.sort,
     direction: criteria.order,
   };

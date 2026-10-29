@@ -1,0 +1,293 @@
+import { QueryClientProvider } from "@tanstack/react-query";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
+import type { components } from "@/shared/api/generated/inventory-contracts";
+import { http, HttpResponse } from "msw";
+import { createMemoryRouter } from "react-router";
+import { RouterProvider } from "react-router/dom";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { appRoutes } from "@/app/router/router";
+import { UiProvider } from "@/app/providers/ui.provider";
+import { LatestStockMovementCell } from "@/features/inventory/components/latest-stock-movement-cell";
+import type { StockMovement } from "@/features/inventory/api/latest-movement-contract";
+import { createQueryClient } from "@/shared/api/query-client";
+import { httpClient } from "@/shared/api/http-client";
+import { server } from "../mocks/server";
+
+const authSession = vi.hoisted(() => ({
+  currentSessionId: null as string | null,
+  useAuth: vi.fn(() => ({
+    isSigningIn: false,
+    isSigningOut: false,
+    signIn: vi.fn(async () => ({ data: null, error: null })),
+    signOut: vi.fn(async () => ({ data: null, error: null })),
+    signOutError: null,
+  })),
+  useSession: vi.fn(),
+}));
+
+vi.mock("@/features/auth", () => ({
+  isCurrentSession: (sessionId: string) => authSession.currentSessionId === sessionId,
+  useAuth: authSession.useAuth,
+  useSession: authSession.useSession,
+}));
+
+const sessionId = "latest-movement-session";
+const inventoryUrl = "https://inventory.test/api/inventory";
+const movementUrl = `${inventoryUrl}/:productUuid/movements`;
+const inventoryUuid = (index: number) =>
+  `550e8400-e29b-41d4-a716-${String(index).padStart(12, "0")}`;
+
+const authenticatedSessionState = {
+  status: "authenticated",
+  user: {
+    id: "latest-movement-user",
+    email: "operator@example.com",
+    role: "OPERATOR",
+  },
+  session: { id: sessionId, createdAt: "2026-01-01T00:00:00.000Z" },
+  isRefetching: false,
+  isAuthenticated: true,
+  isUnauthenticated: false,
+  error: null,
+  verification: { status: "success", error: null },
+  isPending: false,
+  refetch: vi.fn(async () => ({ data: null, error: null })),
+};
+
+const setAuthenticatedSession = () => {
+  authSession.currentSessionId = sessionId;
+  authSession.useSession.mockReturnValue(authenticatedSessionState);
+};
+
+const inventoryRecord = (
+  index: number,
+  overrides: Partial<components["schemas"]["Inventory"]> = {},
+): components["schemas"]["Inventory"] => ({
+  productUuid: inventoryUuid(index),
+  sku: `SKU-${String(index).padStart(3, "0")}`,
+  name: `Producto ${String(index).padStart(3, "0")}`,
+  categoryUuid: null,
+  isActive: true,
+  quantity: 10,
+  minimumStock: 3,
+  status: "IN_STOCK",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  ...overrides,
+});
+
+const inventoryResponse = (data: components["schemas"]["Inventory"][]) => ({
+  data,
+  pagination: { total: data.length, page: 1, limit: 15 },
+});
+
+const stockMovement = (productUuid: string): StockMovement => ({
+  uuid: "550e8400-e29b-41d4-a716-446655440999",
+  productUuid,
+  type: "IN",
+  quantity: 4,
+  previousStock: 3,
+  newStock: 7,
+  reason: null,
+  reference: null,
+  createdAt: "2026-01-01T02:30:00+00:00",
+});
+
+const movementResponse = (data: StockMovement[] = []) => ({
+  data,
+  pagination: { total: data.length, page: 1, limit: 1 },
+});
+
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+}
+
+const deferred = <T,>(): Deferred<T> => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+
+  return { promise, resolve };
+};
+
+const routers: Array<ReturnType<typeof createMemoryRouter>> = [];
+const queryClients: Array<ReturnType<typeof createQueryClient>> = [];
+
+const renderInventoryRoute = (queryClient = createQueryClient()) => {
+  const router = createMemoryRouter(appRoutes, { initialEntries: ["/inventory"] });
+  queryClients.push(queryClient);
+  routers.push(router);
+
+  render(
+    <QueryClientProvider client={queryClient}>
+      <UiProvider>
+        <RouterProvider router={router} />
+      </UiProvider>
+    </QueryClientProvider>,
+  );
+
+  return queryClient;
+};
+
+afterEach(() => {
+  for (const router of routers.splice(0)) {
+    router.dispose();
+  }
+  for (const queryClient of queryClients.splice(0)) {
+    queryClient.clear();
+  }
+  authSession.currentSessionId = null;
+  authSession.useSession.mockReset();
+  vi.restoreAllMocks();
+});
+
+describe("latest stock movement cells", () => {
+  it("keeps validated stock visible while each cell loads and distinguishes a valid empty result", async () => {
+    setAuthenticatedSession();
+    const firstMovement = deferred<Response>();
+    const secondMovement = deferred<Response>();
+    const pendingResponses = new Map([
+      [inventoryUuid(1), firstMovement],
+      [inventoryUuid(2), secondMovement],
+    ]);
+    const movementRequests: URL[] = [];
+
+    server.use(
+      http.get(inventoryUrl, () =>
+        HttpResponse.json(inventoryResponse([inventoryRecord(1), inventoryRecord(2)])),
+      ),
+      http.get(movementUrl, ({ request, params }) => {
+        movementRequests.push(new URL(request.url));
+        return pendingResponses.get(String(params.productUuid))!.promise;
+      }),
+    );
+
+    renderInventoryRoute();
+
+    const pendingCells = await screen.findAllByText("Consultando movimiento…");
+    expect(pendingCells).toHaveLength(2);
+    expect(
+      within(screen.getByRole("row", { name: /SKU-001/ })).getByRole("cell", { name: "10" }),
+    ).toBeVisible();
+    expect(screen.getByRole("cell", { name: "SKU-001" })).toBeVisible();
+    expect(screen.getByRole("cell", { name: "SKU-002" })).toBeVisible();
+    expect(screen.queryByText("Sin movimientos")).not.toBeInTheDocument();
+    expect(movementRequests).toHaveLength(2);
+    for (const request of movementRequests) {
+      expect(Object.fromEntries(request.searchParams)).toEqual({ page: "1", limit: "1" });
+    }
+
+    await act(async () => {
+      firstMovement.resolve(HttpResponse.json(movementResponse([stockMovement(inventoryUuid(1))])));
+      secondMovement.resolve(HttpResponse.json(movementResponse()));
+    });
+
+    const firstRow = screen.getByRole("row", { name: /SKU-001/ });
+    const secondRow = screen.getByRole("row", { name: /SKU-002/ });
+    expect(await within(firstRow).findByText("Entrada")).toBeVisible();
+    expect(within(firstRow).getByText("Cantidad: 4")).toBeVisible();
+    expect(within(firstRow).getByText("1 ene 2026, 2:30 UTC")).toBeVisible();
+    expect(await within(secondRow).findByText("Sin movimientos")).toBeVisible();
+    expect(within(firstRow).getByRole("cell", { name: "10" })).toBeVisible();
+  });
+
+  it("starts at most fifteen initial movement reads and scopes query keys by session and product", async () => {
+    setAuthenticatedSession();
+    const requests: URL[] = [];
+    const requestSpy = vi.spyOn(httpClient, "request");
+
+    server.use(
+      http.get(inventoryUrl, () =>
+        HttpResponse.json(
+          inventoryResponse(Array.from({ length: 15 }, (_, i) => inventoryRecord(i + 1))),
+        ),
+      ),
+      http.get(movementUrl, ({ request }) => {
+        requests.push(new URL(request.url));
+        return HttpResponse.json(movementResponse());
+      }),
+    );
+
+    const queryClient = renderInventoryRoute();
+
+    await waitFor(() => expect(screen.getAllByText("Sin movimientos")).toHaveLength(15));
+    expect(requests).toHaveLength(15);
+    const movementQueries = queryClient.getQueryCache().findAll({
+      queryKey: ["inventory", "latest-movement", sessionId],
+    });
+    expect(movementQueries).toHaveLength(15);
+    expect(movementQueries.map((query) => query.queryKey[3]).sort()).toEqual(
+      Array.from({ length: 15 }, (_, i) => inventoryUuid(i + 1)).sort(),
+    );
+    expect(movementQueries.every((query) => query.options.retry === false)).toBe(true);
+
+    const movementCallArguments = requestSpy.mock.calls
+      .map(([request]) => request)
+      .filter((request) => request.path.endsWith("/movements"));
+    expect(movementCallArguments).toHaveLength(15);
+    expect(movementCallArguments.every((request) => request.signal instanceof AbortSignal)).toBe(
+      true,
+    );
+    expect(requests.every((request) => request.searchParams.get("limit") === "1")).toBe(true);
+  });
+
+  it("does not start movement queries until the full inventory response is validated", async () => {
+    setAuthenticatedSession();
+    let movementRequestCount = 0;
+    server.use(
+      http.get(inventoryUrl, () =>
+        HttpResponse.json({
+          data: [inventoryRecord(1), inventoryRecord(2, { quantity: 0, status: "IN_STOCK" })],
+          pagination: { total: 2, page: 1, limit: 15 },
+        }),
+      ),
+      http.get(movementUrl, () => {
+        movementRequestCount += 1;
+        return HttpResponse.json(movementResponse());
+      }),
+    );
+
+    renderInventoryRoute();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo cargar el inventario.");
+    expect(movementRequestCount).toBe(0);
+    expect(screen.queryByText("SKU-001")).not.toBeInTheDocument();
+  });
+
+  it("deduplicates concurrent observers for the same session and product", async () => {
+    const productUuid = inventoryUuid(1);
+    const pendingMovement = deferred<Response>();
+    let requestCount = 0;
+    server.use(
+      http.get(movementUrl, () => {
+        requestCount += 1;
+        return pendingMovement.promise;
+      }),
+    );
+    const queryClient = createQueryClient();
+    queryClients.push(queryClient);
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <LatestStockMovementCell productUuid={productUuid} sessionId={sessionId} />
+        <LatestStockMovementCell productUuid={productUuid} sessionId={sessionId} />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findAllByText("Consultando movimiento…")).toHaveLength(2);
+    await waitFor(() => expect(requestCount).toBe(1));
+    const query = queryClient.getQueryCache().find({
+      queryKey: ["inventory", "latest-movement", sessionId, productUuid],
+    });
+    expect(query?.getObserversCount()).toBe(2);
+
+    await act(async () => {
+      pendingMovement.resolve(HttpResponse.json(movementResponse()));
+    });
+
+    expect(await screen.findAllByText("Sin movimientos")).toHaveLength(2);
+    expect(requestCount).toBe(1);
+  });
+});
