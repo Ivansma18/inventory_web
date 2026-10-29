@@ -118,7 +118,11 @@ export const InventoryPage = () => {
         key: "latestMovement",
         header: "Último movimiento",
         render: (item) => (
-          <LatestStockMovementCell productUuid={item.productUuid} sessionId={sessionId} />
+          <LatestStockMovementCell
+            productName={item.name}
+            productUuid={item.productUuid}
+            sessionId={sessionId}
+          />
         ),
         sortable: false,
       },

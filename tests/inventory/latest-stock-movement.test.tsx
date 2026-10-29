@@ -1,5 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { components } from "@/shared/api/generated/inventory-contracts";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
@@ -97,6 +98,18 @@ const movementResponse = (data: StockMovement[] = []) => ({
   data,
   pagination: { total: data.length, page: 1, limit: 1 },
 });
+
+const retryableMovementFailures = [
+  { kind: "network", response: () => HttpResponse.error() },
+  {
+    kind: "server",
+    response: () => HttpResponse.json({ message: "private server detail" }, { status: 503 }),
+  },
+  {
+    kind: "invalid response",
+    response: () => HttpResponse.json(movementResponse([stockMovement(inventoryUuid(2))])),
+  },
+] as const;
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -271,8 +284,16 @@ describe("latest stock movement cells", () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <LatestStockMovementCell productUuid={productUuid} sessionId={sessionId} />
-        <LatestStockMovementCell productUuid={productUuid} sessionId={sessionId} />
+        <LatestStockMovementCell
+          productName="Producto 001"
+          productUuid={productUuid}
+          sessionId={sessionId}
+        />
+        <LatestStockMovementCell
+          productName="Producto 001"
+          productUuid={productUuid}
+          sessionId={sessionId}
+        />
       </QueryClientProvider>,
     );
 
@@ -289,5 +310,106 @@ describe("latest stock movement cells", () => {
 
     expect(await screen.findAllByText("Sin movimientos")).toHaveLength(2);
     expect(requestCount).toBe(1);
+  });
+
+  it.each(retryableMovementFailures)(
+    "retries only the failed cell after a $kind error",
+    async ({ response }) => {
+      setAuthenticatedSession();
+      const user = userEvent.setup();
+      const movementRequests = new Map([
+        [inventoryUuid(1), 0],
+        [inventoryUuid(2), 0],
+      ]);
+      let inventoryRequestCount = 0;
+
+      server.use(
+        http.get(inventoryUrl, () => {
+          inventoryRequestCount += 1;
+          return HttpResponse.json(inventoryResponse([inventoryRecord(1), inventoryRecord(2)]));
+        }),
+        http.get(movementUrl, ({ params }) => {
+          const productUuid = String(params.productUuid);
+          const attempts = (movementRequests.get(productUuid) ?? 0) + 1;
+          movementRequests.set(productUuid, attempts);
+
+          if (productUuid === inventoryUuid(1) && attempts === 1) {
+            return response();
+          }
+
+          const movement =
+            productUuid === inventoryUuid(1)
+              ? stockMovement(productUuid)
+              : {
+                  ...stockMovement(productUuid),
+                  type: "OUT" as const,
+                  quantity: 2,
+                  previousStock: 10,
+                  newStock: 8,
+                };
+
+          return HttpResponse.json(movementResponse([movement]));
+        }),
+      );
+
+      renderInventoryRoute();
+
+      await screen.findByRole("cell", { name: "SKU-001" });
+      const firstRow = screen.getByRole("row", { name: /SKU-001/ });
+      const secondRow = screen.getByRole("row", { name: /SKU-002/ });
+      expect(await within(firstRow).findByText("No se pudo consultar")).toBeVisible();
+      expect(
+        within(firstRow).getByRole("button", {
+          name: "Reintentar último movimiento de Producto 001",
+        }),
+      ).toBeVisible();
+      expect(await within(secondRow).findByText("Salida")).toBeVisible();
+      expect(within(firstRow).getByRole("cell", { name: "10" })).toBeVisible();
+      expect(inventoryRequestCount).toBe(1);
+      expect(movementRequests.get(inventoryUuid(1))).toBe(1);
+      expect(movementRequests.get(inventoryUuid(2))).toBe(1);
+
+      await user.click(
+        within(firstRow).getByRole("button", {
+          name: "Reintentar último movimiento de Producto 001",
+        }),
+      );
+
+      expect(await within(firstRow).findByText("Entrada")).toBeVisible();
+      expect(within(firstRow).getByText("Cantidad: 4")).toBeVisible();
+      expect(within(firstRow).getByRole("cell", { name: "10" })).toBeVisible();
+      expect(within(secondRow).getByText("Salida")).toBeVisible();
+      expect(inventoryRequestCount).toBe(1);
+      expect(movementRequests.get(inventoryUuid(1))).toBe(2);
+      expect(movementRequests.get(inventoryUuid(2))).toBe(1);
+    },
+  );
+
+  it("keeps a 404 distinct from an empty movement result and does not invent stock", async () => {
+    setAuthenticatedSession();
+    let inventoryRequestCount = 0;
+    let movementRequestCount = 0;
+    server.use(
+      http.get(inventoryUrl, () => {
+        inventoryRequestCount += 1;
+        return HttpResponse.json(inventoryResponse([inventoryRecord(1)]));
+      }),
+      http.get(movementUrl, () => {
+        movementRequestCount += 1;
+        return HttpResponse.json({ message: "private not-found detail" }, { status: 404 });
+      }),
+    );
+
+    renderInventoryRoute();
+
+    await screen.findByRole("cell", { name: "SKU-001" });
+    const row = screen.getByRole("row", { name: /SKU-001/ });
+    expect(await within(row).findByText("No se pudo consultar")).toBeVisible();
+    expect(within(row).queryByText("Sin movimientos")).not.toBeInTheDocument();
+    expect(within(row).getByRole("cell", { name: "10" })).toBeVisible();
+    expect(within(row).queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText(/private not-found detail/i)).not.toBeInTheDocument();
+    expect(inventoryRequestCount).toBe(1);
+    expect(movementRequestCount).toBe(1);
   });
 });

@@ -13,6 +13,16 @@
     font-weight: var(--ui-font-weight-medium);
   }
 
+  .latest-stock-movement-cell--error {
+    gap: var(--ui-space-2);
+    min-inline-size: 13rem;
+  }
+
+  .latest-stock-movement-cell__error-message {
+    color: var(--ui-color-error);
+    font-weight: var(--ui-font-weight-medium);
+  }
+
   .latest-stock-movement-cell__time {
     color: var(--ui-color-text-muted);
     font-size: var(--ui-font-size-xs);
