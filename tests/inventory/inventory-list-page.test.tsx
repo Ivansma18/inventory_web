@@ -8,6 +8,7 @@ import { RouterProvider } from "react-router/dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { UiProvider } from "@/app/providers/ui.provider";
+import { SessionBoundary } from "@/app/layouts/session-boundary";
 import { appRoutes } from "@/app/router/router";
 import { createQueryClient } from "@/shared/api/query-client";
 import { server } from "../mocks/server";
@@ -134,15 +135,20 @@ const renderInventoryRoute = (
   queryClients.push(queryClient);
   routers.push(router);
 
-  render(
+  const createTree = () => (
     <QueryClientProvider client={queryClient}>
       <UiProvider>
         <RouterProvider router={router} />
       </UiProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+  const rendered = render(createTree());
 
-  return { queryClient, router };
+  return {
+    queryClient,
+    router,
+    rerender: (ui = createTree()) => rendered.rerender(ui),
+  };
 };
 
 afterEach(() => {
@@ -985,6 +991,83 @@ describe("Inventory list page", () => {
     expect(screen.queryByText("private permission detail")).not.toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(requestCount).toBe(1);
+  });
+
+  it("revalidates Auth once after a list 401 and lets SessionBoundary determine the state", async () => {
+    const sessionCheck = deferred<{ data: null; error: null }>();
+    const refetch = vi.fn(() => sessionCheck.promise);
+    setSession("inventory-list-session", { ...authenticatedSessionState, refetch });
+    let inventoryRequestCount = 0;
+    server.use(
+      http.get(inventoryUrl, () => {
+        inventoryRequestCount += 1;
+        return HttpResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 });
+      }),
+    );
+
+    const { rerender } = renderInventoryRoute();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo cargar el inventario.");
+    await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("button", { name: "Reintentar consulta" })).not.toBeInTheDocument();
+    expect(inventoryRequestCount).toBe(1);
+
+    setSession("inventory-list-session", {
+      ...authenticatedSessionState,
+      refetch,
+      verification: { status: "pending", error: null },
+      isRefetching: true,
+    });
+    const renderSessionBoundary = () => (
+      <SessionBoundary>
+        <span>Contenido protegido</span>
+      </SessionBoundary>
+    );
+    rerender(renderSessionBoundary());
+    expect(screen.getByRole("heading", { name: "Comprobando tu sesión" })).toBeVisible();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+
+    await act(async () => {
+      sessionCheck.resolve({ data: null, error: null });
+    });
+    setSession("inventory-list-session", { ...authenticatedSessionState, refetch });
+    rerender();
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo cargar el inventario.");
+    expect(refetch).toHaveBeenCalledTimes(1);
+    expect(inventoryRequestCount).toBe(1);
+
+    setSession(null, unauthenticatedSessionState);
+    rerender(renderSessionBoundary());
+    expect(screen.getByRole("heading", { name: "Sesión no iniciada" })).toBeVisible();
+    expect(refetch).toHaveBeenCalledTimes(1);
+    expect(inventoryRequestCount).toBe(1);
+  });
+
+  it("does not revalidate the current Auth session for a stale list 401", async () => {
+    const pendingResponse = deferred<Response>();
+    const refetch = vi.fn(async () => ({ data: null, error: null }));
+    setSession("inventory-list-session", { ...authenticatedSessionState, refetch });
+    let inventoryRequestCount = 0;
+    server.use(
+      http.get(inventoryUrl, () => {
+        inventoryRequestCount += 1;
+        return pendingResponse.promise;
+      }),
+    );
+
+    renderInventoryRoute();
+    await waitFor(() => expect(inventoryRequestCount).toBe(1));
+    authSession.currentSessionId = "replacement-session";
+
+    await act(async () => {
+      pendingResponse.resolve(
+        HttpResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 }),
+      );
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo cargar el inventario.");
+    expect(refetch).not.toHaveBeenCalled();
+    expect(inventoryRequestCount).toBe(1);
   });
 
   it("shows an empty-search action that clears only search and requests the remaining criteria", async () => {

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { listInventory } from "../api/inventory-api";
+import { isUnauthorizedInventoryListError } from "../utils/inventory-list-errors";
 import type { InventoryListQuery } from "../utils/inventory-list-url-state";
 import {
   buildInventoryListQuery,
@@ -21,6 +22,8 @@ export const useInventoryList = (
     queryKey: inventoryListQueryKey(sessionId, params),
     queryFn: ({ signal }) => listInventory(params, signal),
     enabled: sessionId !== null,
+    refetchOnMount: (query) => !isUnauthorizedInventoryListError(query.state.error),
+    retryOnMount: false,
     retry: false,
   });
 };

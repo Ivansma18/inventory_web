@@ -23,3 +23,11 @@ export const isForbiddenInventoryListError = (error: unknown): boolean =>
   error.kind === "http" &&
   "status" in error &&
   error.status === 403;
+
+export const isUnauthorizedInventoryListError = (error: unknown): boolean =>
+  typeof error === "object" &&
+  error !== null &&
+  "kind" in error &&
+  error.kind === "http" &&
+  "status" in error &&
+  error.status === 401;

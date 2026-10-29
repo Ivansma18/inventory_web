@@ -8,6 +8,7 @@ import { RouterProvider } from "react-router/dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { appRoutes } from "@/app/router/router";
+import { SessionBoundary } from "@/app/layouts/session-boundary";
 import { UiProvider } from "@/app/providers/ui.provider";
 import { LatestStockMovementCell } from "@/features/inventory/components/latest-stock-movement-cell";
 import type { StockMovement } from "@/features/inventory/api/latest-movement-contract";
@@ -142,15 +143,19 @@ const renderInventoryRoute = (queryClient = createQueryClient()) => {
   queryClients.push(queryClient);
   routers.push(router);
 
-  render(
+  const createTree = () => (
     <QueryClientProvider client={queryClient}>
       <UiProvider>
         <RouterProvider router={router} />
       </UiProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+  const rendered = render(createTree());
 
-  return queryClient;
+  return {
+    queryClient,
+    rerender: (ui = createTree()) => rendered.rerender(ui),
+  };
 };
 
 afterEach(() => {
@@ -232,7 +237,7 @@ describe("latest stock movement cells", () => {
       }),
     );
 
-    const queryClient = renderInventoryRoute();
+    const { queryClient } = renderInventoryRoute();
 
     await waitFor(() => expect(screen.getAllByText("Sin movimientos")).toHaveLength(15));
     expect(requests).toHaveLength(15);
@@ -279,6 +284,7 @@ describe("latest stock movement cells", () => {
   });
 
   it("deduplicates concurrent observers for the same session and product", async () => {
+    setAuthenticatedSession();
     const productUuid = inventoryUuid(1);
     const pendingMovement = deferred<Response>();
     let requestCount = 0;
@@ -296,11 +302,13 @@ describe("latest stock movement cells", () => {
         <LatestStockMovementCell
           productName="Producto 001"
           productUuid={productUuid}
+          refetchSession={authenticatedSessionState.refetch}
           sessionId={sessionId}
         />
         <LatestStockMovementCell
           productName="Producto 001"
           productUuid={productUuid}
+          refetchSession={authenticatedSessionState.refetch}
           sessionId={sessionId}
         />
       </QueryClientProvider>,
@@ -452,6 +460,79 @@ describe("latest stock movement cells", () => {
     expect(screen.queryByText("private permission detail")).not.toBeInTheDocument();
     expect(inventoryRequestCount).toBe(1);
     expect(movementRequestCount).toBe(1);
+  });
+
+  it("shares pending Auth revalidation for simultaneous movement 401s without retrying reads", async () => {
+    const sessionCheck = deferred<{ data: null; error: null }>();
+    let sessionCheckCount = 0;
+    let sharedCheck: Promise<{ data: null; error: null }> | null = null;
+    const refetch = vi.fn(() => {
+      if (sharedCheck === null) {
+        sessionCheckCount += 1;
+        sharedCheck = sessionCheck.promise;
+      }
+      return sharedCheck;
+    });
+    authSession.currentSessionId = sessionId;
+    authSession.useSession.mockReturnValue({ ...authenticatedSessionState, refetch });
+    let inventoryRequestCount = 0;
+    const movementRequests = new Map<string, number>();
+    server.use(
+      http.get(inventoryUrl, () => {
+        inventoryRequestCount += 1;
+        return HttpResponse.json(inventoryResponse([inventoryRecord(1), inventoryRecord(2)]));
+      }),
+      http.get(movementUrl, ({ params }) => {
+        const uuid = String(params.productUuid);
+        movementRequests.set(uuid, (movementRequests.get(uuid) ?? 0) + 1);
+        return HttpResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 });
+      }),
+    );
+
+    const { rerender } = renderInventoryRoute();
+
+    await screen.findByRole("cell", { name: "SKU-001" });
+    await waitFor(() => expect(refetch).toHaveBeenCalledTimes(2));
+    expect(sessionCheckCount).toBe(1);
+    expect(inventoryRequestCount).toBe(1);
+    expect(movementRequests).toEqual(
+      new Map([
+        [inventoryUuid(1), 1],
+        [inventoryUuid(2), 1],
+      ]),
+    );
+
+    authSession.useSession.mockReturnValue({
+      ...authenticatedSessionState,
+      refetch,
+      verification: { status: "pending", error: null },
+      isRefetching: true,
+    });
+    const renderSessionBoundary = () => (
+      <SessionBoundary>
+        <span>Contenido protegido</span>
+      </SessionBoundary>
+    );
+    rerender(renderSessionBoundary());
+    expect(screen.getByRole("heading", { name: "Comprobando tu sesión" })).toBeVisible();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+
+    await act(async () => {
+      sessionCheck.resolve({ data: null, error: null });
+    });
+    authSession.useSession.mockReturnValue({ ...authenticatedSessionState, refetch });
+    rerender();
+
+    for (const index of [1, 2]) {
+      const row = screen.getByRole("row", { name: new RegExp(`SKU-00${index}`) });
+      expect(await within(row).findByText("No disponible")).toBeVisible();
+      expect(within(row).getByRole("cell", { name: "10" })).toBeVisible();
+      expect(within(row).queryByRole("button")).not.toBeInTheDocument();
+    }
+    expect(refetch).toHaveBeenCalledTimes(2);
+    expect(sessionCheckCount).toBe(1);
+    expect(inventoryRequestCount).toBe(1);
+    expect([...movementRequests.values()]).toEqual([1, 1]);
   });
 
   it("discards pending movement responses when changing page", async () => {

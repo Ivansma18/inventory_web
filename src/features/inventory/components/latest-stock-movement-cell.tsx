@@ -2,26 +2,36 @@ import "./latest-stock-movement-cell.css";
 
 import { Button } from "@/shared/ui";
 
+import { useInventoryAuthRevalidation } from "../hooks/use-inventory-auth-revalidation";
 import { useLatestStockMovement } from "../hooks/use-latest-stock-movement";
 import { formatStockMovement } from "../utils/format-stock-movement";
 import {
   isForbiddenLatestStockMovementError,
   isLatestStockMovementAuthenticationError,
   isRetryableLatestStockMovementError,
+  isUnauthorizedLatestStockMovementError,
 } from "../utils/latest-stock-movement-errors";
 
 interface LatestStockMovementCellProps {
   productName: string;
   productUuid: string;
+  refetchSession: () => Promise<unknown>;
   sessionId: string | null;
 }
 
 export const LatestStockMovementCell = ({
   productName,
   productUuid,
+  refetchSession,
   sessionId,
 }: LatestStockMovementCellProps) => {
   const movementQuery = useLatestStockMovement(sessionId, productUuid);
+  useInventoryAuthRevalidation(
+    sessionId,
+    movementQuery.error,
+    isUnauthorizedLatestStockMovementError,
+    refetchSession,
+  );
 
   if (movementQuery.error !== null || movementQuery.isError) {
     const canRetry = isRetryableLatestStockMovementError(movementQuery.error);

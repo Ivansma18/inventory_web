@@ -39,3 +39,6 @@ export const isLatestStockMovementAuthenticationError = (error: unknown): boolea
 
 export const isForbiddenLatestStockMovementError = (error: unknown): boolean =>
   getLatestStockMovementHttpStatus(error) === 403;
+
+export const isUnauthorizedLatestStockMovementError = (error: unknown): boolean =>
+  getLatestStockMovementHttpStatus(error) === 401;

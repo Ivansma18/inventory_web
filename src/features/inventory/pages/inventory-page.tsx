@@ -10,10 +10,12 @@ import type { DataTableColumn, DataTableResult, DataTableSort, SelectOption } fr
 import type { Inventory } from "../api/inventory-contract";
 import { LatestStockMovementCell } from "../components/latest-stock-movement-cell";
 import { StockStatusBadge } from "../components/stock-status-badge";
+import { useInventoryAuthRevalidation } from "../hooks/use-inventory-auth-revalidation";
 import { useInventoryList } from "../hooks/use-inventory-list";
 import {
   isForbiddenInventoryListError,
   isRetryableInventoryListError,
+  isUnauthorizedInventoryListError,
 } from "../utils/inventory-list-errors";
 import {
   isInventoryListSortField,
@@ -81,6 +83,12 @@ export const InventoryPage = () => {
   const session = useSession();
   const sessionId = session.status === "authenticated" ? session.session.id : null;
   const inventoryList = useInventoryList(sessionId, page, criteria);
+  useInventoryAuthRevalidation(
+    sessionId,
+    inventoryList.error,
+    isUnauthorizedInventoryListError,
+    session.refetch,
+  );
 
   const columns = useMemo<DataTableColumn<InventoryTableRow>[]>(
     () => [
@@ -124,13 +132,14 @@ export const InventoryPage = () => {
           <LatestStockMovementCell
             productName={item.name}
             productUuid={item.productUuid}
+            refetchSession={session.refetch}
             sessionId={sessionId}
           />
         ),
         sortable: false,
       },
     ],
-    [sessionId],
+    [session.refetch, sessionId],
   );
 
   const snapshot = inventoryList.data
