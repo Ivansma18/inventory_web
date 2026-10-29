@@ -94,6 +94,15 @@ const stockMovement = (productUuid: string): StockMovement => ({
   createdAt: "2026-01-01T02:30:00+00:00",
 });
 
+const staleStockMovement = (productUuid: string): StockMovement => ({
+  ...stockMovement(productUuid),
+  type: "OUT",
+  quantity: 999,
+  previousStock: 1_000,
+  newStock: 1,
+  createdAt: "2025-12-30T04:45:00.000Z",
+});
+
 const movementResponse = (data: StockMovement[] = []) => ({
   data,
   pagination: { total: data.length, page: 1, limit: 1 },
@@ -411,5 +420,196 @@ describe("latest stock movement cells", () => {
     expect(screen.queryByText(/private not-found detail/i)).not.toBeInTheDocument();
     expect(inventoryRequestCount).toBe(1);
     expect(movementRequestCount).toBe(1);
+  });
+
+  it("discards pending movement responses when changing page", async () => {
+    setAuthenticatedSession();
+    const user = userEvent.setup();
+    const pendingMovements = new Map<string, Deferred<Response>>();
+    const movementRequests = new Map<string, number>();
+    const requestSpy = vi.spyOn(httpClient, "request");
+    let pageOneListRequests = 0;
+    let pageTwoListRequests = 0;
+
+    server.use(
+      http.get(inventoryUrl, ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get("page"));
+        if (page === 1) {
+          pageOneListRequests += 1;
+          return HttpResponse.json({
+            data: Array.from({ length: 15 }, (_, index) => inventoryRecord(index + 1)),
+            pagination: { total: 16, page: 1, limit: 15 },
+          });
+        }
+
+        pageTwoListRequests += 1;
+        return HttpResponse.json({
+          data: [inventoryRecord(16)],
+          pagination: { total: 16, page: 2, limit: 15 },
+        });
+      }),
+      http.get(movementUrl, ({ params }) => {
+        const productUuid = String(params.productUuid);
+        movementRequests.set(productUuid, (movementRequests.get(productUuid) ?? 0) + 1);
+
+        if (productUuid === inventoryUuid(16)) {
+          return HttpResponse.json(
+            movementResponse([
+              {
+                ...stockMovement(productUuid),
+                type: "ADJUSTMENT",
+                quantity: 0,
+                previousStock: 10,
+                newStock: 16,
+                createdAt: "2026-03-01T12:00:00.000Z",
+              },
+            ]),
+          );
+        }
+
+        const pending = deferred<Response>();
+        pendingMovements.set(productUuid, pending);
+        return pending.promise;
+      }),
+    );
+
+    renderInventoryRoute();
+
+    expect(await screen.findAllByText("Consultando movimiento…")).toHaveLength(15);
+    await waitFor(() => expect(pendingMovements.size).toBe(15));
+    expect(movementRequests.size).toBe(15);
+
+    await user.click(screen.getByRole("button", { name: "Página siguiente" }));
+
+    const currentRow = screen.getByRole("row", { name: /SKU-016/ });
+    expect(await within(currentRow).findByText("Ajuste")).toBeVisible();
+    expect(within(currentRow).getByText("Existencia resultante: 16")).toBeVisible();
+    expect(within(currentRow).getByText("1 mar 2026, 12:00 UTC")).toBeVisible();
+    await waitFor(() => expect(pageTwoListRequests).toBe(1));
+
+    const movementSignals = new Map(
+      requestSpy.mock.calls
+        .map(([request]) => request)
+        .flatMap((request) => {
+          const productMatch = request.path.match(/\/inventory\/([^/]+)\/movements$/);
+          return productMatch
+            ? [[decodeURIComponent(productMatch[1]!), request.signal] as const]
+            : [];
+        }),
+    );
+    await waitFor(() => {
+      for (const productUuid of pendingMovements.keys()) {
+        expect(movementSignals.get(productUuid)?.aborted).toBe(true);
+      }
+    });
+
+    const searchInput = screen.getByRole("searchbox", { name: "Buscar productos" });
+    searchInput.focus();
+    const focusedElement = document.activeElement;
+    await act(async () => {
+      for (const [productUuid, pending] of pendingMovements) {
+        pending.resolve(HttpResponse.json(movementResponse([staleStockMovement(productUuid)])));
+      }
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("row", { name: /SKU-016/ })).toBeVisible();
+    expect(screen.queryByText("Salida")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cantidad: 999")).not.toBeInTheDocument();
+    expect(screen.queryByText("30 dic 2025, 4:45 UTC")).not.toBeInTheDocument();
+    expect(screen.queryByText("No se pudo consultar")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(focusedElement);
+    expect(pageOneListRequests).toBe(1);
+    expect(pageTwoListRequests).toBe(1);
+    expect(movementRequests.size).toBe(16);
+    expect(movementRequests.get(inventoryUuid(16))).toBe(1);
+  });
+
+  it("discards pending movement responses when criteria replace the current list", async () => {
+    setAuthenticatedSession();
+    const user = userEvent.setup();
+    const firstUuid = inventoryUuid(21);
+    const secondUuid = inventoryUuid(22);
+    const filteredUuid = inventoryUuid(23);
+    const pendingMovements = new Map<string, Deferred<Response>>();
+    const movementRequests = new Map<string, number>();
+    const requestSpy = vi.spyOn(httpClient, "request");
+    let inventoryRequestCount = 0;
+
+    server.use(
+      http.get(inventoryUrl, ({ request }) => {
+        inventoryRequestCount += 1;
+        const search = new URL(request.url).searchParams.get("search");
+        return HttpResponse.json(
+          search === "filtrado"
+            ? inventoryResponse([
+                inventoryRecord(23, { name: "Producto filtrado", sku: "SKU-023" }),
+              ])
+            : inventoryResponse([inventoryRecord(21), inventoryRecord(22)]),
+        );
+      }),
+      http.get(movementUrl, ({ params }) => {
+        const productUuid = String(params.productUuid);
+        movementRequests.set(productUuid, (movementRequests.get(productUuid) ?? 0) + 1);
+
+        if (productUuid === filteredUuid) {
+          return HttpResponse.json(movementResponse([stockMovement(productUuid)]));
+        }
+
+        const pending = deferred<Response>();
+        pendingMovements.set(productUuid, pending);
+        return pending.promise;
+      }),
+    );
+
+    renderInventoryRoute();
+
+    expect(await screen.findAllByText("Consultando movimiento…")).toHaveLength(2);
+    await waitFor(() => expect(pendingMovements.size).toBe(2));
+    expect(movementRequests.size).toBe(2);
+
+    const searchInput = screen.getByRole("searchbox", { name: "Buscar productos" });
+    await user.type(searchInput, "filtrado");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+
+    const currentRow = screen.getByRole("row", { name: /SKU-023/ });
+    expect(await within(currentRow).findByText("Entrada")).toBeVisible();
+    expect(within(currentRow).getByText("Cantidad: 4")).toBeVisible();
+    await waitFor(() => expect(inventoryRequestCount).toBe(2));
+
+    const movementSignals = new Map(
+      requestSpy.mock.calls
+        .map(([request]) => request)
+        .flatMap((request) => {
+          const productMatch = request.path.match(/\/inventory\/([^/]+)\/movements$/);
+          return productMatch
+            ? [[decodeURIComponent(productMatch[1]!), request.signal] as const]
+            : [];
+        }),
+    );
+    await waitFor(() => {
+      expect(movementSignals.get(firstUuid)?.aborted).toBe(true);
+      expect(movementSignals.get(secondUuid)?.aborted).toBe(true);
+    });
+
+    const focusedElement = document.activeElement;
+    await act(async () => {
+      for (const [productUuid, pending] of pendingMovements) {
+        pending.resolve(HttpResponse.json(movementResponse([staleStockMovement(productUuid)])));
+      }
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("row", { name: /SKU-023/ })).toBeVisible();
+    expect(screen.queryByText("Salida")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cantidad: 999")).not.toBeInTheDocument();
+    expect(screen.queryByText("30 dic 2025, 4:45 UTC")).not.toBeInTheDocument();
+    expect(screen.queryByText("No se pudo consultar")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(focusedElement);
+    expect(inventoryRequestCount).toBe(2);
+    expect(movementRequests.size).toBe(3);
+    expect(movementRequests.get(filteredUuid)).toBe(1);
   });
 });
