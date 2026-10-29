@@ -9,6 +9,7 @@ import { productUuidSchema } from "../api/product-contract";
 import { ProductEditForm } from "../components/product-edit-form";
 import { ProductPageShell } from "../components/product-page-shell";
 import { useProduct } from "../hooks/use-product";
+import type { ProductEditNavigationIntegration } from "../types/product-edit-navigation";
 import {
   DEFAULT_PRODUCT_LIST_RETURN_TO,
   parseProductEditReturnTo,
@@ -41,7 +42,11 @@ const isRetryableProductLoadError = (error: unknown): boolean => {
   return status !== null && status >= 500 && status < 600;
 };
 
-export const ProductEditPage = () => {
+export interface ProductEditPageProps {
+  navigation?: ProductEditNavigationIntegration;
+}
+
+export const ProductEditPage = ({ navigation }: ProductEditPageProps = {}) => {
   const { uuid = "" } = useParams();
   const [searchParams] = useSearchParams();
   const session = useSession();
@@ -50,7 +55,9 @@ export const ProductEditPage = () => {
   const productQuery = useProduct(sessionId, uuid);
   const validUuid = productUuidSchema.safeParse(uuid).success;
   const returnTo =
-    parseProductEditReturnTo(searchParams.get("returnTo")) ?? DEFAULT_PRODUCT_LIST_RETURN_TO;
+    navigation?.resolveReturnTo(searchParams) ??
+    parseProductEditReturnTo(searchParams.get("returnTo")) ??
+    DEFAULT_PRODUCT_LIST_RETURN_TO;
   const isNotFound = getHttpErrorStatus(productQuery.error) === 404;
   const canRetry = isRetryableProductLoadError(productQuery.error);
   const returnToList = () => navigate(returnTo);

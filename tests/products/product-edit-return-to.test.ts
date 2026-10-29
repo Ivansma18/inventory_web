@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { parseInventoryReturnTo } from "@/features/inventory";
+import {
+  buildProductEditLocation as buildPublicProductEditLocation,
+  type ProductEditNavigationIntegration,
+} from "@/features/products";
 import {
   buildProductEditLocation,
   DEFAULT_PRODUCT_LIST_RETURN_TO,
@@ -12,6 +17,22 @@ describe("product edit return URL", () => {
 
     expect(buildProductEditLocation("650e8400-e29b-41d4-a716-446655440000", origin)).toBe(
       "/products/650e8400-e29b-41d4-a716-446655440000/edit?returnTo=%2Fproducts%3Fpage%3D2%26search%3Dmonitor%26status%3Dinactive%26sort%3Dsku%26order%3Ddesc",
+    );
+  });
+
+  it("exposes a constructor that accepts only destinations validated by the optional policy", () => {
+    const navigation = {
+      resolveReturnTo: parseInventoryReturnTo,
+    } satisfies ProductEditNavigationIntegration;
+    const productUuid = "650e8400-e29b-41d4-a716-446655440000";
+    const source = "/inventory?order=desc&sort=sku&stockStatus=LOW_STOCK&page=3";
+    const editLocation = buildPublicProductEditLocation(productUuid, source, navigation);
+
+    expect(new URLSearchParams(editLocation.split("?")[1]).get("returnTo")).toBe(
+      "/inventory?page=3&status=active&stockStatus=LOW_STOCK&sort=sku&order=desc",
+    );
+    expect(buildPublicProductEditLocation(productUuid, "/settings", navigation)).toBe(
+      `/products/${productUuid}/edit?returnTo=${encodeURIComponent(DEFAULT_PRODUCT_LIST_RETURN_TO)}`,
     );
   });
 

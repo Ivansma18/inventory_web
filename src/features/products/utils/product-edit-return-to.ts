@@ -4,6 +4,7 @@ import {
   serializeProductListUrlState,
   type ProductListUrlState,
 } from "./product-list-url-state";
+import type { ProductEditNavigationIntegration } from "../types/product-edit-navigation";
 
 const PRODUCT_LIST_PATH = "/products";
 const RETURN_TO_BASE = "https://inventory.invalid";
@@ -60,8 +61,16 @@ export const parseProductEditReturnTo = (candidate: string | null | undefined): 
   return `${PRODUCT_LIST_PATH}?${serializeProductListUrlState(listState).toString()}`;
 };
 
-export const buildProductEditLocation = (uuid: string, sourceListUrl: string) => {
-  const returnTo = parseProductEditReturnTo(sourceListUrl) ?? DEFAULT_PRODUCT_LIST_RETURN_TO;
+export const buildProductEditLocation = (
+  uuid: string,
+  sourceListUrl: string,
+  navigation?: ProductEditNavigationIntegration,
+) => {
+  const integrationParams = new URLSearchParams({ returnTo: sourceListUrl });
+  const returnTo =
+    navigation?.resolveReturnTo(integrationParams) ??
+    parseProductEditReturnTo(sourceListUrl) ??
+    DEFAULT_PRODUCT_LIST_RETURN_TO;
   const searchParams = new URLSearchParams({ returnTo });
 
   return `${PRODUCT_LIST_PATH}/${encodeURIComponent(uuid)}/edit?${searchParams.toString()}`;

@@ -11,6 +11,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { appRoutes } from "@/app/router/router";
 import { UiProvider } from "@/app/providers/ui.provider";
+import { parseInventoryReturnTo } from "@/features/inventory";
+import { ProductEditPage } from "@/features/products";
+import type { ProductEditNavigationIntegration } from "@/features/products";
 import { createQueryClient, QUERY_STALE_TIME_MS } from "@/shared/api/query-client";
 import { productDetailQueryKey } from "@/features/products/hooks/use-product";
 import { server } from "../mocks/server";
@@ -25,6 +28,7 @@ const categoryUuid = "550e8400-e29b-41d4-a716-446655440000";
 const alternativeCategoryUuid = "550e8400-e29b-41d4-a716-446655440001";
 const refreshedCategoryUuid = "550e8400-e29b-41d4-a716-446655440002";
 const categoriesUrl = "https://inventory.test/api/categories";
+const inventoryUrl = "https://inventory.test/api/inventory";
 const categoryUrl = `https://inventory.test/api/categories/${categoryUuid}`;
 const productUrl = `https://inventory.test/api/products/${productUuid}`;
 
@@ -152,9 +156,24 @@ beforeEach(() => {
 const renderProductEditRoute = (
   initialEntry = `/products/${productUuid}/edit`,
   initialEntries = [initialEntry],
+  navigation?: ProductEditNavigationIntegration,
 ) => {
   const queryClient = createQueryClient();
-  const router = createMemoryRouter(appRoutes, {
+  const routes = navigation
+    ? appRoutes.map((route) =>
+        route.path === "/" && route.children
+          ? {
+              ...route,
+              children: route.children.map((child) =>
+                child.path === "products/:uuid/edit"
+                  ? { ...child, Component: () => <ProductEditPage navigation={navigation} /> }
+                  : child,
+              ),
+            }
+          : route,
+      )
+    : appRoutes;
+  const router = createMemoryRouter(routes, {
     initialEntries,
     initialIndex: initialEntries.indexOf(initialEntry),
   });
@@ -480,6 +499,31 @@ describe("product edit page", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
     expect(router.state.location.search).toBe(
       DEFAULT_PRODUCT_LIST_RETURN_TO.slice("/products".length),
+    );
+  });
+
+  it("uses the optional validated return policy when navigating out of an edit", async () => {
+    const user = userEvent.setup();
+    const source = "/inventory?order=desc&sort=sku&stockStatus=LOW_STOCK&page=3";
+    const initialEntry = `/products/${productUuid}/edit?${new URLSearchParams({ returnTo: source })}`;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+      http.get(inventoryUrl, () =>
+        HttpResponse.json({ data: [], pagination: { total: 46, page: 3, limit: 15 } }),
+      ),
+    );
+
+    const navigation = { resolveReturnTo: parseInventoryReturnTo };
+    const { router } = renderProductEditRoute(initialEntry, [initialEntry], navigation);
+    await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/inventory"));
+    expect(router.state.location.search).toBe(
+      "?page=3&status=active&stockStatus=LOW_STOCK&sort=sku&order=desc",
     );
   });
 
