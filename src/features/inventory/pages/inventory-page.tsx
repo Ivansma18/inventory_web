@@ -1,7 +1,7 @@
 import "./inventory-page.css";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useLocation, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 
 import { useSession } from "@/features/auth";
 import { Badge, Button, DataTable, Input, Select } from "@/shared/ui";
@@ -29,6 +29,10 @@ import type {
 } from "../utils/inventory-list-url-state";
 
 type InventoryTableRow = Inventory & { latestMovement: null };
+
+export interface InventoryPageProps {
+  buildProductEditLocation: (productUuid: string, sourceInventoryUrl: string) => string;
+}
 
 const inventoryActivityOptions: SelectOption[] = [
   { label: "Activos", value: "active" },
@@ -60,8 +64,9 @@ interface InventorySearchDraftState {
   value: string;
 }
 
-export const InventoryPage = () => {
+export const InventoryPage = ({ buildProductEditLocation }: InventoryPageProps) => {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const pendingPageCorrection = useRef<number | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -71,6 +76,7 @@ export const InventoryPage = () => {
     [serializedSearchParams],
   );
   const { page, criteria, needsNormalization } = urlState;
+  const sourceInventoryUrl = `${pathname}?${serializeInventoryListUrlState(urlState).toString()}`;
   const [searchDraftState, setSearchDraftState] = useState<InventorySearchDraftState>(() => ({
     serializedSearchParams,
     value: criteria.search,
@@ -138,8 +144,21 @@ export const InventoryPage = () => {
         ),
         sortable: false,
       },
+      {
+        key: "productUuid",
+        header: "Acciones",
+        render: (item) => (
+          <Button
+            onClick={() => navigate(buildProductEditLocation(item.productUuid, sourceInventoryUrl))}
+            variant="secondary"
+          >
+            Editar
+          </Button>
+        ),
+        sortable: false,
+      },
     ],
-    [session.refetch, sessionId],
+    [buildProductEditLocation, navigate, session.refetch, sessionId, sourceInventoryUrl],
   );
 
   const snapshot = inventoryList.data

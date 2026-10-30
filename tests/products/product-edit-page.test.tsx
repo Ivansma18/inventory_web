@@ -159,20 +159,18 @@ const renderProductEditRoute = (
   navigation?: ProductEditNavigationIntegration,
 ) => {
   const queryClient = createQueryClient();
-  const routes = navigation
-    ? appRoutes.map((route) =>
-        route.path === "/" && route.children
-          ? {
-              ...route,
-              children: route.children.map((child) =>
-                child.path === "products/:uuid/edit"
-                  ? { ...child, Component: () => <ProductEditPage navigation={navigation} /> }
-                  : child,
-              ),
-            }
-          : route,
-      )
-    : appRoutes;
+  const routes = appRoutes.map((route) =>
+    route.path === "/" && route.children
+      ? {
+          ...route,
+          children: route.children.map((child) =>
+            child.path === "products/:uuid/edit"
+              ? { ...child, Component: () => <ProductEditPage navigation={navigation} /> }
+              : child,
+          ),
+        }
+      : route,
+  );
   const router = createMemoryRouter(routes, {
     initialEntries,
     initialIndex: initialEntries.indexOf(initialEntry),

@@ -2,6 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { components } from "@/shared/api/generated/inventory-contracts";
+import type { components as productComponents } from "@/shared/api/generated/product-contracts";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
@@ -282,6 +283,53 @@ describe("Inventory list page", () => {
     expect(screen.getAllByRole("row")).toHaveLength(2);
     expect(router.state.location.search).toContain("page=2");
   });
+
+  it.each(["ADMIN", "MANAGER", "OPERATOR", "VIEWER"] as const)(
+    "opens the product editor from a row for role %s and preserves the canonical Inventory origin",
+    async (role) => {
+      const user = userEvent.setup();
+      const row = inventoryRecord(1);
+      const product: productComponents["schemas"]["Product"] = {
+        uuid: row.productUuid,
+        sku: row.sku,
+        name: row.name,
+        description: null,
+        purchasePrice: 10,
+        salePrice: 15,
+        categoryUuid: null,
+        isActive: true,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-02T00:00:00.000Z",
+      };
+      setSession("inventory-list-session", {
+        ...authenticatedSessionState,
+        user: { ...authenticatedSessionState.user, role },
+      });
+      server.use(
+        http.get(inventoryUrl, () => HttpResponse.json(inventoryResponse([row], 1, 1))),
+        http.get(`${inventoryUrl}/:productUuid/movements`, () =>
+          HttpResponse.json({ data: [], pagination: { total: 0, page: 1, limit: 1 } }),
+        ),
+        http.get(`${productsUrl}/:uuid`, () => HttpResponse.json({ data: product })),
+        http.get("https://inventory.test/api/categories", () =>
+          HttpResponse.json({ data: [], pagination: { total: 0, page: 1, limit: 15 } }),
+        ),
+      );
+
+      const { router } = renderInventoryRoute();
+      const inventoryRow = await screen.findByRole("row", { name: /SKU-001/ });
+
+      await user.click(within(inventoryRow).getByRole("button", { name: "Editar" }));
+
+      expect(await screen.findByRole("textbox", { name: "Nombre (obligatorio)" })).toHaveValue(
+        row.name,
+      );
+      expect(router.state.location.pathname).toBe(`/products/${row.productUuid}/edit`);
+      expect(new URLSearchParams(router.state.location.search).get("returnTo")).toBe(
+        "/inventory?page=1&status=active&stockStatus=all&sort=name&order=asc",
+      );
+    },
+  );
 
   it.each([
     { requestedPage: 9, total: 16, correctedPage: 2 },

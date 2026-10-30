@@ -5,9 +5,12 @@ import { AppLayout } from "@/app/layouts/app-layout";
 import { SessionBoundary } from "@/app/layouts/session-boundary";
 import { HomePage } from "@/app/pages/home-page";
 import { NotFoundPage } from "@/app/pages/not-found-page";
-import { CategoryCreatePage, CategoryEditPage, CategoryListPage } from "@/features/categories";
 import { InventoryPage } from "@/features/inventory";
-import { ProductCreatePage, ProductEditPage, ProductListPage } from "@/features/products";
+import { CategoryCreatePage, CategoryEditPage, CategoryListPage } from "@/features/categories";
+import { ProductCreatePage, ProductListPage } from "@/features/products";
+
+import { buildInventoryProductEditLocation } from "./inventory-edit-link";
+import { ProductEditRoute } from "./product-edit-route";
 
 export const appRoutes = [
   {
@@ -23,9 +26,12 @@ export const appRoutes = [
       { path: "categories", Component: CategoryListPage },
       { path: "categories/new", Component: CategoryCreatePage },
       { path: "categories/:uuid/edit", Component: CategoryEditPage },
-      { path: "inventory", Component: InventoryPage },
+      {
+        path: "inventory",
+        element: <InventoryPage buildProductEditLocation={buildInventoryProductEditLocation} />,
+      },
       { path: "products/new", Component: ProductCreatePage },
-      { path: "products/:uuid/edit", Component: ProductEditPage },
+      { path: "products/:uuid/edit", Component: ProductEditRoute },
       { path: "*", Component: NotFoundPage },
     ],
   },

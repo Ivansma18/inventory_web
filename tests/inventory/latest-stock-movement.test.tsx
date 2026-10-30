@@ -424,7 +424,10 @@ describe("latest stock movement cells", () => {
     expect(await within(row).findByText("No se pudo consultar")).toBeVisible();
     expect(within(row).queryByText("Sin movimientos")).not.toBeInTheDocument();
     expect(within(row).getByRole("cell", { name: "10" })).toBeVisible();
-    expect(within(row).queryByRole("button")).not.toBeInTheDocument();
+    const movementCell = within(row).getByRole("group", {
+      name: "Último movimiento de Producto 001",
+    });
+    expect(within(movementCell).queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByText(/private not-found detail/i)).not.toBeInTheDocument();
     expect(inventoryRequestCount).toBe(1);
     expect(movementRequestCount).toBe(1);
@@ -456,7 +459,10 @@ describe("latest stock movement cells", () => {
     expect(within(row).getByRole("cell", { name: "10" })).toBeVisible();
     expect(within(row).getByText("Con existencias")).toBeVisible();
     expect(within(row).queryByText("Sin movimientos")).not.toBeInTheDocument();
-    expect(within(row).queryByRole("button")).not.toBeInTheDocument();
+    const movementCell = within(row).getByRole("group", {
+      name: "Último movimiento de Producto 001",
+    });
+    expect(within(movementCell).queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByText("private permission detail")).not.toBeInTheDocument();
     expect(inventoryRequestCount).toBe(1);
     expect(movementRequestCount).toBe(1);
@@ -527,7 +533,10 @@ describe("latest stock movement cells", () => {
       const row = screen.getByRole("row", { name: new RegExp(`SKU-00${index}`) });
       expect(await within(row).findByText("No disponible")).toBeVisible();
       expect(within(row).getByRole("cell", { name: "10" })).toBeVisible();
-      expect(within(row).queryByRole("button")).not.toBeInTheDocument();
+      const movementCell = within(row).getByRole("group", {
+        name: `Último movimiento de Producto 00${index}`,
+      });
+      expect(within(movementCell).queryByRole("button")).not.toBeInTheDocument();
     }
     expect(refetch).toHaveBeenCalledTimes(2);
     expect(sessionCheckCount).toBe(1);
