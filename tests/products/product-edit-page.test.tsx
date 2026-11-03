@@ -6,13 +6,17 @@ import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import type { components as authComponents } from "@/shared/api/generated/auth-contracts";
 import type { components as categoryComponents } from "@/shared/api/generated/category-contracts";
+import type { components as inventoryComponents } from "@/shared/api/generated/inventory-contracts";
 import type { components as productComponents } from "@/shared/api/generated/product-contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { appRoutes } from "@/app/router/router";
 import { UiProvider } from "@/app/providers/ui.provider";
 import { parseInventoryReturnTo } from "@/features/inventory";
-import { ProductEditPage } from "@/features/products";
+import {
+  ProductEditPage,
+  buildProductEditLocation as buildPublicProductEditLocation,
+} from "@/features/products";
 import type { ProductEditNavigationIntegration } from "@/features/products";
 import { createQueryClient, QUERY_STALE_TIME_MS } from "@/shared/api/query-client";
 import { productDetailQueryKey } from "@/features/products/hooks/use-product";
@@ -23,14 +27,21 @@ import {
 } from "@/features/products/utils/product-edit-return-to";
 
 const productsUrl = "https://inventory.test/api/products";
+const inventoryUrl = "https://inventory.test/api/inventory";
 const productUuid = "650e8400-e29b-41d4-a716-446655440000";
 const categoryUuid = "550e8400-e29b-41d4-a716-446655440000";
 const alternativeCategoryUuid = "550e8400-e29b-41d4-a716-446655440001";
 const refreshedCategoryUuid = "550e8400-e29b-41d4-a716-446655440002";
 const categoriesUrl = "https://inventory.test/api/categories";
-const inventoryUrl = "https://inventory.test/api/inventory";
 const categoryUrl = `https://inventory.test/api/categories/${categoryUuid}`;
 const productUrl = `https://inventory.test/api/products/${productUuid}`;
+const inventorySourceUrl =
+  "/inventory?page=1&search=monitor&status=inactive&stockStatus=LOW_STOCK&sort=sku&order=desc";
+const inventoryReturnTo =
+  "/inventory?page=1&search=monitor&status=inactive&stockStatus=LOW_STOCK&sort=sku&order=desc";
+const inventoryEditLocation = buildPublicProductEditLocation(productUuid, inventorySourceUrl, {
+  resolveReturnTo: parseInventoryReturnTo,
+});
 
 const publicAuthResponse = (): authComponents["schemas"]["PublicAuthResponse"] => ({
   data: {
@@ -61,6 +72,23 @@ const product = (
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-02T00:00:00.000Z",
 });
+
+const inventoryRecord: inventoryComponents["schemas"]["Inventory"] = {
+  productUuid,
+  sku: "SKU-EDIT-01",
+  name: "Monitor inactivo",
+  categoryUuid,
+  isActive: false,
+  quantity: 2,
+  minimumStock: 2,
+  status: "LOW_STOCK",
+  updatedAt: "2026-01-02T00:00:00.000Z",
+};
+
+const inventoryResponse: inventoryComponents["schemas"]["InventoryListResponse"] = {
+  data: [inventoryRecord],
+  pagination: { total: 1, page: 1, limit: 15 },
+};
 
 const category = (
   name: string,
@@ -186,6 +214,39 @@ const renderProductEditRoute = (
   );
 
   return { queryClient, router };
+};
+
+const renderIntegratedAppRoutes = (
+  initialEntries: string[],
+  initialIndex = initialEntries.length - 1,
+) => {
+  const queryClient = createQueryClient();
+  const router = createMemoryRouter(appRoutes, { initialEntries, initialIndex });
+  routeResources.push({ queryClient, router });
+
+  render(
+    <QueryClientProvider client={queryClient}>
+      <UiProvider>
+        <RouterProvider router={router} />
+      </UiProvider>
+    </QueryClientProvider>,
+  );
+
+  return { queryClient, router };
+};
+
+const configureIntegratedInventoryEditHandlers = () => {
+  server.use(
+    http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+    http.get(inventoryUrl, () => HttpResponse.json(inventoryResponse)),
+    http.get(productUrl, () => HttpResponse.json({ data: product(false) })),
+  );
+};
+
+const openIntegratedInventoryEdit = async (user: ReturnType<typeof userEvent.setup>) => {
+  const inventoryRow = await screen.findByRole("row", { name: /SKU-EDIT-01/ });
+  await user.click(within(inventoryRow).getByRole("button", { name: "Editar" }));
+  return screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
 };
 
 afterEach(() => {
@@ -1470,6 +1531,141 @@ describe("product edit page", () => {
 
     await waitFor(() => expect(reloadedRouter.state.location.pathname).toBe("/products"));
     expect(reloadedRouter.state.location.search).toBe(sourceListUrl.slice("/products".length));
+  });
+
+  it("returns to the originating Inventory query after a confirmed save", async () => {
+    const user = userEvent.setup();
+    let patchBody: unknown;
+
+    configureIntegratedInventoryEditHandlers();
+    server.use(
+      http.patch(productUrl, async ({ request }) => {
+        patchBody = await request.json();
+        return HttpResponse.json({ data: { ...product(false), name: "Monitor actualizado" } });
+      }),
+    );
+
+    const { router } = renderIntegratedAppRoutes([inventorySourceUrl]);
+    const name = await openIntegratedInventoryEdit(user);
+    await user.clear(name);
+    await user.type(name, "Monitor actualizado");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    expect(await screen.findByText("Producto actualizado correctamente.")).toBeVisible();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/inventory"));
+    expect(router.state.location.search).toBe(inventoryReturnTo.slice("/inventory".length));
+    expect(patchBody).toEqual({ name: "Monitor actualizado" });
+  });
+
+  it("cancels a clean edit directly to its originating Inventory query", async () => {
+    const user = userEvent.setup();
+    configureIntegratedInventoryEditHandlers();
+
+    const { router } = renderIntegratedAppRoutes(["/", inventoryEditLocation], 1);
+    await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/inventory"));
+    expect(router.state.location.search).toBe(inventoryReturnTo.slice("/inventory".length));
+  });
+
+  it("confirms dirty Cancelar and returns to its originating Inventory query on discard", async () => {
+    const user = userEvent.setup();
+    configureIntegratedInventoryEditHandlers();
+
+    const { router } = renderIntegratedAppRoutes([inventorySourceUrl]);
+    const name = await openIntegratedInventoryEdit(user);
+    await user.clear(name);
+    await user.type(name, "Cambio sin guardar");
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    const discardDialog = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    expect(router.state.location.pathname).toBe(`/products/${productUuid}/edit`);
+    await user.click(within(discardDialog).getByRole("button", { name: "Descartar cambios" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/inventory"));
+    expect(router.state.location.search).toBe(inventoryReturnTo.slice("/inventory".length));
+  });
+
+  it("retains the originating Inventory query when the integrated edit route is reloaded", async () => {
+    const user = userEvent.setup();
+    configureIntegratedInventoryEditHandlers();
+
+    const { router: originalRouter } = renderIntegratedAppRoutes([inventorySourceUrl]);
+    await openIntegratedInventoryEdit(user);
+    const reloadLocation =
+      originalRouter.state.location.pathname + originalRouter.state.location.search;
+    expect(new URLSearchParams(originalRouter.state.location.search).get("returnTo")).toBe(
+      inventoryReturnTo,
+    );
+
+    cleanup();
+    const { router: reloadedRouter } = renderIntegratedAppRoutes([reloadLocation]);
+    await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    await waitFor(() => expect(reloadedRouter.state.location.pathname).toBe("/inventory"));
+    expect(reloadedRouter.state.location.search).toBe(inventoryReturnTo.slice("/inventory".length));
+  });
+
+  it("continues to a clicked link after confirming discard from an Inventory-origin edit", async () => {
+    const user = userEvent.setup();
+    configureIntegratedInventoryEditHandlers();
+
+    const { router } = renderIntegratedAppRoutes([inventoryEditLocation]);
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Cambio sin guardar");
+    const navigation = within(screen.getByRole("navigation", { name: "Navegación principal" }));
+    await user.click(navigation.getByRole("link", { name: "Inicio" }));
+
+    const discardDialog = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    await user.click(within(discardDialog).getByRole("button", { name: "Descartar cambios" }));
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe("/");
+  });
+
+  it("continues to the Back destination after confirming discard from an Inventory-origin edit", async () => {
+    const user = userEvent.setup();
+    configureIntegratedInventoryEditHandlers();
+
+    const { router } = renderIntegratedAppRoutes(["/", inventoryEditLocation], 1);
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Cambio sin guardar");
+
+    await act(async () => {
+      await router.navigate(-1);
+    });
+    const discardDialog = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    await user.click(within(discardDialog).getByRole("button", { name: "Descartar cambios" }));
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Bienvenido a Inventory" }),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe("/");
+  });
+
+  it("continues to the Forward destination after confirming discard from an Inventory-origin edit", async () => {
+    const user = userEvent.setup();
+    configureIntegratedInventoryEditHandlers();
+
+    const { router } = renderIntegratedAppRoutes(["/", inventoryEditLocation, "/products"], 1);
+    const name = await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.clear(name);
+    await user.type(name, "Cambio sin guardar");
+
+    await act(async () => {
+      await router.navigate(1);
+    });
+    const discardDialog = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    await user.click(within(discardDialog).getByRole("button", { name: "Descartar cambios" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Productos" })).toBeVisible();
+    expect(router.state.location.pathname).toBe("/products");
   });
 
   it("keeps edit success when refreshing the list fails and retries only the list query", async () => {
