@@ -13,6 +13,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { appRoutes } from "@/app/router/router";
 import { UiProvider } from "@/app/providers/ui.provider";
 import { parseInventoryReturnTo } from "@/features/inventory";
+import type { StockMovement } from "@/features/inventory/api/latest-movement-contract";
+import { inventoryListQueryKey } from "@/features/inventory/hooks/use-inventory-list";
+import { latestStockMovementQueryKey } from "@/features/inventory/hooks/use-latest-stock-movement";
+import type { InventoryListQuery } from "@/features/inventory/utils/inventory-list-url-state";
 import {
   ProductEditPage,
   buildProductEditLocation as buildPublicProductEditLocation,
@@ -91,6 +95,37 @@ const inventoryResponse: inventoryComponents["schemas"]["InventoryListResponse"]
   data: [inventoryRecord],
   pagination: { total: 1, page: 1, limit: 15 },
 };
+
+const inventoryQueryParams = (page = 1): InventoryListQuery => ({
+  page,
+  limit: 15,
+  search: "monitor",
+  isActive: "false",
+  status: "LOW_STOCK",
+  sort: "sku",
+  order: "desc",
+});
+
+const stockMovement = (
+  movementProductUuid: string,
+  overrides: Partial<StockMovement> = {},
+): StockMovement => ({
+  uuid: "760e8400-e29b-41d4-a716-446655440000",
+  productUuid: movementProductUuid,
+  type: "IN",
+  quantity: 2,
+  previousStock: 0,
+  newStock: 2,
+  reason: null,
+  reference: null,
+  createdAt: "2026-01-03T00:00:00.000Z",
+  ...overrides,
+});
+
+const stockMovementResponse = (movement: StockMovement) => ({
+  data: [movement],
+  pagination: { total: 1, page: 1, limit: 1 },
+});
 
 const category = (
   name: string,
@@ -1815,6 +1850,230 @@ describe("product edit page", () => {
     expect(router.state.location.search).toBe(
       DEFAULT_PRODUCT_LIST_RETURN_TO.slice("/products".length),
     );
+  });
+
+  it("refreshes fresh Inventory and movement caches after returning from product editing", async () => {
+    const user = userEvent.setup();
+    const inventoryRequests: URL[] = [];
+    const movementRequests: URL[] = [];
+    const cachedMovement = stockMovement(productUuid);
+    const latestMovement = stockMovement(productUuid, {
+      type: "OUT",
+      quantity: 1,
+      previousStock: 2,
+      newStock: 1,
+      createdAt: "2026-01-04T00:00:00.000Z",
+    });
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(inventoryUrl, ({ request }) => {
+        inventoryRequests.push(new URL(request.url));
+        return HttpResponse.json(
+          inventoryRequests.length === 1
+            ? inventoryResponse
+            : {
+                data: [{ ...inventoryRecord, name: "Monitor actualizado" }],
+                pagination: { total: 1, page: 1, limit: 15 },
+              },
+        );
+      }),
+      http.get(`${inventoryUrl}/:productUuid/movements`, ({ params, request }) => {
+        movementRequests.push(new URL(request.url));
+        return HttpResponse.json(
+          stockMovementResponse(
+            movementRequests.length === 1
+              ? cachedMovement
+              : { ...latestMovement, productUuid: String(params.productUuid) },
+          ),
+        );
+      }),
+      http.get(productUrl, () => HttpResponse.json({ data: product(false) })),
+      http.patch(productUrl, () =>
+        HttpResponse.json({ data: { ...product(false), name: "Monitor actualizado" } }),
+      ),
+    );
+
+    const { queryClient, router } = renderIntegratedAppRoutes([inventorySourceUrl]);
+    await screen.findByRole("row", { name: /SKU-EDIT-01/ });
+    await screen.findByText("Cantidad: 2");
+    await waitFor(() => {
+      expect(inventoryRequests).toHaveLength(1);
+      expect(movementRequests).toHaveLength(1);
+    });
+
+    const inventoryQueryKey = inventoryListQueryKey("product-edit-session", inventoryQueryParams());
+    const movementQueryKey = latestStockMovementQueryKey("product-edit-session", productUuid);
+    queryClient.setQueryData(inventoryQueryKey, inventoryResponse);
+    queryClient.setQueryData(movementQueryKey, cachedMovement);
+    expect(
+      Date.now() - (queryClient.getQueryState(inventoryQueryKey)?.dataUpdatedAt ?? 0),
+    ).toBeLessThan(QUERY_STALE_TIME_MS);
+    expect(
+      Date.now() - (queryClient.getQueryState(movementQueryKey)?.dataUpdatedAt ?? 0),
+    ).toBeLessThan(QUERY_STALE_TIME_MS);
+
+    const name = await openIntegratedInventoryEdit(user);
+    await user.clear(name);
+    await user.type(name, "Monitor actualizado");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    expect(await screen.findByText("Producto actualizado correctamente.")).toBeVisible();
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe("/inventory");
+      expect(inventoryRequests).toHaveLength(2);
+      expect(movementRequests).toHaveLength(2);
+    });
+    expect(router.state.location.search).toBe(inventoryReturnTo.slice("/inventory".length));
+    expect(Object.fromEntries(inventoryRequests[1]!.searchParams)).toEqual({
+      page: "1",
+      limit: "15",
+      search: "monitor",
+      isActive: "false",
+      status: "LOW_STOCK",
+      sort: "sku",
+      order: "desc",
+    });
+    expect(movementRequests[1]!.pathname).toBe(`/api/inventory/${productUuid}/movements`);
+
+    const updatedRow = await screen.findByRole("row", { name: /SKU-EDIT-01/ });
+    expect(within(updatedRow).getByRole("cell", { name: "Monitor actualizado" })).toBeVisible();
+    expect(within(updatedRow).getByText("Salida")).toBeVisible();
+    expect(within(updatedRow).getByText("Cantidad: 1")).toBeVisible();
+  });
+
+  it("does not reinsert an edited product that no longer matches the Inventory search", async () => {
+    const user = userEvent.setup();
+    const inventoryRequests: URL[] = [];
+    const movement = stockMovement(productUuid);
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(inventoryUrl, ({ request }) => {
+        inventoryRequests.push(new URL(request.url));
+        return HttpResponse.json(
+          inventoryRequests.length === 1
+            ? inventoryResponse
+            : { data: [], pagination: { total: 0, page: 1, limit: 15 } },
+        );
+      }),
+      http.get(`${inventoryUrl}/:productUuid/movements`, () =>
+        HttpResponse.json(stockMovementResponse(movement)),
+      ),
+      http.get(productUrl, () => HttpResponse.json({ data: product(false) })),
+      http.patch(productUrl, () =>
+        HttpResponse.json({ data: { ...product(false), name: "Altavoz actualizado" } }),
+      ),
+    );
+
+    const { queryClient, router } = renderIntegratedAppRoutes([inventorySourceUrl]);
+    await screen.findByRole("row", { name: /SKU-EDIT-01/ });
+    await waitFor(() => expect(inventoryRequests).toHaveLength(1));
+
+    const inventoryQueryKey = inventoryListQueryKey("product-edit-session", inventoryQueryParams());
+    queryClient.setQueryData(inventoryQueryKey, inventoryResponse);
+    expect(
+      Date.now() - (queryClient.getQueryState(inventoryQueryKey)?.dataUpdatedAt ?? 0),
+    ).toBeLessThan(QUERY_STALE_TIME_MS);
+
+    const name = await openIntegratedInventoryEdit(user);
+    await user.clear(name);
+    await user.type(name, "Altavoz actualizado");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe("/inventory");
+      expect(inventoryRequests).toHaveLength(2);
+    });
+    expect(inventoryRequests[1]!.searchParams.get("search")).toBe("monitor");
+    expect(await screen.findByText("No se encontraron productos con esta búsqueda.")).toBeVisible();
+    expect(screen.queryByRole("row", { name: /SKU-EDIT-01/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Altavoz actualizado")).not.toBeInTheDocument();
+  });
+
+  it("corrects the Inventory page after its final row disappears and replaces only the page entry", async () => {
+    const user = userEvent.setup();
+    const pageTwoUrl =
+      "/inventory?page=2&search=monitor&status=inactive&stockStatus=LOW_STOCK&sort=sku&order=desc";
+    const inventoryRequests: URL[] = [];
+    let pageTwoRequests = 0;
+    const otherProductUuid = "650e8400-e29b-41d4-a716-446655440001";
+    const otherInventoryRecord = {
+      ...inventoryRecord,
+      productUuid: otherProductUuid,
+      sku: "SKU-OTHER",
+      name: "Monitor otro",
+    };
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(inventoryUrl, ({ request }) => {
+        const url = new URL(request.url);
+        inventoryRequests.push(url);
+        if (url.searchParams.get("page") === "2") {
+          pageTwoRequests += 1;
+          return HttpResponse.json(
+            pageTwoRequests === 1
+              ? { data: [inventoryRecord], pagination: { total: 16, page: 2, limit: 15 } }
+              : { data: [], pagination: { total: 15, page: 2, limit: 15 } },
+          );
+        }
+
+        return HttpResponse.json({
+          data: [otherInventoryRecord],
+          pagination: { total: 15, page: 1, limit: 15 },
+        });
+      }),
+      http.get(`${inventoryUrl}/:productUuid/movements`, ({ params }) =>
+        HttpResponse.json(stockMovementResponse(stockMovement(String(params.productUuid)))),
+      ),
+      http.get(productUrl, () => HttpResponse.json({ data: product(false) })),
+      http.patch(productUrl, () =>
+        HttpResponse.json({ data: { ...product(false), name: "Altavoz actualizado" } }),
+      ),
+    );
+
+    const { queryClient, router } = renderIntegratedAppRoutes([pageTwoUrl]);
+    await screen.findByRole("row", { name: /SKU-EDIT-01/ });
+    await waitFor(() => expect(inventoryRequests).toHaveLength(1));
+
+    const pageTwoQueryKey = inventoryListQueryKey("product-edit-session", inventoryQueryParams(2));
+    const cachedPageTwo = {
+      data: [inventoryRecord],
+      pagination: { total: 16, page: 2, limit: 15 },
+    };
+    queryClient.setQueryData(pageTwoQueryKey, cachedPageTwo);
+    expect(
+      Date.now() - (queryClient.getQueryState(pageTwoQueryKey)?.dataUpdatedAt ?? 0),
+    ).toBeLessThan(QUERY_STALE_TIME_MS);
+
+    const name = await openIntegratedInventoryEdit(user);
+    await user.clear(name);
+    await user.type(name, "Altavoz actualizado");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() =>
+      expect(router.state.location.pathname + router.state.location.search).toBe(
+        "/inventory?page=1&search=monitor&status=inactive&stockStatus=LOW_STOCK&sort=sku&order=desc",
+      ),
+    );
+    await waitFor(() => expect(inventoryRequests).toHaveLength(3));
+    expect(inventoryRequests.map((url) => url.searchParams.get("page"))).toEqual(["2", "2", "1"]);
+    expect(Object.fromEntries(inventoryRequests[2]!.searchParams)).toEqual({
+      page: "1",
+      limit: "15",
+      search: "monitor",
+      isActive: "false",
+      status: "LOW_STOCK",
+      sort: "sku",
+      order: "desc",
+    });
+    expect(await screen.findByRole("row", { name: /SKU-OTHER/ })).toBeVisible();
+
+    await act(async () => {
+      await router.navigate(-1);
+    });
+    expect(router.state.location.pathname).toBe(`/products/${productUuid}/edit`);
   });
 
   it("keeps edit success when refreshing the list fails and retries only the list query", async () => {

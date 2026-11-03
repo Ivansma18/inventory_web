@@ -1,6 +1,15 @@
 import "./inventory-page.css";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 
 import { useSession } from "@/features/auth";
@@ -11,13 +20,15 @@ import type { Inventory } from "../api/inventory-contract";
 import { LatestStockMovementCell } from "../components/latest-stock-movement-cell";
 import { StockStatusBadge } from "../components/stock-status-badge";
 import { useInventoryAuthRevalidation } from "../hooks/use-inventory-auth-revalidation";
-import { useInventoryList } from "../hooks/use-inventory-list";
+import { inventoryListQueryKey, useInventoryList } from "../hooks/use-inventory-list";
+import { latestStockMovementQueryPrefix } from "../hooks/use-latest-stock-movement";
 import {
   isForbiddenInventoryListError,
   isRetryableInventoryListError,
   isUnauthorizedInventoryListError,
 } from "../utils/inventory-list-errors";
 import {
+  buildInventoryListQuery,
   isInventoryListSortField,
   INVENTORY_LIST_PAGE_SIZE,
   parseInventoryListUrlState,
@@ -67,6 +78,7 @@ interface InventorySearchDraftState {
 export const InventoryPage = ({ buildProductEditLocation }: InventoryPageProps) => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const pendingPageCorrection = useRef<number | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -94,6 +106,32 @@ export const InventoryPage = ({ buildProductEditLocation }: InventoryPageProps) 
     inventoryList.error,
     isUnauthorizedInventoryListError,
     session.refetch,
+  );
+  const openProductEdit = useCallback(
+    (productUuid: string) => {
+      if (sessionId !== null) {
+        void queryClient.invalidateQueries({
+          queryKey: inventoryListQueryKey(sessionId, buildInventoryListQuery(criteria, page)),
+          exact: true,
+          refetchType: "none",
+        });
+        void queryClient.invalidateQueries({
+          queryKey: latestStockMovementQueryPrefix(sessionId),
+          refetchType: "none",
+        });
+      }
+
+      navigate(buildProductEditLocation(productUuid, sourceInventoryUrl));
+    },
+    [
+      buildProductEditLocation,
+      criteria,
+      navigate,
+      page,
+      queryClient,
+      sessionId,
+      sourceInventoryUrl,
+    ],
   );
 
   const columns = useMemo<DataTableColumn<InventoryTableRow>[]>(
@@ -148,17 +186,14 @@ export const InventoryPage = ({ buildProductEditLocation }: InventoryPageProps) 
         key: "productUuid",
         header: "Acciones",
         render: (item) => (
-          <Button
-            onClick={() => navigate(buildProductEditLocation(item.productUuid, sourceInventoryUrl))}
-            variant="secondary"
-          >
+          <Button onClick={() => openProductEdit(item.productUuid)} variant="secondary">
             Editar
           </Button>
         ),
         sortable: false,
       },
     ],
-    [buildProductEditLocation, navigate, session.refetch, sessionId, sourceInventoryUrl],
+    [openProductEdit, session.refetch, sessionId],
   );
 
   const snapshot = inventoryList.data
