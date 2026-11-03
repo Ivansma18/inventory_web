@@ -23,6 +23,10 @@ import { useInventoryAuthRevalidation } from "../hooks/use-inventory-auth-revali
 import { inventoryListQueryKey, useInventoryList } from "../hooks/use-inventory-list";
 import { latestStockMovementQueryPrefix } from "../hooks/use-latest-stock-movement";
 import {
+  getInventoryProductEditConfirmation,
+  rebaseInventoryProductEditConfirmation,
+} from "../utils/inventory-product-edit-confirmation";
+import {
   isForbiddenInventoryListError,
   isRetryableInventoryListError,
   isUnauthorizedInventoryListError,
@@ -76,7 +80,8 @@ interface InventorySearchDraftState {
 }
 
 export const InventoryPage = ({ buildProductEditLocation }: InventoryPageProps) => {
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -100,6 +105,11 @@ export const InventoryPage = ({ buildProductEditLocation }: InventoryPageProps) 
   }
   const session = useSession();
   const sessionId = session.status === "authenticated" ? session.session.id : null;
+  const currentInventoryUrl = `${pathname}${location.search}`;
+  const editConfirmation =
+    currentInventoryUrl === sourceInventoryUrl
+      ? getInventoryProductEditConfirmation(location.state, sessionId, sourceInventoryUrl)
+      : null;
   const inventoryList = useInventoryList(sessionId, page, criteria);
   useInventoryAuthRevalidation(
     sessionId,
@@ -232,7 +242,16 @@ export const InventoryPage = ({ buildProductEditLocation }: InventoryPageProps) 
   const navigateToListState = (nextState: InventoryListUrlState, replace = false) => {
     const nextSearchParams = serializeInventoryListUrlState(nextState);
     if (nextSearchParams.toString() !== serializedSearchParams) {
-      setSearchParams(nextSearchParams, { replace });
+      const nextDestination = `${pathname}?${nextSearchParams.toString()}`;
+      const nextConfirmation = replace
+        ? rebaseInventoryProductEditConfirmation(
+            location.state,
+            sessionId,
+            sourceInventoryUrl,
+            nextDestination,
+          )
+        : null;
+      setSearchParams(nextSearchParams, { replace, state: nextConfirmation });
     }
   };
 
@@ -316,6 +335,11 @@ export const InventoryPage = ({ buildProductEditLocation }: InventoryPageProps) 
           Consulta las existencias registradas de tus productos.
         </p>
       </div>
+      {editConfirmation ? (
+        <p className="inventory-page__edit-confirmation" role="status">
+          Producto actualizado correctamente.
+        </p>
+      ) : null}
       <form
         aria-label="Buscar y filtrar inventario"
         className="inventory-page__filters"

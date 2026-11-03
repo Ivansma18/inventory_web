@@ -32,18 +32,25 @@ import {
 } from "../utils/product-api-errors";
 import { formatProductPrice } from "../utils/product-price";
 import { buildProductUpdatePayload } from "../utils/product-update-payload";
+import type { ProductEditNavigationIntegration } from "../types/product-edit-navigation";
 import { ProductUnsavedChangesDialog } from "./product-unsaved-changes-dialog";
 
 const invalidCategorySelectionMessage =
   "La categoría seleccionada ya no está activa o no existe. Actualiza las opciones antes de elegir otra.";
 
 interface ProductEditFormProps {
+  createSuccessState?: ProductEditNavigationIntegration["createSuccessState"];
   product: Product;
   returnTo: string;
   sessionId: string | null;
 }
 
-export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFormProps) => {
+export const ProductEditForm = ({
+  createSuccessState,
+  product,
+  returnTo,
+  sessionId,
+}: ProductEditFormProps) => {
   const submitLock = useRef(false);
   const formElementRef = useRef<HTMLFormElement>(null);
   const [invalidSubmitCount, setInvalidSubmitCount] = useState(0);
@@ -160,8 +167,11 @@ export const ProductEditForm = ({ product, returnTo, sessionId }: ProductEditFor
 
     dismissProtection();
     resetBlockedNavigation();
-    toast.show({ kind: "success", message: "Producto actualizado correctamente." });
-    navigate(returnTo);
+    const successState = createSuccessState?.(sessionId, returnTo) ?? null;
+    if (successState === null) {
+      toast.show({ kind: "success", message: "Producto actualizado correctamente." });
+    }
+    navigate(returnTo, { state: successState });
   };
 
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {

@@ -114,6 +114,7 @@ export const ProductEditPage = ({ navigation }: ProductEditPageProps = {}) => {
       ) : productQuery.data ? (
         <ProductEditForm
           key={productQuery.data.uuid}
+          createSuccessState={navigation?.createSuccessState}
           product={productQuery.data}
           returnTo={returnTo}
           sessionId={sessionId}

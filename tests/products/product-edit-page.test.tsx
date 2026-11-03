@@ -43,6 +43,12 @@ const inventorySourceUrl =
   "/inventory?page=1&search=monitor&status=inactive&stockStatus=LOW_STOCK&sort=sku&order=desc";
 const inventoryReturnTo =
   "/inventory?page=1&search=monitor&status=inactive&stockStatus=LOW_STOCK&sort=sku&order=desc";
+const inventoryProductEditConfirmation = (sessionId: string, destination: string) => ({
+  type: "inventory-product-edit-confirmation",
+  operation: "product-update",
+  sessionId,
+  destination,
+});
 const buildInventoryEditLocation = (uuid: string) =>
   buildPublicProductEditLocation(uuid, inventorySourceUrl, {
     resolveReturnTo: parseInventoryReturnTo,
@@ -1856,6 +1862,7 @@ describe("product edit page", () => {
     const user = userEvent.setup();
     const inventoryRequests: URL[] = [];
     const movementRequests: URL[] = [];
+    let patchRequests = 0;
     const cachedMovement = stockMovement(productUuid);
     const latestMovement = stockMovement(productUuid, {
       type: "OUT",
@@ -1889,9 +1896,10 @@ describe("product edit page", () => {
         );
       }),
       http.get(productUrl, () => HttpResponse.json({ data: product(false) })),
-      http.patch(productUrl, () =>
-        HttpResponse.json({ data: { ...product(false), name: "Monitor actualizado" } }),
-      ),
+      http.patch(productUrl, () => {
+        patchRequests += 1;
+        return HttpResponse.json({ data: { ...product(false), name: "Monitor actualizado" } });
+      }),
     );
 
     const { queryClient, router } = renderIntegratedAppRoutes([inventorySourceUrl]);
@@ -1925,6 +1933,15 @@ describe("product edit page", () => {
       expect(movementRequests).toHaveLength(2);
     });
     expect(router.state.location.search).toBe(inventoryReturnTo.slice("/inventory".length));
+    expect(router.state.location.state).toEqual(
+      inventoryProductEditConfirmation("product-edit-session", inventoryReturnTo),
+    );
+    expect(
+      screen.getByText("Producto actualizado correctamente.", {
+        selector: "p.inventory-page__edit-confirmation",
+      }),
+    ).toBeVisible();
+    expect(patchRequests).toBe(1);
     expect(Object.fromEntries(inventoryRequests[1]!.searchParams)).toEqual({
       page: "1",
       limit: "15",
@@ -1941,6 +1958,60 @@ describe("product edit page", () => {
     expect(within(updatedRow).getByText("Salida")).toBeVisible();
     expect(within(updatedRow).getByText("Cantidad: 1")).toBeVisible();
   });
+
+  it.each([
+    {
+      description: "belongs to another session",
+      confirmation: inventoryProductEditConfirmation("previous-session", inventoryReturnTo),
+    },
+    {
+      description: "targets a different Inventory query",
+      confirmation: inventoryProductEditConfirmation(
+        "product-edit-session",
+        inventoryReturnTo.replace("search=monitor", "search=other"),
+      ),
+    },
+  ])(
+    "ignores an old or foreign Inventory confirmation that $description",
+    async ({ confirmation }) => {
+      let patchRequests = 0;
+      server.use(
+        http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+        http.get(inventoryUrl, () => HttpResponse.json(inventoryResponse)),
+        http.get(`${inventoryUrl}/:productUuid/movements`, ({ params }) =>
+          HttpResponse.json(stockMovementResponse(stockMovement(String(params.productUuid)))),
+        ),
+        http.patch(productUrl, () => {
+          patchRequests += 1;
+          return HttpResponse.json({ data: product(false) });
+        }),
+      );
+
+      const queryClient = createQueryClient();
+      const router = createMemoryRouter(appRoutes, {
+        initialEntries: [
+          {
+            pathname: "/inventory",
+            search: inventoryReturnTo.slice("/inventory".length),
+            state: confirmation,
+          },
+        ],
+      });
+      routeResources.push({ queryClient, router });
+      render(
+        <QueryClientProvider client={queryClient}>
+          <UiProvider>
+            <RouterProvider router={router} />
+          </UiProvider>
+        </QueryClientProvider>,
+      );
+
+      await screen.findByRole("row", { name: /SKU-EDIT-01/ });
+      expect(screen.queryByText("Producto actualizado correctamente.")).not.toBeInTheDocument();
+      expect(router.state.location.state).toEqual(confirmation);
+      expect(patchRequests).toBe(0);
+    },
+  );
 
   it("does not reinsert an edited product that no longer matches the Inventory search", async () => {
     const user = userEvent.setup();
@@ -2058,6 +2129,17 @@ describe("product edit page", () => {
       ),
     );
     await waitFor(() => expect(inventoryRequests).toHaveLength(3));
+    expect(router.state.location.state).toEqual(
+      inventoryProductEditConfirmation(
+        "product-edit-session",
+        "/inventory?page=1&search=monitor&status=inactive&stockStatus=LOW_STOCK&sort=sku&order=desc",
+      ),
+    );
+    expect(
+      screen.getByText("Producto actualizado correctamente.", {
+        selector: "p.inventory-page__edit-confirmation",
+      }),
+    ).toBeVisible();
     expect(inventoryRequests.map((url) => url.searchParams.get("page"))).toEqual(["2", "2", "1"]);
     expect(Object.fromEntries(inventoryRequests[2]!.searchParams)).toEqual({
       page: "1",

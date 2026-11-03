@@ -42,6 +42,17 @@
   line-height: var(--ui-line-height-relaxed);
 }
 
+.inventory-page__edit-confirmation {
+  margin-block: var(--ui-space-3);
+  padding: var(--ui-space-3);
+  border: var(--ui-border-width) solid var(--ui-color-success);
+  border-radius: var(--ui-radius-md);
+  background-color: var(--ui-color-success-surface);
+  color: var(--ui-color-success-ink);
+  font-size: var(--ui-font-size-sm);
+  line-height: var(--ui-line-height-relaxed);
+}
+
 .inventory-page__filters {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(12rem, 1fr));
