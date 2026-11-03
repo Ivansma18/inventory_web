@@ -39,9 +39,11 @@ const inventorySourceUrl =
   "/inventory?page=1&search=monitor&status=inactive&stockStatus=LOW_STOCK&sort=sku&order=desc";
 const inventoryReturnTo =
   "/inventory?page=1&search=monitor&status=inactive&stockStatus=LOW_STOCK&sort=sku&order=desc";
-const inventoryEditLocation = buildPublicProductEditLocation(productUuid, inventorySourceUrl, {
-  resolveReturnTo: parseInventoryReturnTo,
-});
+const buildInventoryEditLocation = (uuid: string) =>
+  buildPublicProductEditLocation(uuid, inventorySourceUrl, {
+    resolveReturnTo: parseInventoryReturnTo,
+  });
+const inventoryEditLocation = buildInventoryEditLocation(productUuid);
 
 const publicAuthResponse = (): authComponents["schemas"]["PublicAuthResponse"] => ({
   data: {
@@ -1666,6 +1668,153 @@ describe("product edit page", () => {
 
     expect(await screen.findByRole("heading", { level: 1, name: "Productos" })).toBeVisible();
     expect(router.state.location.pathname).toBe("/products");
+  });
+
+  it("returns an invalid Inventory-origin UUID without requesting product details", async () => {
+    const user = userEvent.setup();
+    const productDetailRequests: string[] = [];
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(inventoryUrl, () => HttpResponse.json(inventoryResponse)),
+      http.get(/\/api\/products\/[^/]+$/, ({ request }) => {
+        productDetailRequests.push(request.url);
+        return HttpResponse.json({ data: product(true) });
+      }),
+    );
+
+    const invalidEditLocation = buildInventoryEditLocation("not-a-uuid");
+    const { router } = renderIntegratedAppRoutes([invalidEditLocation]);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "La dirección del producto no es válida.",
+    );
+    expect(productDetailRequests).toEqual([]);
+
+    await user.click(screen.getByRole("button", { name: "Volver al listado" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/inventory"));
+    expect(router.state.location.search).toBe(inventoryReturnTo.slice("/inventory".length));
+    expect(await screen.findByRole("row", { name: /SKU-EDIT-01/ })).toBeVisible();
+    expect(productDetailRequests).toEqual([]);
+  });
+
+  it("returns a product GET 404 to the originating Inventory query", async () => {
+    const user = userEvent.setup();
+    let productDetailRequests = 0;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(inventoryUrl, () => HttpResponse.json(inventoryResponse)),
+      http.get(productUrl, () => {
+        productDetailRequests += 1;
+        return HttpResponse.json(
+          { error: { code: "PRODUCT_NOT_FOUND", message: "private missing product detail" } },
+          { status: 404 },
+        );
+      }),
+    );
+
+    const { router } = renderIntegratedAppRoutes([inventorySourceUrl]);
+    const inventoryRow = await screen.findByRole("row", { name: /SKU-EDIT-01/ });
+    await user.click(within(inventoryRow).getByRole("button", { name: "Editar" }));
+
+    const notFoundAlert = await screen.findByRole("alert");
+    expect(notFoundAlert).toHaveTextContent("No se encontró el producto.");
+    expect(notFoundAlert).not.toHaveTextContent("private missing product detail");
+    expect(screen.queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
+    expect(productDetailRequests).toBe(1);
+
+    await user.click(screen.getByRole("button", { name: "Volver al listado" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/inventory"));
+    expect(router.state.location.search).toBe(inventoryReturnTo.slice("/inventory".length));
+  });
+
+  it("keeps a product PATCH 404 read-only and guarded, then returns to Inventory without resubmitting", async () => {
+    const user = userEvent.setup();
+    let patchRequests = 0;
+    let patchBody: unknown;
+
+    configureIntegratedInventoryEditHandlers();
+    server.use(
+      http.patch(productUrl, async ({ request }) => {
+        patchRequests += 1;
+        patchBody = await request.json();
+        return HttpResponse.json(
+          { error: { code: "PRODUCT_NOT_FOUND", message: "private missing product detail" } },
+          { status: 404 },
+        );
+      }),
+    );
+
+    const { router } = renderIntegratedAppRoutes([inventorySourceUrl]);
+    const name = await openIntegratedInventoryEdit(user);
+    await user.clear(name);
+    await user.type(name, "Nombre local sin guardar");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    const notFoundAlert = await screen.findByRole("alert");
+    expect(notFoundAlert).toHaveTextContent("No se encontró el producto.");
+    expect(notFoundAlert).not.toHaveTextContent("private missing product detail");
+    expect(name).toHaveValue("Nombre local sin guardar");
+    expect(name).toHaveAttribute("readonly");
+    expect(screen.getByRole("textbox", { name: "SKU (obligatorio)" })).toHaveAttribute("readonly");
+    expect(screen.getByRole("textbox", { name: "Precio de compra (obligatorio)" })).toHaveAttribute(
+      "readonly",
+    );
+    expect(screen.getByRole("textbox", { name: "Precio de venta (obligatorio)" })).toHaveAttribute(
+      "readonly",
+    );
+    expect(screen.getByRole("textbox", { name: "Descripción (opcional)" })).toHaveAttribute(
+      "readonly",
+    );
+    expect(screen.getByRole("textbox", { name: "Categoría" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Guardar cambios" })).not.toBeInTheDocument();
+    expect(patchRequests).toBe(1);
+    expect(patchBody).toEqual({ name: "Nombre local sin guardar" });
+
+    const dirtyUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, dirtyUnloadEvent);
+    expect(dirtyUnloadEvent.defaultPrevented).toBe(true);
+
+    fireEvent.submit(screen.getByRole("form", { name: "Datos del producto" }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(patchRequests).toBe(1);
+
+    await user.click(screen.getByRole("button", { name: "Volver al listado" }));
+    const discardDialog = await screen.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    expect(router.state.location.pathname).toBe(`/products/${productUuid}/edit`);
+    await user.click(within(discardDialog).getByRole("button", { name: "Descartar cambios" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/inventory"));
+    expect(router.state.location.search).toBe(inventoryReturnTo.slice("/inventory".length));
+    expect(patchRequests).toBe(1);
+  });
+
+  it.each([
+    { description: "is missing", location: `/products/${productUuid}/edit` },
+    {
+      description: "is invalid",
+      location: `/products/${productUuid}/edit?${new URLSearchParams({
+        returnTo: "/inventory?stockStatus=UNKNOWN",
+      }).toString()}`,
+    },
+  ])("keeps the Products fallback when the Inventory origin $description", async ({ location }) => {
+    const user = userEvent.setup();
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(productUrl, () => HttpResponse.json({ data: product(true) })),
+    );
+
+    const { router } = renderIntegratedAppRoutes([location]);
+    await screen.findByRole("textbox", { name: "Nombre (obligatorio)" });
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
+    expect(router.state.location.search).toBe(
+      DEFAULT_PRODUCT_LIST_RETURN_TO.slice("/products".length),
+    );
   });
 
   it("keeps edit success when refreshing the list fails and retries only the list query", async () => {
