@@ -2214,6 +2214,195 @@ describe("product edit page", () => {
     expect(patchRequests).toBe(1);
   });
 
+  it("keeps a confirmed Inventory edit after a 503 and retries only the list GET", async () => {
+    const user = userEvent.setup();
+    const inventoryRequests: URL[] = [];
+    let patchRequests = 0;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(inventoryUrl, ({ request }) => {
+        inventoryRequests.push(new URL(request.url));
+        if (inventoryRequests.length === 2) {
+          return HttpResponse.json(
+            { error: { code: "INTERNAL_ERROR", message: "private inventory detail" } },
+            { status: 503 },
+          );
+        }
+
+        return HttpResponse.json({
+          data: [
+            {
+              ...inventoryRecord,
+              name: inventoryRequests.length > 2 ? "Monitor actualizado" : "Monitor inactivo",
+            },
+          ],
+          pagination: { total: 1, page: 1, limit: 15 },
+        });
+      }),
+      http.get(`${inventoryUrl}/:productUuid/movements`, ({ params }) =>
+        HttpResponse.json(stockMovementResponse(stockMovement(String(params.productUuid)))),
+      ),
+      http.get(productUrl, () => HttpResponse.json({ data: product(false) })),
+      http.patch(productUrl, () => {
+        patchRequests += 1;
+        return HttpResponse.json({ data: { ...product(false), name: "Monitor actualizado" } });
+      }),
+    );
+
+    const { router } = renderIntegratedAppRoutes([inventorySourceUrl]);
+    const name = await openIntegratedInventoryEdit(user);
+    await user.clear(name);
+    await user.type(name, "Monitor actualizado");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    const retryButton = await screen.findByRole("button", { name: "Reintentar consulta" });
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo cargar el inventario.");
+    expect(screen.getByText("Producto actualizado correctamente.")).toBeVisible();
+    expect(screen.queryByText("private inventory detail")).not.toBeInTheDocument();
+    expect(router.state.location.pathname + router.state.location.search).toBe(inventorySourceUrl);
+    expect(router.state.location.state).toEqual(
+      inventoryProductEditConfirmation("product-edit-session", inventorySourceUrl),
+    );
+    expect(inventoryRequests).toHaveLength(2);
+    expect(patchRequests).toBe(1);
+
+    await user.click(retryButton);
+
+    const updatedRow = await screen.findByRole("row", { name: /SKU-EDIT-01/ });
+    expect(within(updatedRow).getByRole("cell", { name: "Monitor actualizado" })).toBeVisible();
+    expect(inventoryRequests).toHaveLength(3);
+    expect(inventoryRequests.map((request) => Object.fromEntries(request.searchParams))).toEqual(
+      Array.from({ length: 3 }, () => ({
+        page: "1",
+        limit: "15",
+        search: "monitor",
+        isActive: "false",
+        status: "LOW_STOCK",
+        sort: "sku",
+        order: "desc",
+      })),
+    );
+    expect(patchRequests).toBe(1);
+    expect(router.state.location.pathname + router.state.location.search).toBe(inventorySourceUrl);
+    expect(router.state.location.state).toEqual(
+      inventoryProductEditConfirmation("product-edit-session", inventorySourceUrl),
+    );
+    expect(screen.getByText("Producto actualizado correctamente.")).toBeVisible();
+  });
+
+  it("keeps confirmed Inventory edit success after a 403 without offering retry", async () => {
+    const user = userEvent.setup();
+    let inventoryRequests = 0;
+    let patchRequests = 0;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => HttpResponse.json(publicAuthResponse())),
+      http.get(inventoryUrl, () => {
+        inventoryRequests += 1;
+        return inventoryRequests === 2
+          ? HttpResponse.json(
+              { error: { code: "FORBIDDEN", message: "private inventory permission detail" } },
+              { status: 403 },
+            )
+          : HttpResponse.json(inventoryResponse);
+      }),
+      http.get(`${inventoryUrl}/:productUuid/movements`, ({ params }) =>
+        HttpResponse.json(stockMovementResponse(stockMovement(String(params.productUuid)))),
+      ),
+      http.get(productUrl, () => HttpResponse.json({ data: product(false) })),
+      http.patch(productUrl, () => {
+        patchRequests += 1;
+        return HttpResponse.json({ data: { ...product(false), name: "Monitor actualizado" } });
+      }),
+    );
+
+    const { router } = renderIntegratedAppRoutes([inventorySourceUrl]);
+    const name = await openIntegratedInventoryEdit(user);
+    await user.clear(name);
+    await user.type(name, "Monitor actualizado");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Acceso no permitido");
+    expect(screen.getByText("Producto actualizado correctamente.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Reintentar consulta" })).not.toBeInTheDocument();
+    expect(screen.queryByText("private inventory permission detail")).not.toBeInTheDocument();
+    expect(inventoryRequests).toBe(2);
+    expect(patchRequests).toBe(1);
+    expect(router.state.location.pathname + router.state.location.search).toBe(inventorySourceUrl);
+    expect(router.state.location.state).toEqual(
+      inventoryProductEditConfirmation("product-edit-session", inventorySourceUrl),
+    );
+  });
+
+  it("prioritizes Auth after an Inventory list 401 and does not retry or repeat the PATCH", async () => {
+    const user = userEvent.setup();
+    const sessionRefresh = deferred<Response>();
+    let shouldHoldAuthRevalidation = false;
+    let authRevalidationRequests = 0;
+    let inventoryRequests = 0;
+    let patchRequests = 0;
+
+    server.use(
+      http.get(/\/api\/auth\/get-session/, () => {
+        if (shouldHoldAuthRevalidation) {
+          authRevalidationRequests += 1;
+          return sessionRefresh.promise;
+        }
+
+        return HttpResponse.json(publicAuthResponse());
+      }),
+      http.get(inventoryUrl, () => {
+        inventoryRequests += 1;
+        if (inventoryRequests === 2) {
+          shouldHoldAuthRevalidation = true;
+          return HttpResponse.json(
+            { error: { code: "UNAUTHORIZED", message: "private inventory auth detail" } },
+            { status: 401 },
+          );
+        }
+
+        return HttpResponse.json(inventoryResponse);
+      }),
+      http.get(`${inventoryUrl}/:productUuid/movements`, ({ params }) =>
+        HttpResponse.json(stockMovementResponse(stockMovement(String(params.productUuid)))),
+      ),
+      http.get(productUrl, () => HttpResponse.json({ data: product(false) })),
+      http.patch(productUrl, () => {
+        patchRequests += 1;
+        return HttpResponse.json({ data: { ...product(false), name: "Monitor actualizado" } });
+      }),
+    );
+
+    const { router } = renderIntegratedAppRoutes([inventorySourceUrl]);
+    const name = await openIntegratedInventoryEdit(user);
+    await user.clear(name);
+    await user.type(name, "Monitor actualizado");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() => expect(authRevalidationRequests).toBe(1));
+    expect(await screen.findByRole("heading", { name: "Comprobando tu sesión" })).toBeVisible();
+    expect(screen.queryByText("Producto actualizado correctamente.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reintentar consulta" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(inventoryRequests).toBe(2);
+    expect(patchRequests).toBe(1);
+    expect(router.state.location.pathname + router.state.location.search).toBe(inventorySourceUrl);
+    expect(router.state.location.state).toEqual(
+      inventoryProductEditConfirmation("product-edit-session", inventorySourceUrl),
+    );
+
+    await act(async () => {
+      sessionRefresh.resolve(HttpResponse.json(publicAuthResponse()));
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo cargar el inventario.");
+    expect(screen.getByText("Producto actualizado correctamente.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Reintentar consulta" })).not.toBeInTheDocument();
+    expect(inventoryRequests).toBe(2);
+    expect(patchRequests).toBe(1);
+  });
+
   it("uses default list criteria after an edit opened without a source URL", async () => {
     const user = userEvent.setup();
     const listRequests: URL[] = [];
